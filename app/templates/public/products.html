@@ -1,0 +1,70 @@
+{% extends "public/base.html" %}
+{% block title %}제품 카탈로그 | BLEND PUNCH{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900 mb-1">제품 카탈로그</h1>
+  <p class="text-sm text-gray-500">공동구매 협업 가능한 셀러 제품 목록입니다</p>
+</div>
+
+<!-- Search -->
+<form method="get" class="mb-5 flex gap-2">
+  <input type="text" name="q" value="{{ q }}" placeholder="제품명 또는 브랜드 검색..."
+    class="flex-1 max-w-sm px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+  <button type="submit" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors">검색</button>
+  {% if q %}<a href="/public/products{% if category_filter %}?category={{ category_filter }}{% endif %}" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">초기화</a>{% endif %}
+</form>
+
+<!-- Category filter pills -->
+<div class="mb-6 flex flex-wrap gap-2">
+  <a href="/public/products{% if q %}?q={{ q }}{% endif %}"
+    class="text-sm px-3 py-1.5 rounded-full border font-medium transition-colors {% if not category_filter %}bg-gray-900 text-white border-gray-900{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-400{% endif %}">전체</a>
+  {% for cat in filter_categories %}
+  <a href="/public/products?{% if q %}q={{ q }}&{% endif %}category={{ cat }}"
+    class="text-sm px-3 py-1.5 rounded-full border font-medium transition-colors {% if category_filter == cat %}bg-purple-600 text-white border-purple-600{% else %}bg-white text-gray-600 border-gray-200 hover:border-purple-400 hover:text-purple-600{% endif %}">{{ cat }}</a>
+  {% endfor %}
+</div>
+
+{% if products %}
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+  {% for p in products %}
+  <a href="/public/products/{{ p.id }}"
+    class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all hover:-translate-y-0.5 group">
+    <!-- Image -->
+    <div class="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+      {% if p.product_image %}
+      <img src="{{ p.product_image }}" alt="{{ p.name }}" class="w-full h-full object-cover">
+      {% else %}
+      <svg class="w-10 h-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+      </svg>
+      {% endif %}
+    </div>
+    <!-- Info -->
+    <div class="p-3.5">
+      <div class="text-xs text-gray-400 mb-0.5">{{ p.brand }}</div>
+      <div class="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 mb-2">{{ p.name }}</div>
+      {% if p.unique_selling_point %}
+      <div class="text-xs text-gray-500 line-clamp-2 mb-2">{{ p.unique_selling_point }}</div>
+      {% endif %}
+      {% if p.categories %}
+      <div class="flex flex-wrap gap-1">
+        {% for cat in p.categories[:3] %}
+        <span class="text-xs px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded-full">{{ cat }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+<div class="mt-4 text-xs text-gray-400 text-right">총 {{ products | length }}개</div>
+
+{% else %}
+<div class="bg-white rounded-xl border border-gray-100 p-16 text-center">
+  <div class="text-gray-400 text-sm">
+    {% if q or category_filter %}검색 결과가 없습니다{% else %}등록된 제품이 없습니다{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

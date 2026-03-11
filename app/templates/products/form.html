@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}{% if product %}제품 편집{% else %}제품 등록{% endif %} | BLEND PUNCH OS{% endblock %}
+{% block page_title %}{% if product %}제품 편집{% else %}제품 등록{% endif %}{% endblock %}
+{% block header_actions %}
+<a href="/products{% if product %}/{{ product.id }}{% endif %}" class="text-sm text-gray-500 hover:text-gray-700">← 돌아가기</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl" x-data="productForm({{ (product.categories or []) | tojson if product else '[]' }})">
+
+  <!-- AI URL fill -->
+  {% if not product %}
+  <div class="mb-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4">
+    <div class="text-sm font-semibold text-blue-800 mb-1">AI 자동 채우기</div>
+    <div class="text-xs text-blue-600 mb-3">제품 URL을 입력하면 AI가 제품 정보를 자동으로 추출합니다</div>
+    <div class="flex gap-2">
+      <input type="url" id="ai-url-input" placeholder="제품 URL 입력 (쿠팡, 스마트스토어, 공식몰 등)"
+        class="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+      <button
+        hx-post="/api/ai/product-fill"
+        hx-vals='js:{"source_url": document.getElementById("ai-url-input").value}'
+        hx-target="#ai-result"
+        hx-swap="innerHTML"
+        hx-indicator="#ai-spinner"
+        class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 flex-shrink-0">
+        <span id="ai-spinner" class="htmx-indicator">
+          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        </span>
+        AI 분석
+      </button>
+    </div>
+    <div id="ai-result" class="mt-2"></div>
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data"
+    action="/products/{% if product %}{{ product.id }}/edit{% else %}new{% endif %}"
+    class="space-y-4">
+
+    <!-- ── Section: 기본 정보 ── -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">기본 정보</h3>
+      <div class="grid grid-cols-2 gap-4">
+
+        <!-- Image upload -->
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">제품 이미지</label>
+          <div class="flex items-center gap-4">
+            {% if product and product.product_image %}
+            <img src="{{ product.product_image }}" class="w-20 h-20 rounded-lg object-cover border border-gray-200">
+            {% else %}
+            <div class="w-20 h-20 rounded-lg bg-gray-100 border border-gray-200 border-dashed flex items-center justify-center">
+              <svg class="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            </div>
+            {% endif %}
+            <div>
+              <input type="file" name="product_image" accept="image/*" class="block text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
+              <p class="text-xs text-gray-400 mt-1">JPG, PNG, WebP (최대 5MB)</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">제품명 <span class="text-red-500">*</span></label>
+          <input type="text" name="name" required id="field-name" value="{{ product.name if product else '' }}"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">브랜드 <span class="text-red-500">*</span></label>
+          <input type="text" name="brand" required id="field-brand" value="{{ product.brand if product else '' }}"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">카테고리 <span class="text-red-500">*</span></label>
+          <select name="category" required id="field-category"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if product and product.category == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">대표 가격 (원)</label>
+          <input type="number" name="price" id="field-price" value="{{ product.price | int if product else 0 }}" min="0" step="100"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">상태</label>
+          <select name="status" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="draft" {% if not product or product.status == 'draft' %}selected{% endif %}>초안</option>
+            <option value="active" {% if product and product.status == 'active' %}selected{% endif %}>활성</option>
+            <option value="archived" {% if product and product.status == 'archived' %}selected{% endif %}>보관</option>
+          </select>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">제품 URL</label>
+          <input type="url" name="source_url" id="field-source-url" value="{{ product.source_url or '' if product else '' }}" placeholder="https://"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">제품 설명</label>
+          <textarea name="description" rows="2" id="field-description"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.description or '' if product else '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section: 세트 구성 ── -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6" x-data="{
+      sets: {{ (product.set_options or []) | tojson if product else '[]' }},
+      addSet() { this.sets.push({name:'', qty:1, price:0, notes:''}); },
+      removeSet(i) { this.sets.splice(i, 1); }
+    }">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">세트 구성 옵션</h3>
+        <button type="button" @click="addSet()" class="text-xs text-blue-600 hover:text-blue-700 font-medium">+ 세트 추가</button>
+      </div>
+      <div class="space-y-3">
+        <template x-for="(s, i) in sets" :key="i">
+          <div class="grid grid-cols-12 gap-2 items-start p-3 bg-gray-50 rounded-lg border border-gray-100">
+            <div class="col-span-3">
+              <label class="block text-xs text-gray-400 mb-1">세트명</label>
+              <input type="text" x-model="s.name" placeholder="예: 1+1 세트" class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs text-gray-400 mb-1">수량</label>
+              <input type="number" x-model.number="s.qty" min="1" class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="col-span-3">
+              <label class="block text-xs text-gray-400 mb-1">판매가 (원)</label>
+              <input type="number" x-model.number="s.price" min="0" step="100" class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="col-span-3">
+              <label class="block text-xs text-gray-400 mb-1">메모</label>
+              <input type="text" x-model="s.notes" placeholder="구성 특이사항" class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="col-span-1 pt-5">
+              <button type="button" @click="removeSet(i)" class="w-full text-gray-300 hover:text-red-500 transition-colors text-lg leading-none">✕</button>
+            </div>
+          </div>
+        </template>
+        <template x-if="sets.length === 0">
+          <div class="text-xs text-gray-400 py-2 text-center">세트 옵션 없음 (단품) · 위 버튼으로 추가</div>
+        </template>
+      </div>
+      <input type="hidden" name="set_options_json" :value="JSON.stringify(sets)">
+    </div>
+
+    <!-- ── Section: 마케팅 정보 ── -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">마케팅 / 판매 정보</h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">핵심 셀링 포인트 (USP)</label>
+          <input type="text" name="unique_selling_point" id="field-usp" value="{{ product.unique_selling_point or '' if product else '' }}"
+            placeholder="경쟁사 대비 핵심 차별점 한 문장"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">핵심 혜택 (줄바꿈 구분)</label>
+          <textarea name="key_benefits_raw" rows="3" id="field-key-benefits"
+            placeholder="줄마다 하나씩&#10;예: 비타민C 1000mg 고함량&#10;무설탕 / 글루텐프리"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ (product.key_benefits or []) | join('\n') if product else '' }}</textarea>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">포지셔닝 전략</label>
+          <input type="text" name="positioning" value="{{ product.positioning or '' if product else '' }}"
+            placeholder="예: 가성비 프리미엄 건기식, MZ 타겟 뷰티"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">사용 장면 / 콘텐츠 앵글</label>
+          <textarea name="content_angle" rows="2" id="field-content-angle"
+            placeholder="예: 아침 루틴, 홈트 후 회복, 피로감 많은 직장인"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.content_angle or '' if product else '' }}</textarea>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">사용 장면 메모</label>
+          <textarea name="usage_scenes" rows="2"
+            placeholder="예: 요리 전후, 데이트 준비, 반려동물 산책"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.usage_scenes or '' if product else '' }}</textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">타겟 고객</label>
+          <input type="text" name="target_audience" id="field-target-audience" value="{{ product.target_audience or '' if product else '' }}"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">예상 수요</label>
+          <select name="estimated_demand" id="field-estimated-demand"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="high" {% if product and product.estimated_demand == 'high' %}selected{% endif %}>높음</option>
+            <option value="medium" {% if not product or product.estimated_demand == 'medium' %}selected{% endif %}>보통</option>
+            <option value="low" {% if product and product.estimated_demand == 'low' %}selected{% endif %}>낮음</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">추천 커미션율 (소수점)</label>
+          <input type="number" name="recommended_commission_rate" step="0.01" min="0" max="1"
+            value="{{ (product.recommended_commission_rate) | round(2) if product else 0.15 }}"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">추천 인플루언서 카테고리</label>
+          <textarea name="recommended_inf_categories_raw" rows="2"
+            placeholder="줄마다 하나씩&#10;예: 건강관리&#10;요리"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ (product.recommended_inf_categories or []) | join('\n') if product else '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section: 소비자 카테고리 태그 ── -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">소비자 카테고리 태그</h3>
+      <p class="text-xs text-gray-400 mb-3">공개 갤러리 필터에 사용됩니다 (복수 선택 가능)</p>
+      <input type="hidden" name="categories_json" :value="JSON.stringify(selectedCats)">
+      <div class="flex flex-wrap gap-2">
+        {% for cat in ["식품","주방","리빙","뷰티","건강","다이어트","육아","반려동물"] %}
+        <button type="button" @click="toggleCat('{{ cat }}')"
+          :class="hasCat('{{ cat }}') ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-200 hover:border-purple-400 hover:text-purple-600'"
+          class="text-sm px-3 py-1.5 rounded-full border font-medium transition-colors">{{ cat }}</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- ── Section: 공개 가이드 ── -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">공개 가이드</h3>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">공동구매 가이드라인</label>
+        <textarea name="group_buy_guideline" rows="4"
+          placeholder="인플루언서가 공동구매를 진행할 때 참고할 안내 사항을 입력하세요"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.group_buy_guideline or '' if product else '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between">
+      <a href="/products{% if product %}/{{ product.id }}{% endif %}" class="text-sm text-gray-500 hover:text-gray-700">취소</a>
+      <button type="submit" class="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        {% if product %}수정 저장{% else %}등록{% endif %}
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function productForm(initCats) {
+  return {
+    selectedCats: initCats || [],
+    toggleCat(cat) {
+      const i = this.selectedCats.indexOf(cat);
+      if (i >= 0) this.selectedCats.splice(i, 1);
+      else this.selectedCats.push(cat);
+    },
+    hasCat(cat) { return this.selectedCats.includes(cat); },
+  };
+}
+function applyAiFill(data) {
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== null) el.value = val; };
+  set('field-name', data.name);
+  set('field-brand', data.brand);
+  set('field-price', data.price);
+  set('field-description', data.description);
+  set('field-usp', data.unique_selling_point);
+  set('field-target-audience', data.target_audience);
+  set('field-content-angle', data.content_angle);
+  set('field-source-url', document.getElementById('ai-url-input')?.value);
+  if (data.key_benefits) set('field-key-benefits', Array.isArray(data.key_benefits) ? data.key_benefits.join('\n') : data.key_benefits);
+  if (data.estimated_demand) set('field-estimated-demand', data.estimated_demand);
+  if (data.category) {
+    const sel = document.querySelector('select[name="category"]');
+    if (sel) for (let o of sel.options) { if (o.value === data.category) { o.selected = true; break; } }
+  }
+}
+</script>
+{% endblock %}

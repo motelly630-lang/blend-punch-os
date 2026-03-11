@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}{{ campaign.name }} | BLEND PUNCH OS{% endblock %}
+{% block page_title %}{{ campaign.name }}{% endblock %}
+{% block header_actions %}
+<a href="/campaigns/{{ campaign.id }}/edit" class="text-sm font-medium px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">편집</a>
+<form method="post" action="/campaigns/{{ campaign.id }}/delete" class="inline" onsubmit="return confirm('삭제하시겠습니까?')">
+  <button type="submit" class="text-sm text-red-500 hover:text-red-700 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors">삭제</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl space-y-5">
+  <!-- Status banner -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <div class="flex items-center justify-between mb-4">
+      <span class="text-xs px-3 py-1 rounded-full font-medium
+        {% if campaign.status == 'active' %}bg-green-100 text-green-700
+        {% elif campaign.status == 'planning' %}bg-blue-100 text-blue-700
+        {% elif campaign.status == 'negotiating' %}bg-yellow-100 text-yellow-700
+        {% elif campaign.status == 'contracted' %}bg-indigo-100 text-indigo-700
+        {% elif campaign.status == 'completed' %}bg-gray-100 text-gray-600
+        {% else %}bg-red-100 text-red-600{% endif %}">
+        {{ campaign.status | status_label }}
+      </span>
+      {% if campaign.start_date or campaign.end_date %}
+      <span class="text-xs text-gray-400">
+        {% if campaign.start_date %}{{ campaign.start_date | date }}{% endif %}
+        {% if campaign.start_date and campaign.end_date %} ~ {% endif %}
+        {% if campaign.end_date %}{{ campaign.end_date | date }}{% endif %}
+      </span>
+      {% endif %}
+    </div>
+
+    <!-- Performance -->
+    {% if campaign.expected_sales or campaign.actual_sales or campaign.actual_revenue %}
+    <div class="grid grid-cols-3 gap-3 mt-4">
+      <div class="text-center p-3 bg-gray-50 rounded-lg">
+        <div class="text-lg font-bold text-gray-900">{{ campaign.expected_sales | num }}</div>
+        <div class="text-xs text-gray-400 mt-0.5">예상 판매</div>
+      </div>
+      <div class="text-center p-3 bg-gray-50 rounded-lg">
+        <div class="text-lg font-bold text-gray-900">{{ campaign.actual_sales | num }}</div>
+        <div class="text-xs text-gray-400 mt-0.5">실제 판매</div>
+      </div>
+      <div class="text-center p-3 bg-gray-50 rounded-lg">
+        <div class="text-lg font-bold text-gray-900">{{ campaign.actual_revenue | won }}</div>
+        <div class="text-xs text-gray-400 mt-0.5">실제 매출</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if campaign.commission_rate %}
+    <div class="mt-3 text-sm text-gray-500">커미션율: <span class="font-medium text-gray-800">{{ campaign.commission_rate | pct }}</span></div>
+    {% endif %}
+  </div>
+
+  <!-- Linked -->
+  <div class="grid grid-cols-2 gap-4">
+    {% if campaign.product %}
+    <a href="/products/{{ campaign.product.id }}" class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow">
+      <div class="text-xs text-gray-400 mb-1">연결된 제품</div>
+      <div class="font-medium text-gray-900 text-sm">{{ campaign.product.name }}</div>
+      <div class="text-xs text-gray-400 mt-0.5">{{ campaign.product.brand }}</div>
+    </a>
+    {% endif %}
+    {% if campaign.influencer %}
+    <a href="/influencers/{{ campaign.influencer.id }}" class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow">
+      <div class="text-xs text-gray-400 mb-1">연결된 인플루언서</div>
+      <div class="font-medium text-gray-900 text-sm">{{ campaign.influencer.name }}</div>
+      <div class="text-xs text-gray-400 mt-0.5">{{ campaign.influencer.platform | platform_label }}</div>
+    </a>
+    {% endif %}
+  </div>
+
+  {% if campaign.notes %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <div class="text-xs text-gray-400 mb-2">메모</div>
+    <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ campaign.notes }}</p>
+  </div>
+  {% endif %}
+
+  <div class="text-xs text-gray-400">등록 {{ campaign.created_at | dt }}</div>
+
+  <!-- Quick action -->
+  <a href="/proposals/new?campaign_id={{ campaign.id }}"
+    class="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-700 text-sm font-medium rounded-lg border border-amber-100 hover:bg-amber-100 transition-colors">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+    </svg>
+    이 캠페인으로 제안서 작성
+  </a>
+</div>
+{% endblock %}

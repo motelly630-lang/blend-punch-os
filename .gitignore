@@ -1,0 +1,25 @@
+# Environment & secrets
+.env
+*.env
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.uv/
+dist/
+*.egg-info/
+
+# Uploads (user content, not source)
+static/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
