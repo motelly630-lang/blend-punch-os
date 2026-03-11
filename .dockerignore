@@ -1,0 +1,9 @@
+.env
+*.db
+backups/
+.venv/
+__pycache__/
+*.pyc
+static/uploads/
+.DS_Store
+.git/
