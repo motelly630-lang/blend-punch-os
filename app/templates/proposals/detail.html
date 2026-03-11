@@ -18,7 +18,16 @@
       <div class="min-w-0">
         <div class="flex items-center gap-2 mb-2 flex-wrap">
           <span class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-            {% if proposal.proposal_type == 'email' %}이메일{% else %}카카오톡{% endif %}
+            {% if proposal.proposal_type == 'email' %}이메일
+            {% elif proposal.proposal_type == 'kakao' %}카카오톡
+            {% elif proposal.proposal_type == 'vendor' %}벤더 제안
+            {% elif proposal.proposal_type == 'seller_outreach' %}셀러 모집
+            {% elif proposal.proposal_type == 'inf_summary' %}인플루언서 요약
+            {% elif proposal.proposal_type == 'memo' %}내부 메모
+            {% elif proposal.proposal_type == 'dm_first' %}DM 첫연락
+            {% elif proposal.proposal_type == 'dm_followup' %}DM 팔로업
+            {% elif proposal.proposal_type == 'dm_confirm' %}DM 확정
+            {% else %}{{ proposal.proposal_type }}{% endif %}
           </span>
           {% if proposal.ai_generated %}
           <span class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">AI 생성</span>

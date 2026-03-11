@@ -38,7 +38,16 @@
           {% endif %}
         </td>
         <td class="px-5 py-3.5 text-gray-600">
-          {% if pr.proposal_type == 'email' %}이메일{% else %}카카오톡{% endif %}
+          {% if pr.proposal_type == 'email' %}이메일
+          {% elif pr.proposal_type == 'kakao' %}카카오톡
+          {% elif pr.proposal_type == 'vendor' %}벤더 제안
+          {% elif pr.proposal_type == 'seller_outreach' %}셀러 모집
+          {% elif pr.proposal_type == 'inf_summary' %}인플루언서 요약
+          {% elif pr.proposal_type == 'memo' %}내부 메모
+          {% elif pr.proposal_type == 'dm_first' %}DM 첫연락
+          {% elif pr.proposal_type == 'dm_followup' %}DM 팔로업
+          {% elif pr.proposal_type == 'dm_confirm' %}DM 확정
+          {% else %}{{ pr.proposal_type }}{% endif %}
         </td>
         <td class="px-5 py-3.5 text-gray-600">
           {% if pr.product %}{{ pr.product.name }}{% else %}<span class="text-gray-300">-</span>{% endif %}

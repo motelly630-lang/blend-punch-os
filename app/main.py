@@ -1,21 +1,36 @@
+import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from app.database import init_db
+from app.backup import run_backup
 from app.routers import dashboard, products, influencers, proposals
 from app.routers import auth as auth_router
 from app.routers import campaigns, trends, settlements
 from app.routers import public as public_router
-from app.api import ai_product, ai_proposal
+from app.routers import automation as automation_router
+from app.routers import catalog as catalog_router
+from app.api import ai_product, ai_proposal, ai_playbook, ai_dm, ai_seller_content, ai_product_image
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions
+
+
+async def _backup_loop():
+    while True:
+        now = datetime.now()
+        next_run = (now + timedelta(days=1)).replace(hour=2, minute=0, second=0, microsecond=0)
+        await asyncio.sleep((next_run - now).total_seconds())
+        run_backup()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    task = asyncio.create_task(_backup_loop())
     yield
+    task.cancel()
 
 
 app = FastAPI(title="BLEND PUNCH OS", lifespan=lifespan)
@@ -45,6 +60,12 @@ app.include_router(settlements.router)
 app.include_router(ai_product.router)
 app.include_router(ai_proposal.router)
 app.include_router(public_router.router)
+app.include_router(automation_router.router)
+app.include_router(ai_playbook.router)
+app.include_router(ai_dm.router)
+app.include_router(ai_seller_content.router)
+app.include_router(ai_product_image.router)
+app.include_router(catalog_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────
@@ -113,8 +134,10 @@ def _setup_filters():
     import app.routers.settlements as se
     import app.routers.auth as a
     import app.routers.public as pub
+    import app.routers.automation as auto
+    import app.routers.catalog as cat
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub]:
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num

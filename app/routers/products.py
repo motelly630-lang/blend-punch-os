@@ -17,11 +17,12 @@ templates = Jinja2Templates(directory="app/templates")
 
 CATEGORIES = [
     "건강기능식품", "스킨케어", "뷰티/메이크업", "헤어케어", "바디케어",
-    "다이어트/슬리밍", "식품/음료", "생활용품", "패션/의류", "패션잡화",
-    "홈/인테리어", "유아/육아", "반려동물", "스포츠/레저", "전자기기", "기타",
+    "다이어트/슬리밍", "식품/음료", "생활용품", "주방용품", "가전제품",
+    "패션/의류", "패션잡화", "홈/인테리어", "유아/육아", "반려동물",
+    "스포츠/레저", "전자기기", "기타",
 ]
 
-FILTER_CATEGORIES = ["식품", "주방", "리빙", "뷰티", "건강", "다이어트", "육아", "반려동물"]
+CARRIERS = ["CJ대한통운", "한진택배", "로젠택배", "우체국택배", "롯데택배", "기타"]
 
 UPLOAD_DIR = Path("static/uploads/products")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -59,14 +60,14 @@ def product_list(request: Request, db: Session = Depends(get_db), q: str = "",
         query = query.filter(
             Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%")
         )
-    products = query.order_by(Product.created_at.desc()).all()
     if category:
-        products = [p for p in products if category in (p.categories or [])]
+        query = query.filter(Product.category == category)
+    products = query.order_by(Product.created_at.desc()).all()
     return templates.TemplateResponse(
         "products/list.html",
         {"request": request, "active_page": "products", "current_user": current_user,
          "products": products, "q": q, "view": view,
-         "filter_categories": FILTER_CATEGORIES, "category_filter": category},
+         "filter_categories": CATEGORIES, "category_filter": category},
     )
 
 
@@ -75,7 +76,7 @@ def product_new(request: Request, current_user: User = Depends(get_current_user)
     return templates.TemplateResponse(
         "products/form.html",
         {"request": request, "active_page": "products", "current_user": current_user,
-         "product": None, "categories": CATEGORIES},
+         "product": None, "categories": CATEGORIES, "carriers": CARRIERS},
     )
 
 
@@ -90,23 +91,27 @@ def product_create(
     price: float = Form(0),
     source_url: str = Form(""),
     description: str = Form(""),
-    target_audience: str = Form(""),
+    internal_notes: str = Form(""),
     key_benefits_raw: str = Form(""),
     unique_selling_point: str = Form(""),
-    estimated_demand: str = Form("medium"),
-    recommended_commission_rate: float = Form(0.15),
+    recommended_commission_rate: float = Form(15),
     content_angle: str = Form(""),
     positioning: str = Form(""),
-    usage_scenes: str = Form(""),
-    recommended_inf_categories_raw: str = Form(""),
     set_options_json: str = Form("[]"),
     categories_json: str = Form("[]"),
     group_buy_guideline: str = Form(""),
     status: str = Form("draft"),
+    visibility_status: str = Form("active"),
     product_image: UploadFile = File(None),
+    shipping_type: str = Form(""),
+    shipping_cost: str = Form(""),
+    carrier: str = Form(""),
+    ship_origin: str = Form(""),
+    dispatch_days: str = Form(""),
+    sample_type: str = Form(""),
+    sample_price: str = Form(""),
 ):
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
-    rec_cats = [c.strip() for c in recommended_inf_categories_raw.splitlines() if c.strip()]
     image_path = _save_image(product_image)
     set_opts = _parse_set_options(set_options_json)
     try:
@@ -114,24 +119,30 @@ def product_create(
         cats = [c for c in cats if isinstance(c, str) and c.strip()] or None
     except Exception:
         cats = None
+    commission = recommended_commission_rate / 100.0  # form sends %, DB stores 0-1
 
     product = Product(
         name=name, brand=brand, category=category, price=price,
         source_url=source_url or None, description=description or None,
-        target_audience=target_audience or None,
+        internal_notes=internal_notes or None,
         key_benefits=key_benefits or None,
         unique_selling_point=unique_selling_point or None,
-        estimated_demand=estimated_demand,
-        recommended_commission_rate=recommended_commission_rate,
+        recommended_commission_rate=commission,
+        visibility_status=visibility_status,
         content_angle=content_angle or None,
         positioning=positioning or None,
-        usage_scenes=usage_scenes or None,
-        recommended_inf_categories=rec_cats or None,
         set_options=set_opts,
         categories=cats,
         group_buy_guideline=group_buy_guideline or None,
         product_image=image_path,
         status=status,
+        shipping_type=shipping_type or None,
+        shipping_cost=float(shipping_cost) if shipping_cost else None,
+        carrier=carrier or None,
+        ship_origin=ship_origin or None,
+        dispatch_days=dispatch_days or None,
+        sample_type=sample_type or None,
+        sample_price=float(sample_price) if sample_price else None,
     )
     db.add(product)
     db.commit()
@@ -160,7 +171,7 @@ def product_edit(product_id: str, request: Request, db: Session = Depends(get_db
     return templates.TemplateResponse(
         "products/form.html",
         {"request": request, "active_page": "products", "current_user": current_user,
-         "product": product, "categories": CATEGORIES},
+         "product": product, "categories": CATEGORIES, "carriers": CARRIERS},
     )
 
 
@@ -176,27 +187,31 @@ def product_update(
     price: float = Form(0),
     source_url: str = Form(""),
     description: str = Form(""),
-    target_audience: str = Form(""),
+    internal_notes: str = Form(""),
     key_benefits_raw: str = Form(""),
     unique_selling_point: str = Form(""),
-    estimated_demand: str = Form("medium"),
-    recommended_commission_rate: float = Form(0.15),
+    recommended_commission_rate: float = Form(15),
     content_angle: str = Form(""),
     positioning: str = Form(""),
-    usage_scenes: str = Form(""),
-    recommended_inf_categories_raw: str = Form(""),
     set_options_json: str = Form("[]"),
     categories_json: str = Form("[]"),
     group_buy_guideline: str = Form(""),
     status: str = Form("draft"),
+    visibility_status: str = Form("active"),
     product_image: UploadFile = File(None),
+    shipping_type: str = Form(""),
+    shipping_cost: str = Form(""),
+    carrier: str = Form(""),
+    ship_origin: str = Form(""),
+    dispatch_days: str = Form(""),
+    sample_type: str = Form(""),
+    sample_price: str = Form(""),
 ):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         return RedirectResponse("/products", status_code=302)
 
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
-    rec_cats = [c.strip() for c in recommended_inf_categories_raw.splitlines() if c.strip()]
     new_image = _save_image(product_image)
     set_opts = _parse_set_options(set_options_json)
     try:
@@ -204,6 +219,7 @@ def product_update(
         cats = [c for c in cats if isinstance(c, str) and c.strip()] or None
     except Exception:
         cats = None
+    commission = recommended_commission_rate / 100.0  # form sends %, DB stores 0-1
 
     product.name = name
     product.brand = brand
@@ -211,19 +227,24 @@ def product_update(
     product.price = price
     product.source_url = source_url or None
     product.description = description or None
-    product.target_audience = target_audience or None
+    product.internal_notes = internal_notes or None
     product.key_benefits = key_benefits or None
     product.unique_selling_point = unique_selling_point or None
-    product.estimated_demand = estimated_demand
-    product.recommended_commission_rate = recommended_commission_rate
+    product.recommended_commission_rate = commission
     product.content_angle = content_angle or None
     product.positioning = positioning or None
-    product.usage_scenes = usage_scenes or None
-    product.recommended_inf_categories = rec_cats or None
     product.set_options = set_opts
     product.categories = cats
     product.group_buy_guideline = group_buy_guideline or None
     product.status = status
+    product.visibility_status = visibility_status
+    product.shipping_type = shipping_type or None
+    product.shipping_cost = float(shipping_cost) if shipping_cost else None
+    product.carrier = carrier or None
+    product.ship_origin = ship_origin or None
+    product.dispatch_days = dispatch_days or None
+    product.sample_type = sample_type or None
+    product.sample_price = float(sample_price) if sample_price else None
     if new_image:
         product.product_image = new_image
 

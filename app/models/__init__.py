@@ -5,5 +5,6 @@ from app.models.campaign import Campaign
 from app.models.proposal import Proposal
 from app.models.settlement import Settlement
 from app.models.trend import TrendItem
+from app.models.playbook import Playbook
 
-__all__ = ["User", "Product", "Influencer", "Campaign", "Proposal", "Settlement", "TrendItem"]
+__all__ = ["User", "Product", "Influencer", "Campaign", "Proposal", "Settlement", "TrendItem", "Playbook"]

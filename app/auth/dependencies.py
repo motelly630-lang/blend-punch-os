@@ -39,3 +39,15 @@ def require_manager(user: User = Depends(get_current_user)) -> User:
     if user.role not in ("admin", "manager"):
         raise InsufficientPermissions()
     return user
+
+
+def require_staff(user: User = Depends(get_current_user)) -> User:
+    """Admin or Staff (or legacy manager)."""
+    if user.role not in ("admin", "staff", "manager"):
+        raise InsufficientPermissions()
+    return user
+
+
+def require_partner(user: User = Depends(get_current_user)) -> User:
+    """Any authenticated user — all roles allowed."""
+    return user  # get_current_user already validates login

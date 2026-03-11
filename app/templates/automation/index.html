@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+{% block title %}자동화 센터 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}자동화 센터{% endblock %}
+
+{% block content %}
+<div x-data="automationConsole()" class="space-y-6">
+
+  <!-- ── Zone 1: 제품 컨텍스트 ── -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-4">제품 컨텍스트</h2>
+
+    <!-- Tab buttons -->
+    <div class="flex gap-2 mb-5">
+      <button type="button" @click="inputMode='existing'"
+        :class="inputMode==='existing' ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'"
+        class="px-4 py-2 text-sm font-medium rounded-lg transition-colors">기존 제품 선택</button>
+      <button type="button" @click="inputMode='url'"
+        :class="inputMode==='url' ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'"
+        class="px-4 py-2 text-sm font-medium rounded-lg transition-colors">URL 분석</button>
+      <button type="button" @click="inputMode='image'"
+        :class="inputMode==='image' ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'"
+        class="px-4 py-2 text-sm font-medium rounded-lg transition-colors">이미지 분석</button>
+    </div>
+
+    <!-- Existing product picker -->
+    <div x-show="inputMode==='existing'" x-cloak>
+      <select @change="selectProduct($event.target.value)"
+        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+        <option value="">제품을 선택하세요</option>
+        {% for p in products %}
+        <option value="{{ p.id }}"
+          data-name="{{ p.name | e }}"
+          data-brand="{{ p.brand | e }}"
+          data-category="{{ p.category | e }}"
+          data-price="{{ p.price or 0 }}"
+          data-usp="{{ p.unique_selling_point | e }}"
+          data-angle="{{ p.content_angle | e }}"
+          data-is-active="{{ 'true' if p.status == 'active' else 'false' }}">
+          {{ p.name }} — {{ p.brand }}{% if p.status == 'active' %} ✓{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- URL analysis -->
+    <div x-show="inputMode==='url'" x-cloak>
+      <div class="flex gap-2">
+        <input type="text" id="url-input" placeholder="제품 URL 입력 (예: smartstore.naver.com/...)"
+          class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <button type="button"
+          hx-post="/api/ai/product-fill"
+          hx-target="#url-fill-result"
+          hx-swap="innerHTML"
+          hx-include="#url-input"
+          hx-vals='js:{"url": document.getElementById("url-input").value}'
+          class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 flex items-center gap-2">
+          <span class="htmx-indicator">
+            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+          </span>
+          분석
+        </button>
+      </div>
+      <div id="url-fill-result" class="mt-3"></div>
+    </div>
+
+    <!-- Image analysis -->
+    <div x-show="inputMode==='image'" x-cloak>
+      <form id="image-form"
+        hx-post="/api/ai/product-image-fill"
+        hx-target="#image-fill-result"
+        hx-swap="innerHTML"
+        hx-encoding="multipart/form-data">
+        <div class="flex gap-2">
+          <input type="file" name="image" accept="image/*"
+            class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white file:mr-3 file:py-1 file:px-3 file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 file:rounded">
+          <button type="submit"
+            class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 flex items-center gap-2">
+            <span class="htmx-indicator">
+              <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+            </span>
+            분석
+          </button>
+        </div>
+      </form>
+      <div id="image-fill-result" class="mt-3"></div>
+      <p class="mt-2 text-xs text-gray-400">제품 이미지 또는 스크린샷을 업로드하면 AI가 정보를 추출합니다.</p>
+    </div>
+
+    <!-- Manual input -->
+    <div class="mt-5 grid grid-cols-2 gap-3" x-show="inputMode !== 'existing' || true">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">제품명 <span class="text-red-400">*</span></label>
+        <input type="text" x-model="product.name" placeholder="제품명"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">브랜드</label>
+        <input type="text" x-model="product.brand" placeholder="브랜드명"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">카테고리</label>
+        <input type="text" x-model="product.category" placeholder="카테고리"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">가격 (원)</label>
+        <input type="number" x-model="product.price" placeholder="0"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div class="col-span-2">
+        <label class="block text-xs font-medium text-gray-500 mb-1">USP (핵심 셀링포인트)</label>
+        <input type="text" x-model="product.usp" placeholder="제품의 핵심 특징과 차별점"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden context inputs (Alpine→htmx bridge) -->
+  <input id="ctx-product-id"            type="hidden" :value="product.id">
+  <input id="ctx-product-name"          type="hidden" :value="product.name">
+  <input id="ctx-product-brand"         type="hidden" :value="product.brand">
+  <input id="ctx-product-category"      type="hidden" :value="product.category">
+  <input id="ctx-product-price"         type="hidden" :value="product.price">
+  <input id="ctx-product-usp"           type="hidden" :value="product.usp">
+  <input id="ctx-content-angle"         type="hidden" :value="product.angle">
+  <input id="ctx-key-benefits"          type="hidden" :value="product.key_benefits">
+  <input id="ctx-public-url"            type="hidden" :value="product.public_url">
+  <input id="ctx-influencer-name"       type="hidden" :value="influencer.name">
+  <input id="ctx-influencer-platform"   type="hidden" :value="influencer.platform">
+  <input id="ctx-influencer-followers"  type="hidden" :value="influencer.followers">
+  <input id="ctx-influencer-categories" type="hidden" :value="influencer.categories">
+
+  <!-- ── Zone 2: 제품 미리보기 카드 ── -->
+  <div x-show="product.name" x-cloak class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+    <div class="flex items-start justify-between gap-4">
+      <div class="space-y-1">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full" x-text="product.category || '카테고리 미설정'"></span>
+          <span x-show="product.is_active" class="text-xs text-green-600 font-medium">● 활성</span>
+        </div>
+        <div class="font-semibold text-gray-800" x-text="product.brand ? product.brand + ' · ' + product.name : product.name"></div>
+        <div class="text-sm text-gray-600" x-text="product.usp || 'USP 미입력'"></div>
+      </div>
+      <a x-show="product.public_url" :href="product.public_url" target="_blank"
+        class="text-xs text-blue-600 hover:underline whitespace-nowrap">공개 페이지 보기 ↗</a>
+    </div>
+  </div>
+
+  <!-- ── Zone 3: 인플루언서 컨텍스트 (선택) ── -->
+  <div x-show="product.name" x-cloak class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-gray-700 mb-3">인플루언서 컨텍스트 <span class="text-xs font-normal text-gray-400">(선택)</span></h3>
+    <div class="grid grid-cols-3 gap-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">이름</label>
+        <input type="text" x-model="influencer.name" placeholder="인플루언서 이름"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">플랫폼</label>
+        <select x-model="influencer.platform"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="">선택</option>
+          <option value="instagram">인스타그램</option>
+          <option value="youtube">유튜브</option>
+          <option value="tiktok">틱톡</option>
+          <option value="blog">블로그</option>
+          <option value="naver">네이버</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">팔로워</label>
+        <input type="number" x-model="influencer.followers" placeholder="0"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Zone 4: 생성 액션 그리드 ── -->
+  <div x-show="product.name" x-cloak class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-gray-700 mb-3">콘텐츠 생성</h3>
+
+    <!-- 추가 지시사항 -->
+    <div class="mb-4">
+      <input type="text" x-model="customInstructions" placeholder="추가 지시사항 (선택, 예: 유머 톤으로, 짧게)"
+        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <input id="ctx-custom-instructions" type="hidden" :value="customInstructions">
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+      <!-- 플레이북 -->
+      <button type="button"
+        hx-post="/api/ai/playbook"
+        hx-target="#output-panel"
+        hx-swap="outerHTML"
+        hx-include="#ctx-product-id,#ctx-product-name,#ctx-product-brand,#ctx-product-category,#ctx-product-price,#ctx-product-usp,#ctx-content-angle,#ctx-key-benefits,#ctx-public-url"
+        hx-vals='{"save": "false"}'
+        class="flex flex-col items-center gap-2 p-4 border-2 border-purple-200 bg-purple-50 hover:bg-purple-100 rounded-xl transition-colors group">
+        <span class="htmx-indicator">
+          <svg class="w-5 h-5 animate-spin text-purple-500" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+        <svg class="w-5 h-5 text-purple-600 group-[.htmx-request]:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+        </svg>
+        <span class="text-xs font-medium text-purple-700">플레이북</span>
+      </button>
+
+      <!-- 셀러 모집 공지 -->
+      <button type="button"
+        hx-post="/api/ai/seller-content"
+        hx-target="#output-panel"
+        hx-swap="outerHTML"
+        hx-include="#ctx-product-id,#ctx-product-name,#ctx-product-brand,#ctx-product-category,#ctx-product-price,#ctx-product-usp,#ctx-content-angle,#ctx-key-benefits,#ctx-public-url,#ctx-influencer-name,#ctx-influencer-platform,#ctx-influencer-followers,#ctx-influencer-categories,#ctx-custom-instructions"
+        hx-vals='{"content_type": "seller_outreach", "save": "false"}'
+        class="flex flex-col items-center gap-2 p-4 border-2 border-orange-200 bg-orange-50 hover:bg-orange-100 rounded-xl transition-colors group">
+        <span class="htmx-indicator">
+          <svg class="w-5 h-5 animate-spin text-orange-500" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+        <svg class="w-5 h-5 text-orange-600 group-[.htmx-request]:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+        </svg>
+        <span class="text-xs font-medium text-orange-700">셀러 모집 공지</span>
+      </button>
+
+      <!-- 인플루언서 요약 -->
+      <button type="button"
+        hx-post="/api/ai/seller-content"
+        hx-target="#output-panel"
+        hx-swap="outerHTML"
+        hx-include="#ctx-product-id,#ctx-product-name,#ctx-product-brand,#ctx-product-category,#ctx-product-price,#ctx-product-usp,#ctx-content-angle,#ctx-key-benefits,#ctx-public-url,#ctx-influencer-name,#ctx-influencer-platform,#ctx-influencer-followers,#ctx-influencer-categories,#ctx-custom-instructions"
+        hx-vals='{"content_type": "inf_summary", "save": "false"}'
+        class="flex flex-col items-center gap-2 p-4 border-2 border-teal-200 bg-teal-50 hover:bg-teal-100 rounded-xl transition-colors group">
+        <span class="htmx-indicator">
+          <svg class="w-5 h-5 animate-spin text-teal-500" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+        <svg class="w-5 h-5 text-teal-600 group-[.htmx-request]:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        <span class="text-xs font-medium text-teal-700">인플루언서 요약</span>
+      </button>
+
+      <!-- 내부 메모 -->
+      <button type="button"
+        hx-post="/api/ai/seller-content"
+        hx-target="#output-panel"
+        hx-swap="outerHTML"
+        hx-include="#ctx-product-id,#ctx-product-name,#ctx-product-brand,#ctx-product-category,#ctx-product-price,#ctx-product-usp,#ctx-content-angle,#ctx-key-benefits,#ctx-public-url,#ctx-influencer-name,#ctx-influencer-platform,#ctx-influencer-followers,#ctx-influencer-categories,#ctx-custom-instructions"
+        hx-vals='{"content_type": "memo", "save": "false"}'
+        class="flex flex-col items-center gap-2 p-4 border-2 border-gray-200 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors group">
+        <span class="htmx-indicator">
+          <svg class="w-5 h-5 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+        <svg class="w-5 h-5 text-gray-600 group-[.htmx-request]:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+        <span class="text-xs font-medium text-gray-700">내부 메모</span>
+      </button>
+
+      <!-- DM 첫 연락 -->
+      <button type="button"
+        hx-post="/api/ai/dm"
+        hx-target="#output-panel"
+        hx-swap="outerHTML"
+        hx-include="#ctx-product-id,#ctx-product-name,#ctx-product-brand,#ctx-product-category,#ctx-product-usp,#ctx-influencer-name,#ctx-influencer-platform,#ctx-custom-instructions"
+        hx-vals='{"dm_type": "dm_first", "save": "false"}'
+        class="flex flex-col items-center gap-2 p-4 border-2 border-green-200 bg-green-50 hover:bg-green-100 rounded-xl transition-colors group">
+        <span class="htmx-indicator">
+          <svg class="w-5 h-5 animate-spin text-green-500" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+        <svg class="w-5 h-5 text-green-600 group-[.htmx-request]:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+        </svg>
+        <span class="text-xs font-medium text-green-700">DM 첫 연락</span>
+      </button>
+
+      <!-- DM 팔로업 -->
+      <button type="button"
+        hx-post="/api/ai/dm"
+        hx-target="#output-panel"
+        hx-swap="outerHTML"
+        hx-include="#ctx-product-id,#ctx-product-name,#ctx-product-brand,#ctx-product-category,#ctx-product-usp,#ctx-influencer-name,#ctx-influencer-platform,#ctx-custom-instructions"
+        hx-vals='{"dm_type": "dm_followup", "save": "false"}'
+        class="flex flex-col items-center gap-2 p-4 border-2 border-yellow-200 bg-yellow-50 hover:bg-yellow-100 rounded-xl transition-colors group">
+        <span class="htmx-indicator">
+          <svg class="w-5 h-5 animate-spin text-yellow-500" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+        <svg class="w-5 h-5 text-yellow-600 group-[.htmx-request]:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        <span class="text-xs font-medium text-yellow-700">DM 팔로업</span>
+      </button>
+
+      <!-- DM 확정 -->
+      <button type="button"
+        hx-post="/api/ai/dm"
+        hx-target="#output-panel"
+        hx-swap="outerHTML"
+        hx-include="#ctx-product-id,#ctx-product-name,#ctx-product-brand,#ctx-product-category,#ctx-product-usp,#ctx-influencer-name,#ctx-influencer-platform,#ctx-custom-instructions"
+        hx-vals='{"dm_type": "dm_confirm", "save": "false"}'
+        class="flex flex-col items-center gap-2 p-4 border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors group">
+        <span class="htmx-indicator">
+          <svg class="w-5 h-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+        <svg class="w-5 h-5 text-blue-600 group-[.htmx-request]:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span class="text-xs font-medium text-blue-700">DM 확정</span>
+      </button>
+
+    </div>
+  </div>
+
+  <!-- ── Zone 5: Output panel ── -->
+  <div id="output-panel"></div>
+
+  <!-- ── Zone 6: 최근 생성 이력 ── -->
+  {% if recent_playbooks or recent_proposals %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-gray-700 mb-3">최근 생성 이력</h3>
+    <div class="space-y-2">
+      {% for pb in recent_playbooks %}
+      <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+        <div class="flex items-center gap-2">
+          <span class="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-medium">플레이북</span>
+          <span class="text-sm text-gray-800">{{ pb.product_name }}</span>
+          {% if pb.product_brand %}
+          <span class="text-xs text-gray-400">· {{ pb.product_brand }}</span>
+          {% endif %}
+        </div>
+        <span class="text-xs text-gray-400">{{ pb.created_at | dt }}</span>
+      </div>
+      {% endfor %}
+      {% for pr in recent_proposals %}
+      <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+        <div class="flex items-center gap-2">
+          {% if pr.proposal_type == 'dm_first' %}
+          <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">DM 첫연락</span>
+          {% elif pr.proposal_type == 'dm_followup' %}
+          <span class="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full font-medium">DM 팔로업</span>
+          {% elif pr.proposal_type == 'dm_confirm' %}
+          <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">DM 확정</span>
+          {% elif pr.proposal_type == 'seller_outreach' %}
+          <span class="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full font-medium">셀러 모집</span>
+          {% elif pr.proposal_type == 'inf_summary' %}
+          <span class="text-xs px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full font-medium">인플루언서 요약</span>
+          {% else %}
+          <span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full font-medium">메모</span>
+          {% endif %}
+          <a href="/proposals/{{ pr.id }}" class="text-sm text-gray-800 hover:underline">{{ pr.title or '제목 없음' }}</a>
+        </div>
+        <span class="text-xs text-gray-400">{{ pr.created_at | dt }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function automationConsole() {
+  return {
+    inputMode: 'existing',
+    product: {
+      id: '', name: '', brand: '', category: '', price: '',
+      usp: '', angle: '', key_benefits: '', public_url: '', is_active: false
+    },
+    influencer: {
+      name: '', platform: '', followers: '', categories: ''
+    },
+    customInstructions: '',
+
+    selectProduct(productId) {
+      if (!productId) {
+        this.product = { id: '', name: '', brand: '', category: '', price: '', usp: '', angle: '', key_benefits: '', public_url: '', is_active: false };
+        return;
+      }
+      const sel = document.querySelector('select[\\@change]') || document.querySelector('select');
+      const opt = document.querySelector(`option[value="${productId}"]`);
+      if (!opt) return;
+
+      this.product.id = productId;
+      this.product.name = opt.dataset.name || '';
+      this.product.brand = opt.dataset.brand || '';
+      this.product.category = opt.dataset.category || '';
+      this.product.price = opt.dataset.price || '';
+      this.product.usp = opt.dataset.usp || '';
+      this.product.angle = opt.dataset.angle || '';
+      this.product.is_active = opt.dataset.isActive === 'true';
+      this.product.public_url = this.product.is_active ? `/public/products/${productId}` : '';
+      this.product.key_benefits = '';
+    }
+  }
+}
+
+function copyOutput(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const text = el.tagName === 'TEXTAREA' ? el.value : el.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    // Find copy button and show feedback
+    const btns = document.querySelectorAll('button');
+    for (const btn of btns) {
+      if (btn.textContent.trim() === '복사' || btn.textContent.trim() === '전체 복사') {
+        const orig = btn.textContent;
+        btn.textContent = '복사됨 ✓';
+        btn.classList.add('bg-green-100', 'text-green-700');
+        setTimeout(() => {
+          btn.textContent = orig;
+          btn.classList.remove('bg-green-100', 'text-green-700');
+        }, 2000);
+        break;
+      }
+    }
+  });
+}
+</script>
+{% endblock %}

@@ -29,6 +29,16 @@ def migrate():
         _add_column(conn, "products", "recommended_inf_categories JSON")
         _add_column(conn, "products", "categories JSON")
         _add_column(conn, "products", "group_buy_guideline TEXT")
+        # Phase 3
+        _add_column(conn, "products", "visibility_status VARCHAR(20) DEFAULT 'active'")
+        _add_column(conn, "products", "internal_notes TEXT")
+        _add_column(conn, "products", "shipping_type VARCHAR(20)")
+        _add_column(conn, "products", "shipping_cost FLOAT")
+        _add_column(conn, "products", "carrier VARCHAR(50)")
+        _add_column(conn, "products", "ship_origin VARCHAR(20)")
+        _add_column(conn, "products", "dispatch_days VARCHAR(20)")
+        _add_column(conn, "products", "sample_type VARCHAR(20)")
+        _add_column(conn, "products", "sample_price FLOAT")
 
         # --- influencers ---
         _add_column(conn, "influencers", "profile_image VARCHAR(500)")

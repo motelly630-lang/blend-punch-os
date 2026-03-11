@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-2xl" x-data="productForm({{ (product.categories or []) | tojson if product else '[]' }})">
+<div class="max-w-2xl" x-data="productForm({{ (product.categories or []) | tojson if product else '[]' }}, '{{ product.shipping_type or '' if product else '' }}', '{{ product.sample_type or '' if product else '' }}')">
 
   <!-- AI URL fill -->
   {% if not product %}
@@ -37,7 +37,7 @@
     action="/products/{% if product %}{{ product.id }}/edit{% else %}new{% endif %}"
     class="space-y-4">
 
-    <!-- ── Section: 기본 정보 ── -->
+    <!-- ── 기본 정보 ── -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
       <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">기본 정보</h3>
       <div class="grid grid-cols-2 gap-4">
@@ -92,6 +92,13 @@
             <option value="archived" {% if product and product.status == 'archived' %}selected{% endif %}>보관</option>
           </select>
         </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">카탈로그 공개</label>
+          <select name="visibility_status" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="active" {% if not product or (product.visibility_status or 'active') == 'active' %}selected{% endif %}>공개</option>
+            <option value="hidden" {% if product and product.visibility_status == 'hidden' %}selected{% endif %}>비공개</option>
+          </select>
+        </div>
         <div class="col-span-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">제품 URL</label>
           <input type="url" name="source_url" id="field-source-url" value="{{ product.source_url or '' if product else '' }}" placeholder="https://"
@@ -99,13 +106,19 @@
         </div>
         <div class="col-span-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">제품 설명</label>
-          <textarea name="description" rows="2" id="field-description"
+          <textarea name="description" rows="3" id="field-description"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.description or '' if product else '' }}</textarea>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">내부 메모</label>
+          <textarea name="internal_notes" rows="2"
+            placeholder="내부 운영 참고사항, 벤더 특이사항 등 (외부 비공개)"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.internal_notes or '' if product else '' }}</textarea>
         </div>
       </div>
     </div>
 
-    <!-- ── Section: 세트 구성 ── -->
+    <!-- ── 세트 구성 ── -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6" x-data="{
       sets: {{ (product.set_options or []) | tojson if product else '[]' }},
       addSet() { this.sets.push({name:'', qty:1, price:0, notes:''}); },
@@ -146,7 +159,7 @@
       <input type="hidden" name="set_options_json" :value="JSON.stringify(sets)">
     </div>
 
-    <!-- ── Section: 마케팅 정보 ── -->
+    <!-- ── 마케팅 / 판매 정보 ── -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
       <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">마케팅 / 판매 정보</h3>
       <div class="grid grid-cols-2 gap-4">
@@ -163,53 +176,161 @@
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ (product.key_benefits or []) | join('\n') if product else '' }}</textarea>
         </div>
         <div class="col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">포지셔닝 전략</label>
-          <input type="text" name="positioning" value="{{ product.positioning or '' if product else '' }}"
-            placeholder="예: 가성비 프리미엄 건기식, MZ 타겟 뷰티"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div class="col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">사용 장면 / 콘텐츠 앵글</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">콘텐츠 앵글</label>
           <textarea name="content_angle" rows="2" id="field-content-angle"
             placeholder="예: 아침 루틴, 홈트 후 회복, 피로감 많은 직장인"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.content_angle or '' if product else '' }}</textarea>
         </div>
         <div class="col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">사용 장면 메모</label>
-          <textarea name="usage_scenes" rows="2"
-            placeholder="예: 요리 전후, 데이트 준비, 반려동물 산책"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.usage_scenes or '' if product else '' }}</textarea>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">타겟 고객</label>
-          <input type="text" name="target_audience" id="field-target-audience" value="{{ product.target_audience or '' if product else '' }}"
+          <label class="block text-sm font-medium text-gray-700 mb-1">포지셔닝 전략</label>
+          <input type="text" name="positioning" value="{{ product.positioning or '' if product else '' }}"
+            placeholder="예: 가성비 프리미엄 건기식, MZ 타겟 뷰티"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">예상 수요</label>
-          <select name="estimated_demand" id="field-estimated-demand"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="high" {% if product and product.estimated_demand == 'high' %}selected{% endif %}>높음</option>
-            <option value="medium" {% if not product or product.estimated_demand == 'medium' %}selected{% endif %}>보통</option>
-            <option value="low" {% if product and product.estimated_demand == 'low' %}selected{% endif %}>낮음</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">추천 커미션율 (소수점)</label>
-          <input type="number" name="recommended_commission_rate" step="0.01" min="0" max="1"
-            value="{{ (product.recommended_commission_rate) | round(2) if product else 0.15 }}"
+          <label class="block text-sm font-medium text-gray-700 mb-1">추천 커미션율 (%)</label>
+          <input type="number" name="recommended_commission_rate" step="1" min="0" max="100"
+            value="{{ ((product.recommended_commission_rate or 0.15) * 100) | round | int if product else 15 }}"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <p class="text-xs text-gray-400 mt-1">예: 15 → 15%</p>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">추천 인플루언서 카테고리</label>
-          <textarea name="recommended_inf_categories_raw" rows="2"
-            placeholder="줄마다 하나씩&#10;예: 건강관리&#10;요리"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ (product.recommended_inf_categories or []) | join('\n') if product else '' }}</textarea>
+          <label class="block text-sm font-medium text-gray-700 mb-1">공동구매 가이드라인</label>
+          <textarea name="group_buy_guideline" rows="2"
+            placeholder="인플루언서 공구 안내사항"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.group_buy_guideline or '' if product else '' }}</textarea>
         </div>
       </div>
     </div>
 
-    <!-- ── Section: 소비자 카테고리 태그 ── -->
+    <!-- ── 배송 / 물류 정보 ── -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">배송 / 물류 정보</h3>
+      <div class="grid grid-cols-2 gap-4">
+
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">배송비 유형</label>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="shipping_type" value="무료배송" x-model="shippingType"
+                class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">무료배송</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="shipping_type" value="유료배송" x-model="shippingType"
+                class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">유료배송</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="shipping_type" value="" x-model="shippingType"
+                class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm text-gray-400">미입력</span>
+            </label>
+          </div>
+        </div>
+
+        <div x-show="shippingType === '유료배송'" x-cloak>
+          <label class="block text-sm font-medium text-gray-700 mb-1">배송비 금액 (원)</label>
+          <input type="number" name="shipping_cost" min="0" step="500"
+            value="{{ product.shipping_cost | int if product and product.shipping_cost else '' }}"
+            placeholder="예: 3000"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div x-show="shippingType !== '유료배송'" x-cloak>
+          <input type="hidden" name="shipping_cost" value="">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">택배사</label>
+          <select name="carrier"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">선택 안함</option>
+            {% for c in carriers %}
+            <option value="{{ c }}" {% if product and product.carrier == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">출고지</label>
+          <div class="flex gap-4 mt-2">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="ship_origin" value="국내"
+                {% if product and product.ship_origin == '국내' %}checked{% elif not product %}checked{% endif %}
+                class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">국내</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="ship_origin" value="해외"
+                {% if product and product.ship_origin == '해외' %}checked{% endif %}
+                class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">해외</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">발송 기간</label>
+          <div class="flex flex-wrap gap-3">
+            {% for d in ['당일', '1~2일', '3~5일', '주문제작'] %}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="dispatch_days" value="{{ d }}"
+                {% if product and product.dispatch_days == d %}checked{% elif not product and d == '1~2일' %}checked{% endif %}
+                class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">{{ d }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── 샘플 정책 ── -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">샘플 정책</h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">샘플 제공 여부</label>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="sample_type" value="무상" x-model="sampleType"
+                class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">무상</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="sample_type" value="유상" x-model="sampleType"
+                class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">유상</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="sample_type" value="없음" x-model="sampleType"
+                class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">없음</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="sample_type" value="" x-model="sampleType"
+                class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm text-gray-400">미입력</span>
+            </label>
+          </div>
+        </div>
+
+        <div x-show="sampleType === '유상'" x-cloak>
+          <label class="block text-sm font-medium text-gray-700 mb-1">샘플 가격 (원)</label>
+          <input type="number" name="sample_price" min="0" step="100"
+            value="{{ product.sample_price | int if product and product.sample_price else '' }}"
+            placeholder="예: 5000"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div x-show="sampleType !== '유상'" x-cloak>
+          <input type="hidden" name="sample_price" value="">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── 소비자 카테고리 태그 ── -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
       <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">소비자 카테고리 태그</h3>
       <p class="text-xs text-gray-400 mb-3">공개 갤러리 필터에 사용됩니다 (복수 선택 가능)</p>
@@ -220,17 +341,6 @@
           :class="hasCat('{{ cat }}') ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-200 hover:border-purple-400 hover:text-purple-600'"
           class="text-sm px-3 py-1.5 rounded-full border font-medium transition-colors">{{ cat }}</button>
         {% endfor %}
-      </div>
-    </div>
-
-    <!-- ── Section: 공개 가이드 ── -->
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">공개 가이드</h3>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">공동구매 가이드라인</label>
-        <textarea name="group_buy_guideline" rows="4"
-          placeholder="인플루언서가 공동구매를 진행할 때 참고할 안내 사항을 입력하세요"
-          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.group_buy_guideline or '' if product else '' }}</textarea>
       </div>
     </div>
 
@@ -246,9 +356,11 @@
 
 {% block scripts %}
 <script>
-function productForm(initCats) {
+function productForm(initCats, initShippingType, initSampleType) {
   return {
     selectedCats: initCats || [],
+    shippingType: initShippingType || '',
+    sampleType: initSampleType || '',
     toggleCat(cat) {
       const i = this.selectedCats.indexOf(cat);
       if (i >= 0) this.selectedCats.splice(i, 1);
@@ -264,14 +376,17 @@ function applyAiFill(data) {
   set('field-price', data.price);
   set('field-description', data.description);
   set('field-usp', data.unique_selling_point);
-  set('field-target-audience', data.target_audience);
   set('field-content-angle', data.content_angle);
   set('field-source-url', document.getElementById('ai-url-input')?.value);
   if (data.key_benefits) set('field-key-benefits', Array.isArray(data.key_benefits) ? data.key_benefits.join('\n') : data.key_benefits);
-  if (data.estimated_demand) set('field-estimated-demand', data.estimated_demand);
   if (data.category) {
     const sel = document.querySelector('select[name="category"]');
     if (sel) for (let o of sel.options) { if (o.value === data.category) { o.selected = true; break; } }
+  }
+  // Update recommended_commission_rate (stored as 0-100 in form now)
+  if (data.recommended_commission_rate) {
+    const el = document.querySelector('[name="recommended_commission_rate"]');
+    if (el) el.value = Math.round(parseFloat(data.recommended_commission_rate) * 100);
   }
 }
 </script>

@@ -22,6 +22,7 @@ class Product(Base):
     content_angle = Column(Text, nullable=True)
     ai_analysis_raw = Column(Text, nullable=True)
     status = Column(String(20), default="draft")             # draft|active|archived
+    visibility_status = Column(String(20), default="active") # active|hidden (catalog visibility)
 
     # Phase 2 additions
     product_image = Column(String(500), nullable=True)       # /uploads/products/xxx.jpg
@@ -31,6 +32,16 @@ class Product(Base):
     recommended_inf_categories = Column(JSON, nullable=True) # list[str]
     categories = Column(JSON, nullable=True)                 # list[str] broad consumer tags
     group_buy_guideline = Column(Text, nullable=True)        # public-facing guide
+
+    # Phase 3 additions
+    internal_notes = Column(Text, nullable=True)             # 내부 메모
+    shipping_type = Column(String(20), nullable=True)        # 무료배송|유료배송
+    shipping_cost = Column(Float, nullable=True)             # 배송비 금액
+    carrier = Column(String(50), nullable=True)              # 택배사
+    ship_origin = Column(String(20), nullable=True)          # 국내|해외
+    dispatch_days = Column(String(20), nullable=True)        # 당일|1~2일|3~5일|주문제작
+    sample_type = Column(String(20), nullable=True)          # 무상|유상|없음
+    sample_price = Column(Float, nullable=True)              # 샘플 가격 (유상일 때)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

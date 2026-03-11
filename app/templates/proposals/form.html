@@ -7,59 +7,33 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-2xl" x-data="{ proposalType: 'email' }">
+<div class="max-w-2xl">
   <form method="post" action="/proposals/new" class="space-y-5">
 
-    <!-- 제안 대상 (product-first) -->
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
-      <h3 class="text-sm font-semibold text-gray-700">제안 대상</h3>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">제품 <span class="text-red-500">*</span></label>
-        <select name="product_id" id="product-select" required
-          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-          <option value="">제품을 선택하세요</option>
-          {% for p in products %}
-          <option value="{{ p.id }}" {% if p.id == prefill_product_id %}selected{% endif %}>{{ p.name }} — {{ p.brand }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">인플루언서 <span class="text-xs text-gray-400">(선택사항 — 선택 시 맞춤 초안)</span></label>
-        <select name="influencer_id" id="influencer-select"
-          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-          <option value="">인플루언서 선택 안함</option>
-          {% for inf in influencers %}
-          <option value="{{ inf.id }}" {% if inf.id == prefill_influencer_id %}selected{% endif %}>{{ inf.name }} — {{ inf.platform | platform_label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">제안서 유형</label>
-        <div class="flex gap-4">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="proposal_type" value="email" x-model="proposalType" checked
-              class="text-blue-600 focus:ring-blue-500">
-            <span class="text-sm">이메일</span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="proposal_type" value="kakao" x-model="proposalType"
-              class="text-blue-600 focus:ring-blue-500">
-            <span class="text-sm">카카오톡</span>
-          </label>
-        </div>
-      </div>
+    <!-- 제품 선택 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-3">
+      <h3 class="text-sm font-semibold text-gray-700">제품 선택 <span class="text-red-500">*</span></h3>
+      <select name="product_id" id="product-select" required
+        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+        <option value="">제품을 선택하세요</option>
+        {% for p in products %}
+        <option value="{{ p.id }}" {% if p.id == prefill_product_id %}selected{% endif %}>
+          {{ p.name }} — {{ p.brand }}{% if p.category %} ({{ p.category }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
     </div>
 
-    <!-- AI 생성 -->
+    <!-- AI 초안 생성 -->
     <div class="bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-100 rounded-xl p-5">
       <div class="flex items-center justify-between mb-3">
         <div>
           <div class="text-sm font-semibold text-blue-900">AI 초안 생성</div>
-          <div class="text-xs text-blue-600 mt-0.5">제품을 선택 후 AI로 제안서 초안을 자동 작성합니다</div>
+          <div class="text-xs text-blue-600 mt-0.5">제품 정보 전체를 분석해 벤더 제안서를 자동 작성합니다</div>
         </div>
         <button type="button"
           hx-post="/api/ai/proposal-draft"
-          hx-include="#product-select,#influencer-select,[name='proposal_type']:checked,[name='custom_instructions']"
+          hx-include="#product-select,[name='custom_instructions']"
           hx-target="#ai-draft-area"
           hx-swap="outerHTML"
           hx-indicator="#ai-btn-spinner"
@@ -76,38 +50,27 @@
           AI 초안 생성
         </button>
       </div>
-      <input type="text" name="custom_instructions" placeholder="추가 지시사항 (선택사항): 예) 부드러운 톤으로, 할인 혜택 강조"
+      <input type="text" name="custom_instructions"
+        placeholder="추가 지시사항 (선택): 예) 부드러운 톤으로, 건강 효능 강조"
         class="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
     </div>
 
     <!-- Draft area -->
     <div id="ai-draft-area" class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
       <h3 class="text-sm font-semibold text-gray-700">제안서 내용</h3>
-      <div x-show="proposalType === 'email'">
+      <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">제목</label>
         <input type="text" name="title"
           class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">
-          본문
-          <span x-show="proposalType === 'kakao'" class="text-xs text-gray-400 ml-1">(150-250자 권장)</span>
-        </label>
-        <textarea name="body" required rows="12"
+        <label class="block text-sm font-medium text-gray-700 mb-1">본문</label>
+        <textarea name="body" id="draft-body" required rows="12"
           class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
           placeholder="제안서 내용을 입력하거나 위 'AI 초안 생성'을 이용하세요..."></textarea>
       </div>
       <input type="hidden" name="ai_generated" value="false">
-    </div>
-
-    <!-- 템플릿 저장 옵션 -->
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
-      <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
-        <input type="checkbox" name="is_template" value="true" class="text-blue-600 rounded">
-        템플릿으로 저장
-      </label>
-      <input type="text" name="template_name" placeholder="템플릿 이름"
-        class="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <input type="hidden" name="proposal_type" value="vendor">
     </div>
 
     <div class="flex items-center justify-between">
@@ -118,4 +81,21 @@
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyDraft() {
+  const body = document.getElementById('draft-body');
+  if (!body) return;
+  navigator.clipboard.writeText(body.value).then(() => {
+    const btn = document.querySelector('button[onclick="copyDraft()"]');
+    if (btn) {
+      const orig = btn.innerHTML;
+      btn.innerHTML = '복사됨 ✓';
+      setTimeout(() => btn.innerHTML = orig, 2000);
+    }
+  });
+}
+</script>
 {% endblock %}

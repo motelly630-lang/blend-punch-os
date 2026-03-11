@@ -10,155 +10,235 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-3xl space-y-5">
+<div class="max-w-5xl space-y-5">
 
-  <!-- Hero card -->
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-    <div class="flex gap-0">
-      <!-- Image column -->
+  <!-- ── Two-column hero ── -->
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+    <!-- LEFT: identity -->
+    <div class="lg:col-span-2 space-y-4">
+
+      <!-- Image -->
       {% if product.product_image %}
-      <div class="w-48 flex-shrink-0">
-        <img src="{{ product.product_image }}" alt="{{ product.name }}" class="w-full h-full object-cover min-h-[12rem]">
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <img src="{{ product.product_image }}" alt="{{ product.name }}" class="w-full object-cover max-h-72">
+      </div>
+      {% else %}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-8 flex items-center justify-center">
+        <svg class="w-16 h-16 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
       </div>
       {% endif %}
-      <!-- Info column -->
-      <div class="flex-1 p-6">
-        <div class="flex items-start justify-between gap-3 mb-3">
-          <div>
-            <div class="text-xs text-gray-400 mb-0.5">{{ product.brand }} · {{ product.category }}</div>
-            <h2 class="text-xl font-bold text-gray-900 leading-tight">{{ product.name }}</h2>
+
+      <!-- Identity card -->
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-xs text-gray-400">{{ product.brand }}</div>
+            <h2 class="text-lg font-bold text-gray-900 leading-snug mt-0.5">{{ product.name }}</h2>
           </div>
-          <span class="flex-shrink-0 text-xs px-2 py-1 rounded-full font-medium
-            {% if product.status == 'active' %}bg-green-100 text-green-700
-            {% elif product.status == 'draft' %}bg-yellow-100 text-yellow-700
-            {% else %}bg-gray-100 text-gray-500{% endif %}">
-            {{ product.status | status_label }}
-          </span>
+          <div class="flex flex-col items-end gap-1">
+            <span class="text-xs px-2 py-1 rounded-full font-medium
+              {% if product.status == 'active' %}bg-green-100 text-green-700
+              {% elif product.status == 'draft' %}bg-yellow-100 text-yellow-700
+              {% else %}bg-gray-100 text-gray-500{% endif %}">
+              {{ product.status | status_label }}
+            </span>
+            {% if product.visibility_status == 'hidden' %}
+            <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600">카탈로그 비공개</span>
+            {% endif %}
+          </div>
         </div>
 
-        {% if product.unique_selling_point %}
-        <p class="text-sm text-blue-700 font-medium mb-3 bg-blue-50 px-3 py-2 rounded-lg">{{ product.unique_selling_point }}</p>
-        {% endif %}
-
-        {% if product.description %}
-        <p class="text-sm text-gray-600 mb-3">{{ product.description }}</p>
-        {% endif %}
-
-        {% if product.source_url %}
-        <a href="{{ product.source_url }}" target="_blank" rel="noopener" class="text-xs text-blue-500 hover:text-blue-700 truncate block mb-3">{{ product.source_url }}</a>
-        {% endif %}
-
-        {% if product.categories %}
-        <div class="flex flex-wrap gap-1.5 mb-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full">{{ product.category }}</span>
+          {% if product.categories %}
           {% for cat in product.categories %}
           <span class="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full border border-purple-100">{{ cat }}</span>
           {% endfor %}
+          {% endif %}
+        </div>
+
+        <!-- Key stats -->
+        <div class="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100">
+          <div>
+            <div class="text-xs text-gray-400 mb-0.5">대표 가격</div>
+            <div class="text-lg font-bold text-gray-900">{{ product.price | won }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-400 mb-0.5">커미션</div>
+            <div class="text-lg font-bold text-gray-900">{{ product.recommended_commission_rate | pct }}</div>
+          </div>
+        </div>
+
+        {% if product.source_url %}
+        <div class="pt-2 border-t border-gray-100">
+          <a href="{{ product.source_url }}" target="_blank" rel="noopener"
+            class="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-700 truncate">
+            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+            제품 링크 보기
+          </a>
         </div>
         {% endif %}
+      </div>
 
-        <!-- Key stats row -->
-        <div class="flex items-center gap-4 pt-3 border-t border-gray-100">
-          <div>
-            <div class="text-lg font-bold text-gray-900">{{ product.price | won }}</div>
-            <div class="text-xs text-gray-400">대표 가격</div>
-          </div>
-          <div class="w-px h-8 bg-gray-100"></div>
-          <div>
-            <div class="text-lg font-bold text-gray-900">{{ product.recommended_commission_rate | pct }}</div>
-            <div class="text-xs text-gray-400">커미션</div>
-          </div>
-          <div class="w-px h-8 bg-gray-100"></div>
-          <div>
-            <span class="text-sm font-medium {% if product.estimated_demand == 'high' %}text-green-600{% elif product.estimated_demand == 'medium' %}text-yellow-600{% else %}text-gray-500{% endif %}">
-              {{ product.estimated_demand | demand_label }}
-            </span>
-            <div class="text-xs text-gray-400">수요</div>
-          </div>
+      <!-- Quick actions -->
+      <div class="flex flex-col gap-2">
+        <a href="/proposals/new?product_id={{ product.id }}"
+          class="flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-700 text-sm font-medium rounded-lg border border-amber-100 hover:bg-amber-100 transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          제안서 작성
+        </a>
+        <a href="/campaigns/new?product_id={{ product.id }}"
+          class="flex items-center gap-2 px-4 py-2.5 bg-green-50 text-green-700 text-sm font-medium rounded-lg border border-green-100 hover:bg-green-100 transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          캠페인 생성
+        </a>
+        <a href="/public/products/{{ product.id }}" target="_blank"
+          class="flex items-center gap-2 px-4 py-2.5 bg-purple-50 text-purple-700 text-sm font-medium rounded-lg border border-purple-100 hover:bg-purple-100 transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          공개 페이지 보기 →
+        </a>
+      </div>
+    </div>
+
+    <!-- RIGHT: operational details -->
+    <div class="lg:col-span-3 space-y-4">
+
+      <!-- USP + description -->
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">제품 정보</h3>
+        {% if product.unique_selling_point %}
+        <p class="text-sm text-blue-700 font-medium bg-blue-50 px-3 py-2 rounded-lg">{{ product.unique_selling_point }}</p>
+        {% endif %}
+        {% if product.description %}
+        <p class="text-sm text-gray-700 leading-relaxed">{{ product.description }}</p>
+        {% endif %}
+        {% if product.key_benefits %}
+        <div>
+          <div class="text-xs text-gray-400 mb-2">핵심 혜택</div>
+          <ul class="space-y-1">
+            {% for b in product.key_benefits %}
+            <li class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              {{ b }}
+            </li>
+            {% endfor %}
+          </ul>
         </div>
+        {% endif %}
+        {% if product.content_angle %}
+        <div class="text-xs text-gray-400">콘텐츠 앵글 · <span class="text-gray-700">{{ product.content_angle }}</span></div>
+        {% endif %}
+        {% if product.positioning %}
+        <div class="text-xs text-gray-400">포지셔닝 · <span class="text-gray-700">{{ product.positioning }}</span></div>
+        {% endif %}
       </div>
-    </div>
-  </div>
 
-  <!-- Set options -->
-  {% if product.set_options %}
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-    <h3 class="text-sm font-semibold text-gray-700 mb-3">세트 구성</h3>
-    <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
-      {% for s in product.set_options %}
-      <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
-        <div class="font-semibold text-sm text-gray-900">{{ s.name or (s.qty | string + "개 세트") }}</div>
-        {% if s.qty %}<div class="text-xs text-gray-400 mt-0.5">수량 {{ s.qty }}개</div>{% endif %}
-        {% if s.price %}<div class="text-base font-bold text-blue-600 mt-1">₩{{ "{:,}".format(s.price | int) }}</div>{% endif %}
-        {% if s.notes %}<div class="text-xs text-gray-400 mt-1">{{ s.notes }}</div>{% endif %}
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Marketing info -->
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-    <h3 class="text-sm font-semibold text-gray-700 mb-4">마케팅 정보</h3>
-    <div class="space-y-3 text-sm">
-      {% if product.key_benefits %}
-      <div>
-        <div class="text-xs text-gray-400 mb-1.5">핵심 혜택</div>
-        <ul class="space-y-1">
-          {% for b in product.key_benefits %}
-          <li class="flex items-start gap-2 text-gray-700">
-            <svg class="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-            {{ b }}
-          </li>
-          {% endfor %}
-        </ul>
+      <!-- Internal notes -->
+      {% if product.internal_notes %}
+      <div class="bg-amber-50 border border-amber-100 rounded-xl p-5">
+        <div class="flex items-center gap-1.5 mb-2">
+          <svg class="w-3.5 h-3.5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+          </svg>
+          <span class="text-xs font-semibold text-amber-700 uppercase tracking-wide">내부 메모</span>
+        </div>
+        <p class="text-sm text-amber-900 whitespace-pre-line">{{ product.internal_notes }}</p>
       </div>
       {% endif %}
-      {% if product.positioning %}<div><span class="text-xs text-gray-400">포지셔닝</span><span class="ml-2 text-gray-800">{{ product.positioning }}</span></div>{% endif %}
-      {% if product.target_audience %}<div><span class="text-xs text-gray-400">타겟 고객</span><span class="ml-2 text-gray-800">{{ product.target_audience }}</span></div>{% endif %}
-      {% if product.content_angle %}<div><span class="text-xs text-gray-400">콘텐츠 앵글</span><span class="ml-2 text-gray-800">{{ product.content_angle }}</span></div>{% endif %}
-      {% if product.usage_scenes %}<div><span class="text-xs text-gray-400">사용 장면</span><span class="ml-2 text-gray-800">{{ product.usage_scenes }}</span></div>{% endif %}
-      {% if product.recommended_inf_categories %}
-      <div>
-        <div class="text-xs text-gray-400 mb-1">추천 인플루언서 카테고리</div>
-        <div class="flex flex-wrap gap-1.5">
-          {% for cat in product.recommended_inf_categories %}
-          <span class="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full">{{ cat }}</span>
+
+      <!-- Logistics -->
+      {% if product.shipping_type or product.carrier or product.dispatch_days %}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">배송 / 물류</h3>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          {% if product.shipping_type %}
+          <div>
+            <div class="text-xs text-gray-400 mb-0.5">배송비</div>
+            <div class="font-medium text-gray-800">
+              {{ product.shipping_type }}
+              {% if product.shipping_type == '유료배송' and product.shipping_cost %}
+              · ₩{{ "{:,}".format(product.shipping_cost | int) }}
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+          {% if product.carrier %}
+          <div>
+            <div class="text-xs text-gray-400 mb-0.5">택배사</div>
+            <div class="font-medium text-gray-800">{{ product.carrier }}</div>
+          </div>
+          {% endif %}
+          {% if product.ship_origin %}
+          <div>
+            <div class="text-xs text-gray-400 mb-0.5">출고지</div>
+            <div class="font-medium text-gray-800">{{ product.ship_origin }}</div>
+          </div>
+          {% endif %}
+          {% if product.dispatch_days %}
+          <div>
+            <div class="text-xs text-gray-400 mb-0.5">발송 기간</div>
+            <div class="font-medium text-gray-800">{{ product.dispatch_days }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Sample policy -->
+      {% if product.sample_type %}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">샘플 정책</h3>
+        <div class="text-sm">
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium
+            {% if product.sample_type == '무상' %}bg-green-100 text-green-700
+            {% elif product.sample_type == '유상' %}bg-yellow-100 text-yellow-700
+            {% else %}bg-gray-100 text-gray-500{% endif %}">
+            {{ product.sample_type }}
+          </span>
+          {% if product.sample_type == '유상' and product.sample_price %}
+          <span class="ml-2 text-gray-700 font-medium">₩{{ "{:,}".format(product.sample_price | int) }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Set options -->
+      {% if product.set_options %}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">세트 구성</h3>
+        <div class="grid grid-cols-2 gap-3">
+          {% for s in product.set_options %}
+          <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+            <div class="font-semibold text-sm text-gray-900">{{ s.name or (s.qty | string + "개 세트") }}</div>
+            {% if s.qty %}<div class="text-xs text-gray-400 mt-0.5">수량 {{ s.qty }}개</div>{% endif %}
+            {% if s.price %}<div class="text-base font-bold text-blue-600 mt-1">₩{{ "{:,}".format(s.price | int) }}</div>{% endif %}
+            {% if s.notes %}<div class="text-xs text-gray-400 mt-1">{{ s.notes }}</div>{% endif %}
+          </div>
           {% endfor %}
         </div>
       </div>
       {% endif %}
+
+      <!-- Guideline -->
+      {% if product.group_buy_guideline %}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">공동구매 가이드라인</h3>
+        <p class="text-sm text-gray-700 whitespace-pre-line">{{ product.group_buy_guideline }}</p>
+      </div>
+      {% endif %}
+
     </div>
   </div>
-
-  {% if product.group_buy_guideline %}
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-    <h3 class="text-sm font-semibold text-gray-700 mb-3">공동구매 가이드라인</h3>
-    <p class="text-sm text-gray-700 whitespace-pre-line">{{ product.group_buy_guideline }}</p>
-  </div>
-  {% endif %}
 
   <div class="text-xs text-gray-400 flex gap-4">
     <span>등록 {{ product.created_at | dt }}</span>
     {% if product.updated_at and product.updated_at != product.created_at %}<span>수정 {{ product.updated_at | dt }}</span>{% endif %}
   </div>
 
-  <!-- Quick actions -->
-  <div class="flex flex-wrap gap-3">
-    <a href="/proposals/new?product_id={{ product.id }}"
-      class="flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-700 text-sm font-medium rounded-lg border border-amber-100 hover:bg-amber-100 transition-colors">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      제안서 작성
-    </a>
-    <a href="/campaigns/new?product_id={{ product.id }}"
-      class="flex items-center gap-2 px-4 py-2.5 bg-green-50 text-green-700 text-sm font-medium rounded-lg border border-green-100 hover:bg-green-100 transition-colors">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-      캠페인 생성
-    </a>
-    <a href="/public/products/{{ product.id }}" target="_blank"
-      class="flex items-center gap-2 px-4 py-2.5 bg-purple-50 text-purple-700 text-sm font-medium rounded-lg border border-purple-100 hover:bg-purple-100 transition-colors">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-      공개 페이지 보기 →
-    </a>
-  </div>
 </div>
 {% endblock %}
