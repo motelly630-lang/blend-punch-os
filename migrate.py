@@ -74,6 +74,9 @@ def migrate():
         _add_column(conn, "campaigns", "seller_commission_amount FLOAT DEFAULT 0")
         _add_column(conn, "campaigns", "vendor_commission_amount FLOAT DEFAULT 0")
 
+        # --- trend_briefings (Trend Engine) ---
+        # Table is created by init_db(); no extra columns needed
+
         conn.commit()
 
     print("Migration complete.")

@@ -15,6 +15,7 @@ from app.routers import automation as automation_router
 from app.routers import catalog as catalog_router
 from app.routers import import_products as import_products_router
 from app.api import ai_product, ai_proposal, ai_playbook, ai_dm, ai_seller_content, ai_product_image, ai_influencer
+from app.routers import trend_engine as trend_engine_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions
 
 
@@ -29,8 +30,12 @@ async def _backup_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    from app.scheduler import start_scheduler
+    start_scheduler()
     task = asyncio.create_task(_backup_loop())
     yield
+    from app.scheduler import stop_scheduler
+    stop_scheduler()
     task.cancel()
 
 
@@ -67,6 +72,7 @@ app.include_router(ai_dm.router)
 app.include_router(ai_seller_content.router)
 app.include_router(ai_product_image.router)
 app.include_router(ai_influencer.router)
+app.include_router(trend_engine_router.router)
 app.include_router(catalog_router.router)
 app.include_router(import_products_router.router)
 
@@ -140,8 +146,9 @@ def _setup_filters():
     import app.routers.automation as auto
     import app.routers.catalog as cat
     import app.routers.import_products as imp
+    import app.routers.trend_engine as teng
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp]:
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, teng]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num

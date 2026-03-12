@@ -25,4 +25,5 @@ def init_db():
     import app.models.campaign  # noqa
     import app.models.proposal  # noqa
     import app.models.playbook  # noqa
+    import app.models.trend_engine  # noqa
     Base.metadata.create_all(bind=engine)
