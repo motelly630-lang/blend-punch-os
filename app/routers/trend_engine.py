@@ -61,7 +61,7 @@ def engine_dashboard(
 
     return templates.TemplateResponse("trends/engine.html", {
         "request": request,
-        "active_page": "trends",
+        "active_page": "trend_engine",
         "current_user": current_user,
         "engine_events": engine_events,
         "all_events": all_events,
@@ -98,7 +98,7 @@ def briefings_archive(
     )
     return templates.TemplateResponse("trends/briefings.html", {
         "request": request,
-        "active_page": "trends",
+        "active_page": "trend_engine",
         "current_user": current_user,
         "briefings": briefings,
     })
