@@ -8,28 +8,77 @@
 {% block content %}
 <div class="max-w-2xl" x-data="productForm({{ (product.categories or []) | tojson if product else '[]' }}, '{{ product.shipping_type or '' if product else '' }}', '{{ product.sample_type or '' if product else '' }}')">
 
-  <!-- AI URL fill -->
+  <!-- AI 자동 채우기 -->
   {% if not product %}
-  <div class="mb-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4">
-    <div class="text-sm font-semibold text-blue-800 mb-1">AI 자동 채우기</div>
-    <div class="text-xs text-blue-600 mb-3">제품 URL을 입력하면 AI가 제품 정보를 자동으로 추출합니다</div>
-    <div class="flex gap-2">
-      <input type="url" id="ai-url-input" placeholder="제품 URL 입력 (쿠팡, 스마트스토어, 공식몰 등)"
-        class="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-      <button
-        hx-post="/api/ai/product-fill"
-        hx-vals='js:{"source_url": document.getElementById("ai-url-input").value}'
+  <div class="mb-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4"
+    x-data="{ tab: 'url' }">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-sm font-semibold text-blue-800">AI 자동 채우기</div>
+      <!-- Tab toggle -->
+      <div class="flex bg-white border border-blue-200 rounded-lg p-0.5 gap-0.5">
+        <button type="button" @click="tab='url'"
+          :class="tab==='url' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-50'"
+          class="text-xs px-3 py-1 rounded-md font-medium transition-colors">
+          🔗 URL 분석
+        </button>
+        <button type="button" @click="tab='image'"
+          :class="tab==='image' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-50'"
+          class="text-xs px-3 py-1 rounded-md font-medium transition-colors">
+          📷 이미지 OCR
+        </button>
+      </div>
+    </div>
+
+    <!-- URL tab -->
+    <div x-show="tab==='url'">
+      <div class="text-xs text-blue-600 mb-2">제품 URL을 입력하면 AI가 정보를 자동으로 추출합니다</div>
+      <div class="flex gap-2">
+        <input type="url" id="ai-url-input" placeholder="제품 URL 입력 (쿠팡, 스마트스토어, 공식몰 등)"
+          class="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+        <button
+          hx-post="/api/ai/product-fill"
+          hx-vals='js:{"source_url": document.getElementById("ai-url-input").value}'
+          hx-target="#ai-result"
+          hx-swap="innerHTML"
+          hx-indicator="#ai-spinner-url"
+          class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 flex-shrink-0">
+          <span id="ai-spinner-url" class="htmx-indicator">
+            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          </span>
+          AI 분석
+        </button>
+      </div>
+    </div>
+
+    <!-- Image OCR tab -->
+    <div x-show="tab==='image'" x-cloak>
+      <div class="text-xs text-blue-600 mb-2">제품 사진이나 스크린샷을 업로드하면 AI가 정보를 자동으로 추출합니다</div>
+      <form
+        hx-post="/api/ai/product-image-fill"
         hx-target="#ai-result"
         hx-swap="innerHTML"
-        hx-indicator="#ai-spinner"
-        class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 flex-shrink-0">
-        <span id="ai-spinner" class="htmx-indicator">
-          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-        </span>
-        AI 분석
-      </button>
+        hx-encoding="multipart/form-data"
+        hx-indicator="#ai-spinner-img"
+        class="flex gap-2 items-center">
+        <label class="flex-1 flex items-center gap-2 px-3 py-2 border border-blue-200 rounded-lg bg-white cursor-pointer hover:border-blue-400 transition-colors">
+          <svg class="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <span id="ocr-file-label" class="text-sm text-gray-400 truncate">이미지 선택 (JPG, PNG, 스크린샷)</span>
+          <input type="file" name="image" accept="image/*" class="hidden"
+            onchange="document.getElementById('ocr-file-label').textContent = this.files[0]?.name || '이미지 선택'">
+        </label>
+        <button type="submit"
+          class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 flex-shrink-0">
+          <span id="ai-spinner-img" class="htmx-indicator">
+            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          </span>
+          OCR 분석
+        </button>
+      </form>
     </div>
-    <div id="ai-result" class="mt-2"></div>
+
+    <div id="ai-result" class="mt-3"></div>
   </div>
   {% endif %}
 
