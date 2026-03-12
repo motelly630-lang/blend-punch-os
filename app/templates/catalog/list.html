@@ -3,13 +3,53 @@
 
 {% block content %}
 
+<!-- 공구 신청 모달 (Alpine.js) -->
+<div x-data="{ open: false, productId: '', productName: '' }"
+  @open-inquiry.window="open = true; productId = $event.detail.id; productName = $event.detail.name">
+  <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4">
+    <div class="absolute inset-0 bg-black/40" @click="open = false"></div>
+    <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <h2 class="text-base font-bold text-gray-900">공구 신청</h2>
+          <p class="text-xs text-gray-400 mt-0.5" x-text="productName"></p>
+        </div>
+        <button @click="open = false" class="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+      </div>
+      <form method="post" action="/catalog/inquiry" class="space-y-3">
+        <input type="hidden" name="product_id" :value="productId">
+        <input type="hidden" name="product_name" :value="productName">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">이름 / 채널명</label>
+          <input type="text" name="contact_name" required placeholder="홍길동 / @handle"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">연락처 (카카오 ID / 전화번호 / 이메일)</label>
+          <input type="text" name="contact_info" required placeholder="연락 가능한 방법"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">메시지 (선택)</label>
+          <textarea name="message" rows="2" placeholder="팔로워 수, 평균 도달 등 간단한 소개"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+        </div>
+        <button type="submit"
+          class="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+          공구 신청하기
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- ── Hero ── -->
 <div class="mb-6">
   <h1 class="text-xl font-bold text-gray-900">공동구매 제품 카탈로그</h1>
-  <p class="text-sm text-gray-500 mt-1">셀러 협업을 위한 블렌드펀치 공식 제품 목록입니다</p>
+  <p class="text-sm text-gray-500 mt-1">블랜드펀치 파트너 인플루언서 전용 제품 목록입니다</p>
 </div>
 
-<!-- ── Search + Filter ── -->
+<!-- ── Search + Filters ── -->
 <form method="get" action="/catalog" class="mb-6 space-y-3">
   <!-- Search bar -->
   <div class="relative">
@@ -25,70 +65,207 @@
     <a href="/catalog{% if q %}?q={{ q }}{% endif %}"
       class="text-xs px-3 py-1.5 rounded-full border transition-colors
         {% if not category_filter %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-400{% endif %}">
-      전체
+      전체 카테고리
     </a>
     {% for cat in all_categories %}
-    <a href="/catalog?category={{ cat | urlencode }}{% if q %}&q={{ q }}{% endif %}"
+    <a href="/catalog?category={{ cat | urlencode }}{% if q %}&q={{ q }}{% endif %}{% if brand_filter %}&brand={{ brand_filter | urlencode }}{% endif %}"
       class="text-xs px-3 py-1.5 rounded-full border transition-colors
         {% if category_filter == cat %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-400{% endif %}">
       {{ cat }}
     </a>
     {% endfor %}
   </div>
+
+  <!-- Brand pills (only shown if brands exist) -->
+  {% if brands %}
+  <div class="flex flex-wrap gap-2 pt-1 border-t border-gray-100">
+    <span class="text-xs text-gray-400 self-center mr-1">브랜드:</span>
+    <a href="/catalog{% if category_filter %}?category={{ category_filter | urlencode }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+      class="text-xs px-3 py-1.5 rounded-full border transition-colors
+        {% if not brand_filter %}bg-gray-800 text-white border-gray-800{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-400{% endif %}">
+      전체
+    </a>
+    {% for b in brands %}
+    <a href="/catalog?brand={{ b | urlencode }}{% if category_filter %}&category={{ category_filter | urlencode }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+      class="text-xs px-3 py-1.5 rounded-full border transition-colors
+        {% if brand_filter == b %}bg-gray-800 text-white border-gray-800{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-400{% endif %}">
+      {{ b }}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
 </form>
+
+<!-- ── Recommended sections (page 1 only, no filters) ── -->
+{% if popular and not q and not category_filter and not brand_filter %}
+<div class="mb-8">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="text-sm font-bold text-gray-900">🔥 인기 공구 제품</span>
+    <span class="text-xs text-gray-400">판매액 기준</span>
+  </div>
+  <div class="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible">
+    {% for p in popular %}
+    <a href="/catalog/product/{{ p.id }}"
+      class="flex-shrink-0 w-40 sm:w-auto group bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
+      <div class="aspect-square bg-gray-50 overflow-hidden">
+        {% if p.product_image %}
+        <img src="{{ p.product_image }}" alt="{{ p.name }}" loading="lazy"
+          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        {% else %}
+        <div class="w-full h-full flex items-center justify-center text-2xl">📦</div>
+        {% endif %}
+      </div>
+      <div class="p-2.5">
+        <p class="text-xs text-gray-400">{{ p.brand }}</p>
+        <p class="text-xs font-semibold text-gray-900 line-clamp-2 leading-snug">{{ p.name }}</p>
+        {% if p.groupbuy_price or p.price %}
+        <p class="text-xs font-bold text-blue-600 mt-1">{{ (p.groupbuy_price or p.price) | won }}</p>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if newest and not q and not category_filter and not brand_filter %}
+<div class="mb-8">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="text-sm font-bold text-gray-900">✨ 신규 제품</span>
+  </div>
+  <div class="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible">
+    {% for p in newest %}
+    <a href="/catalog/product/{{ p.id }}"
+      class="flex-shrink-0 w-40 sm:w-auto group bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
+      <div class="aspect-square bg-gray-50 overflow-hidden">
+        {% if p.product_image %}
+        <img src="{{ p.product_image }}" alt="{{ p.name }}" loading="lazy"
+          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        {% else %}
+        <div class="w-full h-full flex items-center justify-center text-2xl">🆕</div>
+        {% endif %}
+      </div>
+      <div class="p-2.5">
+        <p class="text-xs text-gray-400">{{ p.brand }}</p>
+        <p class="text-xs font-semibold text-gray-900 line-clamp-2 leading-snug">{{ p.name }}</p>
+        {% if p.groupbuy_price or p.price %}
+        <p class="text-xs font-bold text-blue-600 mt-1">{{ (p.groupbuy_price or p.price) | won }}</p>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 <!-- ── Results count ── -->
 <div class="flex items-center justify-between mb-4">
-  <span class="text-xs text-gray-400">{{ products | length }}개 제품</span>
-  {% if q or category_filter %}
+  <span class="text-xs text-gray-400">총 {{ total }}개 제품{% if total_pages > 1 %} · {{ page }}/{{ total_pages }} 페이지{% endif %}</span>
+  {% if q or category_filter or brand_filter %}
   <a href="/catalog" class="text-xs text-blue-500 hover:text-blue-700">필터 초기화</a>
   {% endif %}
 </div>
 
 <!-- ── Product Grid ── -->
 {% if products %}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
   {% for p in products %}
-  <a href="/catalog/product/{{ p.id }}"
-    class="group bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:border-blue-200 transition-all duration-200">
+  <div class="group bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:border-blue-200 transition-all duration-200 flex flex-col">
 
-    <!-- Image -->
-    <div class="aspect-square bg-gray-50 overflow-hidden">
-      {% if p.product_image %}
-      <img src="{{ p.product_image }}" alt="{{ p.name }}"
-        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-      {% else %}
-      <div class="w-full h-full flex items-center justify-center">
-        <svg class="w-12 h-12 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-        </svg>
+    <a href="/catalog/product/{{ p.id }}" class="block">
+      <!-- Image -->
+      <div class="aspect-square bg-gray-50 overflow-hidden">
+        {% if p.product_image %}
+        <img src="{{ p.product_image }}" alt="{{ p.name }}" loading="lazy"
+          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        {% else %}
+        <div class="w-full h-full flex items-center justify-center">
+          <svg class="w-12 h-12 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+          </svg>
+        </div>
+        {% endif %}
       </div>
-      {% endif %}
+
+      <!-- Info -->
+      <div class="p-3 space-y-1.5 flex-1">
+        <div class="text-xs text-gray-400">{{ p.brand }}</div>
+        <h3 class="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">{{ p.name }}</h3>
+
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">{{ p.category }}</span>
+          {% if p.discount_rate and p.discount_rate > 0 %}
+          <span class="text-xs px-2 py-0.5 bg-red-50 text-red-500 rounded-full font-medium">{{ (p.discount_rate * 100) | round | int }}% 할인</span>
+          {% endif %}
+        </div>
+
+        {% if p.unique_selling_point %}
+        <p class="text-xs text-gray-500 line-clamp-2">{{ p.unique_selling_point }}</p>
+        {% elif p.description %}
+        <p class="text-xs text-gray-500 line-clamp-2">{{ p.description }}</p>
+        {% endif %}
+
+        <div class="pt-1.5 border-t border-gray-50">
+          {% if p.groupbuy_price and p.groupbuy_price > 0 %}
+          <div class="flex items-baseline gap-1.5">
+            <span class="text-sm font-bold text-gray-900">{{ p.groupbuy_price | won }}</span>
+            {% if p.consumer_price and p.consumer_price > 0 %}
+            <span class="text-xs text-gray-400 line-through">{{ p.consumer_price | won }}</span>
+            {% endif %}
+          </div>
+          {% elif p.price %}
+          <span class="text-sm font-bold text-gray-900">{{ p.price | won }}</span>
+          {% endif %}
+          {% if p.seller_commission_rate and p.seller_commission_rate > 0 %}
+          <div class="text-xs text-blue-600 font-medium mt-0.5">커미션 {{ p.seller_commission_rate | pct }}</div>
+          {% elif p.recommended_commission_rate %}
+          <div class="text-xs text-blue-600 font-medium mt-0.5">커미션 {{ p.recommended_commission_rate | pct }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+
+    <!-- 공구 신청 button -->
+    <div class="px-3 pb-3">
+      <button
+        @click="$dispatch('open-inquiry', { id: '{{ p.id }}', name: '{{ p.name | replace("'", "\\'") }}' })"
+        class="w-full py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+        공구 신청
+      </button>
     </div>
-
-    <!-- Info -->
-    <div class="p-3 space-y-1.5">
-      <div class="text-xs text-gray-400">{{ p.brand }}</div>
-      <h3 class="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">{{ p.name }}</h3>
-
-      <div class="flex items-center gap-1.5 flex-wrap">
-        <span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">{{ p.category }}</span>
-      </div>
-
-      {% if p.unique_selling_point %}
-      <p class="text-xs text-gray-500 line-clamp-2">{{ p.unique_selling_point }}</p>
-      {% elif p.description %}
-      <p class="text-xs text-gray-500 line-clamp-2">{{ p.description }}</p>
-      {% endif %}
-
-      <div class="pt-1.5 border-t border-gray-50 flex items-center justify-between">
-        <span class="text-sm font-bold text-gray-900">{{ p.price | won }}</span>
-        <span class="text-xs text-blue-600 font-medium">커미션 {{ p.recommended_commission_rate | pct }}</span>
-      </div>
-    </div>
-  </a>
+  </div>
   {% endfor %}
 </div>
+
+<!-- ── Pagination ── -->
+{% if total_pages > 1 %}
+<div class="flex items-center justify-center gap-2 mt-8">
+  {% if page > 1 %}
+  <a href="/catalog?page={{ page - 1 }}{% if q %}&q={{ q }}{% endif %}{% if category_filter %}&category={{ category_filter | urlencode }}{% endif %}{% if brand_filter %}&brand={{ brand_filter | urlencode }}{% endif %}"
+    class="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
+    ← 이전
+  </a>
+  {% endif %}
+
+  {% for pg in range(1, total_pages + 1) %}
+  {% if pg == page %}
+  <span class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium">{{ pg }}</span>
+  {% elif pg <= 3 or pg >= total_pages - 2 or (pg >= page - 2 and pg <= page + 2) %}
+  <a href="/catalog?page={{ pg }}{% if q %}&q={{ q }}{% endif %}{% if category_filter %}&category={{ category_filter | urlencode }}{% endif %}{% if brand_filter %}&brand={{ brand_filter | urlencode }}{% endif %}"
+    class="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
+    {{ pg }}
+  </a>
+  {% endif %}
+  {% endfor %}
+
+  {% if page < total_pages %}
+  <a href="/catalog?page={{ page + 1 }}{% if q %}&q={{ q }}{% endif %}{% if category_filter %}&category={{ category_filter | urlencode }}{% endif %}{% if brand_filter %}&brand={{ brand_filter | urlencode }}{% endif %}"
+    class="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
+    다음 →
+  </a>
+  {% endif %}
+</div>
+{% endif %}
 
 {% else %}
 <!-- Empty state -->
@@ -97,9 +274,9 @@
     <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
   </svg>
   <p class="text-sm text-gray-400">
-    {% if q or category_filter %}검색 결과가 없습니다{% else %}등록된 제품이 없습니다{% endif %}
+    {% if q or category_filter or brand_filter %}검색 결과가 없습니다{% else %}등록된 제품이 없습니다{% endif %}
   </p>
-  {% if q or category_filter %}
+  {% if q or category_filter or brand_filter %}
   <a href="/catalog" class="mt-2 inline-block text-xs text-blue-500 hover:text-blue-700">전체 보기</a>
   {% endif %}
 </div>

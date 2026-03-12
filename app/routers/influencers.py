@@ -115,6 +115,19 @@ def influencer_create(
     notes: str = Form(""),
     status: str = Form("active"),
     profile_image: UploadFile = File(None),
+    # Payout / business type fields
+    has_campaign_history: str = Form("false"),
+    business_type: str = Form(""),
+    bank_name: str = Form(""),
+    account_number: str = Form(""),
+    account_holder: str = Form(""),
+    business_name: str = Form(""),
+    business_registration_number: str = Form(""),
+    representative_name: str = Form(""),
+    business_address: str = Form(""),
+    tax_invoice_email: str = Form(""),
+    legal_name: str = Form(""),
+    resident_registration_number: str = Form(""),
 ):
     categories = _parse_categories(categories_json)
     image_path = _save_image(profile_image)
@@ -135,6 +148,18 @@ def influencer_create(
         notes=notes or None,
         status=status,
         profile_image=image_path,
+        has_campaign_history=has_campaign_history,
+        business_type=business_type or None,
+        bank_name=bank_name or None,
+        account_number=account_number or None,
+        account_holder=account_holder or None,
+        business_name=business_name or None,
+        business_registration_number=business_registration_number or None,
+        representative_name=representative_name or None,
+        business_address=business_address or None,
+        tax_invoice_email=tax_invoice_email or None,
+        legal_name=legal_name or None,
+        resident_registration_number=resident_registration_number or None,
     )
     db.add(influencer)
     db.commit()
@@ -189,6 +214,19 @@ def influencer_update(
     notes: str = Form(""),
     status: str = Form("active"),
     profile_image: UploadFile = File(None),
+    # Payout / business type fields
+    has_campaign_history: str = Form("false"),
+    business_type: str = Form(""),
+    bank_name: str = Form(""),
+    account_number: str = Form(""),
+    account_holder: str = Form(""),
+    business_name: str = Form(""),
+    business_registration_number: str = Form(""),
+    representative_name: str = Form(""),
+    business_address: str = Form(""),
+    tax_invoice_email: str = Form(""),
+    legal_name: str = Form(""),
+    resident_registration_number: str = Form(""),
 ):
     influencer = db.query(Influencer).filter(Influencer.id == influencer_id).first()
     if not influencer:
@@ -214,6 +252,18 @@ def influencer_update(
     influencer.commission_preference = commission_preference_pct / 100 if commission_preference_pct else None
     influencer.notes = notes or None
     influencer.status = status
+    influencer.has_campaign_history = has_campaign_history
+    influencer.business_type = business_type or None
+    influencer.bank_name = bank_name or None
+    influencer.account_number = account_number or None
+    influencer.account_holder = account_holder or None
+    influencer.business_name = business_name or None
+    influencer.business_registration_number = business_registration_number or None
+    influencer.representative_name = representative_name or None
+    influencer.business_address = business_address or None
+    influencer.tax_invoice_email = tax_invoice_email or None
+    influencer.legal_name = legal_name or None
+    influencer.resident_registration_number = resident_registration_number or None
     if new_image:
         influencer.profile_image = new_image
 

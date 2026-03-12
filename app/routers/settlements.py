@@ -1,5 +1,6 @@
+import io
 from fastapi import APIRouter, Request, Depends, Form
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -17,15 +18,100 @@ TAX_RATES = {"사업자": 0.033, "간이사업자": 0.033, "프리랜서": 0.033
 
 @router.get("")
 def settlement_list(request: Request, db: Session = Depends(get_db),
-                    current_user: User = Depends(get_current_user)):
-    settlements = db.query(Settlement).order_by(Settlement.created_at.desc()).all()
-    total_paid = sum(s.final_payment for s in settlements if s.status == "paid")
-    pending_count = sum(1 for s in settlements if s.status == "pending")
+                    current_user: User = Depends(get_current_user),
+                    tab: str = "pending"):
+    all_settlements = db.query(Settlement).order_by(Settlement.created_at.desc()).all()
+    total_paid = sum(s.final_payment for s in all_settlements if s.status == "paid")
+    pending_count = sum(1 for s in all_settlements if s.status == "pending")
+    confirmed_count = sum(1 for s in all_settlements if s.status == "confirmed")
+    paid_count = sum(1 for s in all_settlements if s.status == "paid")
+
+    if tab == "confirmed":
+        settlements = [s for s in all_settlements if s.status == "confirmed"]
+    elif tab == "paid":
+        settlements = [s for s in all_settlements if s.status == "paid"]
+    else:
+        settlements = [s for s in all_settlements if s.status == "pending"]
+        tab = "pending"
+
+    # Unique periods for export filter
+    periods = sorted({s.period_label for s in all_settlements if s.period_label}, reverse=True)
+
     return templates.TemplateResponse("settlements/index.html", {
         "request": request, "active_page": "settlements", "current_user": current_user,
-        "settlements": settlements, "total_paid": total_paid, "pending_count": pending_count,
+        "settlements": settlements, "total_paid": total_paid,
+        "pending_count": pending_count, "confirmed_count": confirmed_count, "paid_count": paid_count,
+        "tab": tab, "periods": periods,
         "seller_types": SELLER_TYPES,
     })
+
+
+@router.get("/export")
+def settlement_export(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    period: str = "",
+):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    query = db.query(Settlement)
+    if period:
+        query = query.filter(Settlement.period_label == period)
+    rows = query.order_by(Settlement.created_at.desc()).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "정산내역"
+
+    headers = ["기간", "인플루언서", "사업자유형", "캠페인", "매출액", "커미션율", "커미션액", "원천세율", "원천세액", "실지급액", "상태", "은행", "계좌번호", "예금주", "비고"]
+    header_fill = PatternFill("solid", fgColor="2563EB")
+    header_font = Font(bold=True, color="FFFFFF", size=10)
+
+    for ci, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=ci, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    status_labels = {"pending": "미확정", "confirmed": "확정됨", "paid": "지급완료"}
+
+    for ri, s in enumerate(rows, 2):
+        inf = s.influencer
+        camp = s.campaign
+        ws.cell(row=ri, column=1, value=s.period_label or "")
+        ws.cell(row=ri, column=2, value=inf.name if inf else "")
+        ws.cell(row=ri, column=3, value=s.seller_type or "")
+        ws.cell(row=ri, column=4, value=camp.name if camp else "")
+        ws.cell(row=ri, column=5, value=s.sales_amount or 0)
+        ws.cell(row=ri, column=6, value=f"{(s.commission_rate or 0) * 100:.1f}%")
+        ws.cell(row=ri, column=7, value=s.commission_amount or 0)
+        ws.cell(row=ri, column=8, value=f"{(s.tax_rate or 0) * 100:.1f}%")
+        ws.cell(row=ri, column=9, value=s.tax_amount or 0)
+        ws.cell(row=ri, column=10, value=s.final_payment or 0)
+        ws.cell(row=ri, column=11, value=status_labels.get(s.status, s.status))
+        ws.cell(row=ri, column=12, value=inf.bank_name if inf else "")
+        ws.cell(row=ri, column=13, value=inf.account_number if inf else "")
+        ws.cell(row=ri, column=14, value=inf.account_holder if inf else "")
+        ws.cell(row=ri, column=15, value=s.notes or "")
+
+    # Auto column width
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or "")) for cell in col), default=8)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 30)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    from urllib.parse import quote
+    period_part = f"_{period}" if period else ""
+    filename = quote(f"정산내역{period_part}.xlsx")
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
 
 
 @router.post("/new")

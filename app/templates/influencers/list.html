@@ -116,6 +116,16 @@
         <span class="text-sm font-bold text-gray-900">{{ inf.followers | num }}</span>
         <span class="text-xs text-gray-400">팔로워</span>
       </div>
+      <div class="flex items-center gap-1.5 flex-wrap mb-2">
+        {% if inf.has_campaign_history == 'true' %}
+        <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">캠페인 이력</span>
+        {% else %}
+        <span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">DB전용</span>
+        {% endif %}
+        {% if inf.business_type %}
+        <span class="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{{ inf.business_type }}</span>
+        {% endif %}
+      </div>
       {% if inf.categories %}
       <div class="flex flex-wrap gap-1">
         {% for cat in inf.categories[:3] %}

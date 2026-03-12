@@ -21,6 +21,14 @@ class Campaign(Base):
     actual_sales = Column(Integer, default=0)
     actual_revenue = Column(Float, default=0.0)
     notes = Column(Text, nullable=True)
+
+    # Phase 5 additions — commission split
+    unit_price = Column(Float, default=0.0)
+    seller_commission_rate = Column(Float, default=0.0)      # 셀러 커미션율
+    vendor_commission_rate = Column(Float, default=0.0)      # 벤더 마진율
+    seller_commission_amount = Column(Float, default=0.0)    # 셀러 지급액 (calculated)
+    vendor_commission_amount = Column(Float, default=0.0)    # 벤더 수익액 (calculated)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

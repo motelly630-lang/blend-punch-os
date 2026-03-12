@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}제품 일괄 등록 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}제품 일괄 등록{% endblock %}
+{% block header_actions %}
+<a href="/products" class="text-sm text-gray-500 hover:text-gray-700">← 제품 목록</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+
+  <!-- Info banner -->
+  <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
+    <div class="flex items-start gap-3">
+      <div class="text-blue-500 text-xl mt-0.5">📊</div>
+      <div>
+        <div class="text-sm font-semibold text-blue-800 mb-1">Excel / CSV 일괄 등록</div>
+        <div class="text-xs text-blue-600 space-y-0.5">
+          <p>• .xlsx 또는 .csv 파일을 업로드하면 컬럼을 자동 매핑합니다.</p>
+          <p>• 첫 번째 행은 헤더(컬럼명)여야 합니다.</p>
+          <p>• 지원 컬럼: 제품명, 브랜드, 카테고리, 소비자가, 최저가, 공급가, 공구가, 할인율, 셀러커미션, 배송비, 상품링크, 설명</p>
+          <p>• 인식 못한 컬럼은 미리보기에서 수동으로 매핑할 수 있습니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload form -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">파일 업로드</h3>
+    <form
+      hx-post="/products/import/upload"
+      hx-target="#preview-area"
+      hx-swap="innerHTML"
+      hx-encoding="multipart/form-data"
+      hx-indicator="#upload-spinner"
+      class="space-y-4">
+
+      <div class="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-blue-400 transition-colors">
+        <div class="text-3xl mb-3">📁</div>
+        <label class="cursor-pointer">
+          <span class="text-sm font-medium text-blue-600 hover:text-blue-700">파일 선택</span>
+          <input type="file" name="file" accept=".xlsx,.csv,.xls" required class="hidden"
+            onchange="document.getElementById('file-label').textContent = this.files[0]?.name || '파일을 선택하세요'">
+        </label>
+        <p id="file-label" class="text-xs text-gray-400 mt-2">파일을 선택하세요 (.xlsx, .csv)</p>
+      </div>
+
+      <button type="submit"
+        class="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+        <span id="upload-spinner" class="htmx-indicator">
+          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        </span>
+        파일 분석 및 미리보기
+      </button>
+    </form>
+  </div>
+
+  <!-- Preview area (htmx target) -->
+  <div id="preview-area" class="mt-6"></div>
+
+</div>
+{% endblock %}

@@ -43,5 +43,15 @@ class Product(Base):
     sample_type = Column(String(20), nullable=True)          # 무상|유상|없음
     sample_price = Column(Float, nullable=True)              # 샘플 가격 (유상일 때)
 
+    # Phase 5 additions — full pricing structure
+    consumer_price = Column(Float, default=0.0)              # 소비자가 (public)
+    lowest_price = Column(Float, default=0.0)                # 최저가 (internal)
+    supplier_price = Column(Float, default=0.0)              # 공급가 (INTERNAL ONLY)
+    groupbuy_price = Column(Float, default=0.0)              # 공구가 (public)
+    discount_rate = Column(Float, default=0.0)               # 할인율 decimal e.g. 0.30
+    seller_commission_rate = Column(Float, default=0.0)      # 셀러 커미션 (public)
+    vendor_commission_rate = Column(Float, default=0.0)      # 벤더 마진 (INTERNAL ONLY)
+    product_link = Column(Text, nullable=True)               # 상품 링크
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

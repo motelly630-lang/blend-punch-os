@@ -1,10 +1,11 @@
-from datetime import date
+from datetime import date, datetime
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Campaign, Product, Influencer
+from app.models.settlement import Settlement
 from app.models.user import User
 from app.auth.dependencies import get_current_user
 
@@ -49,6 +50,42 @@ def campaign_new(request: Request, db: Session = Depends(get_db),
     })
 
 
+def _parse_date(s):
+    try:
+        return date.fromisoformat(s) if s else None
+    except ValueError:
+        return None
+
+
+def _auto_settle(db: Session, campaign: Campaign):
+    """Create a draft Settlement when campaign completes (if none exists yet)."""
+    if not campaign.influencer_id:
+        return
+    existing = db.query(Settlement).filter_by(campaign_id=campaign.id).first()
+    if existing:
+        return
+    inf = db.query(Influencer).filter_by(id=campaign.influencer_id).first()
+    seller_rate = campaign.seller_commission_rate or campaign.commission_rate or 0.0
+    commission_amt = round((campaign.actual_revenue or 0) * seller_rate)
+    tax_rate = 0.033 if (inf and inf.business_type == "프리랜서") else 0.0
+    tax_amt = round(commission_amt * tax_rate)
+    s = Settlement(
+        influencer_id=campaign.influencer_id,
+        campaign_id=campaign.id,
+        period_label=datetime.now().strftime("%Y년 %m월"),
+        seller_type=(inf.business_type if inf and inf.business_type else "사업자"),
+        sales_amount=campaign.actual_revenue or 0,
+        commission_rate=seller_rate,
+        commission_amount=commission_amt,
+        tax_rate=tax_rate,
+        tax_amount=tax_amt,
+        final_payment=commission_amt - tax_amt,
+        status="pending",
+        notes="캠페인 완료 시 자동 생성",
+    )
+    db.add(s)
+
+
 @router.post("/new")
 def campaign_create(
     db: Session = Depends(get_db),
@@ -60,25 +97,32 @@ def campaign_create(
     start_date: str = Form(""),
     end_date: str = Form(""),
     commission_rate: float = Form(0.15),
+    unit_price: float = Form(0.0),
+    seller_commission_rate_pct: float = Form(0.0),
+    vendor_commission_rate_pct: float = Form(0.0),
     expected_sales: int = Form(0),
     actual_sales: int = Form(0),
     actual_revenue: float = Form(0.0),
     notes: str = Form(""),
 ):
-    def parse_date(s):
-        try:
-            return date.fromisoformat(s) if s else None
-        except ValueError:
-            return None
+    seller_rate = seller_commission_rate_pct / 100 if seller_commission_rate_pct else 0.0
+    vendor_rate = vendor_commission_rate_pct / 100 if vendor_commission_rate_pct else 0.0
+    seller_amt = round(actual_revenue * seller_rate)
+    vendor_amt = round(actual_revenue * vendor_rate)
 
     campaign = Campaign(
         name=name,
         product_id=product_id or None,
         influencer_id=influencer_id or None,
         status=status,
-        start_date=parse_date(start_date),
-        end_date=parse_date(end_date),
+        start_date=_parse_date(start_date),
+        end_date=_parse_date(end_date),
         commission_rate=commission_rate,
+        unit_price=unit_price,
+        seller_commission_rate=seller_rate,
+        vendor_commission_rate=vendor_rate,
+        seller_commission_amount=seller_amt,
+        vendor_commission_amount=vendor_amt,
         expected_sales=expected_sales,
         actual_sales=actual_sales,
         actual_revenue=actual_revenue,
@@ -87,6 +131,9 @@ def campaign_create(
     db.add(campaign)
     db.commit()
     db.refresh(campaign)
+    if status == "completed":
+        _auto_settle(db, campaign)
+        db.commit()
     return RedirectResponse(f"/campaigns/{campaign.id}?msg=캠페인이+생성되었습니다", status_code=302)
 
 
@@ -128,6 +175,9 @@ def campaign_update(
     start_date: str = Form(""),
     end_date: str = Form(""),
     commission_rate: float = Form(0.15),
+    unit_price: float = Form(0.0),
+    seller_commission_rate_pct: float = Form(0.0),
+    vendor_commission_rate_pct: float = Form(0.0),
     expected_sales: int = Form(0),
     actual_sales: int = Form(0),
     actual_revenue: float = Form(0.0),
@@ -137,24 +187,34 @@ def campaign_update(
     if not campaign:
         return RedirectResponse("/campaigns", status_code=302)
 
-    def parse_date(s):
-        try:
-            return date.fromisoformat(s) if s else None
-        except ValueError:
-            return None
+    prev_status = campaign.status
+    seller_rate = seller_commission_rate_pct / 100 if seller_commission_rate_pct else 0.0
+    vendor_rate = vendor_commission_rate_pct / 100 if vendor_commission_rate_pct else 0.0
+    seller_amt = round(actual_revenue * seller_rate)
+    vendor_amt = round(actual_revenue * vendor_rate)
 
     campaign.name = name
     campaign.product_id = product_id or None
     campaign.influencer_id = influencer_id or None
     campaign.status = status
-    campaign.start_date = parse_date(start_date)
-    campaign.end_date = parse_date(end_date)
+    campaign.start_date = _parse_date(start_date)
+    campaign.end_date = _parse_date(end_date)
     campaign.commission_rate = commission_rate
+    campaign.unit_price = unit_price
+    campaign.seller_commission_rate = seller_rate
+    campaign.vendor_commission_rate = vendor_rate
+    campaign.seller_commission_amount = seller_amt
+    campaign.vendor_commission_amount = vendor_amt
     campaign.expected_sales = expected_sales
     campaign.actual_sales = actual_sales
     campaign.actual_revenue = actual_revenue
     campaign.notes = notes or None
     db.commit()
+
+    if status == "completed" and prev_status != "completed":
+        _auto_settle(db, campaign)
+        db.commit()
+
     return RedirectResponse(f"/campaigns/{campaign_id}?msg=수정되었습니다", status_code=302)
 
 

@@ -80,6 +80,14 @@ def product_new(request: Request, current_user: User = Depends(get_current_user)
     )
 
 
+@router.get("/import")
+def product_import_page(request: Request, current_user: User = Depends(get_current_user)):
+    return templates.TemplateResponse(
+        "products/import.html",
+        {"request": request, "active_page": "products", "current_user": current_user},
+    )
+
+
 @router.post("/new")
 def product_create(
     request: Request,
@@ -110,6 +118,15 @@ def product_create(
     dispatch_days: str = Form(""),
     sample_type: str = Form(""),
     sample_price: str = Form(""),
+    # Phase 5 pricing fields
+    consumer_price: str = Form(""),
+    lowest_price: str = Form(""),
+    supplier_price: str = Form(""),
+    groupbuy_price: str = Form(""),
+    discount_rate: str = Form(""),
+    seller_commission_rate: str = Form(""),
+    vendor_commission_rate: str = Form(""),
+    product_link: str = Form(""),
 ):
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
     image_path = _save_image(product_image)
@@ -143,6 +160,14 @@ def product_create(
         dispatch_days=dispatch_days or None,
         sample_type=sample_type or None,
         sample_price=float(sample_price) if sample_price else None,
+        consumer_price=float(consumer_price) if consumer_price else 0.0,
+        lowest_price=float(lowest_price) if lowest_price else 0.0,
+        supplier_price=float(supplier_price) if supplier_price else 0.0,
+        groupbuy_price=float(groupbuy_price) if groupbuy_price else 0.0,
+        discount_rate=float(discount_rate) / 100.0 if discount_rate else 0.0,
+        seller_commission_rate=float(seller_commission_rate) / 100.0 if seller_commission_rate else 0.0,
+        vendor_commission_rate=float(vendor_commission_rate) / 100.0 if vendor_commission_rate else 0.0,
+        product_link=product_link or None,
     )
     db.add(product)
     db.commit()
@@ -206,6 +231,15 @@ def product_update(
     dispatch_days: str = Form(""),
     sample_type: str = Form(""),
     sample_price: str = Form(""),
+    # Phase 5 pricing fields
+    consumer_price: str = Form(""),
+    lowest_price: str = Form(""),
+    supplier_price: str = Form(""),
+    groupbuy_price: str = Form(""),
+    discount_rate: str = Form(""),
+    seller_commission_rate: str = Form(""),
+    vendor_commission_rate: str = Form(""),
+    product_link: str = Form(""),
 ):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
@@ -245,6 +279,14 @@ def product_update(
     product.dispatch_days = dispatch_days or None
     product.sample_type = sample_type or None
     product.sample_price = float(sample_price) if sample_price else None
+    product.consumer_price = float(consumer_price) if consumer_price else 0.0
+    product.lowest_price = float(lowest_price) if lowest_price else 0.0
+    product.supplier_price = float(supplier_price) if supplier_price else 0.0
+    product.groupbuy_price = float(groupbuy_price) if groupbuy_price else 0.0
+    product.discount_rate = float(discount_rate) / 100.0 if discount_rate else 0.0
+    product.seller_commission_rate = float(seller_commission_rate) / 100.0 if seller_commission_rate else 0.0
+    product.vendor_commission_rate = float(vendor_commission_rate) / 100.0 if vendor_commission_rate else 0.0
+    product.product_link = product_link or None
     if new_image:
         product.product_image = new_image
 

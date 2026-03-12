@@ -13,6 +13,7 @@ from app.routers import campaigns, trends, settlements
 from app.routers import public as public_router
 from app.routers import automation as automation_router
 from app.routers import catalog as catalog_router
+from app.routers import import_products as import_products_router
 from app.api import ai_product, ai_proposal, ai_playbook, ai_dm, ai_seller_content, ai_product_image
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions
 
@@ -66,6 +67,7 @@ app.include_router(ai_dm.router)
 app.include_router(ai_seller_content.router)
 app.include_router(ai_product_image.router)
 app.include_router(catalog_router.router)
+app.include_router(import_products_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────
@@ -136,8 +138,9 @@ def _setup_filters():
     import app.routers.public as pub
     import app.routers.automation as auto
     import app.routers.catalog as cat
+    import app.routers.import_products as imp
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat]:
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num
@@ -148,6 +151,7 @@ def _setup_filters():
         env.filters["demand_label"] = demand_label
         env.filters["status_label"] = status_label
         env.filters["role_label"] = role_label
+        env.globals["enumerate"] = enumerate
 
 
 _setup_filters()

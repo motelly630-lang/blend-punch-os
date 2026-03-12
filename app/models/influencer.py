@@ -31,5 +31,21 @@ class Influencer(Base):
     # Phase 2 additions
     profile_image = Column(String(500), nullable=True)  # /uploads/influencers/xxx.jpg
 
+    # Phase 5 additions — payout identity
+    has_campaign_history = Column(String(5), default="false")  # "true"|"false"
+    business_type = Column(String(20), nullable=True)       # 사업자|간이사업자|프리랜서
+    bank_name = Column(String(100), nullable=True)
+    account_number = Column(String(100), nullable=True)
+    account_holder = Column(String(100), nullable=True)
+    # 사업자 / 간이사업자
+    business_name = Column(String(200), nullable=True)
+    business_registration_number = Column(String(50), nullable=True)
+    representative_name = Column(String(100), nullable=True)
+    business_address = Column(Text, nullable=True)
+    tax_invoice_email = Column(String(200), nullable=True)
+    # 프리랜서
+    legal_name = Column(String(100), nullable=True)
+    resident_registration_number = Column(String(30), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

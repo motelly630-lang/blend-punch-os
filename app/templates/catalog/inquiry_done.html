@@ -1,0 +1,26 @@
+{% extends "catalog/base.html" %}
+{% block title %}공구 신청 완료 | BLEND PUNCH 셀러 카탈로그{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto py-16 text-center">
+  <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+    <svg class="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+    </svg>
+  </div>
+  <h1 class="text-xl font-bold text-gray-900 mb-2">공구 신청이 접수되었습니다</h1>
+  {% if contact_name %}
+  <p class="text-gray-500 text-sm mb-1">{{ contact_name }}님, 감사합니다!</p>
+  {% endif %}
+  {% if product_name %}
+  <p class="text-gray-600 text-sm mb-6">
+    <span class="font-medium text-gray-800">{{ product_name }}</span> 공구 신청이 확인되었습니다.
+  </p>
+  {% endif %}
+  <p class="text-xs text-gray-400 mb-8">담당 MD가 빠른 시일 내에 연락드릴 예정입니다.</p>
+  <a href="/catalog"
+     class="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+    ← 카탈로그로 돌아가기
+  </a>
+</div>
+{% endblock %}

@@ -40,8 +40,39 @@ def migrate():
         _add_column(conn, "products", "sample_type VARCHAR(20)")
         _add_column(conn, "products", "sample_price FLOAT")
 
+        # --- products (Phase 5) ---
+        _add_column(conn, "products", "consumer_price FLOAT DEFAULT 0")
+        _add_column(conn, "products", "lowest_price FLOAT DEFAULT 0")
+        _add_column(conn, "products", "supplier_price FLOAT DEFAULT 0")
+        _add_column(conn, "products", "groupbuy_price FLOAT DEFAULT 0")
+        _add_column(conn, "products", "discount_rate FLOAT DEFAULT 0")
+        _add_column(conn, "products", "seller_commission_rate FLOAT DEFAULT 0")
+        _add_column(conn, "products", "vendor_commission_rate FLOAT DEFAULT 0")
+        _add_column(conn, "products", "product_link TEXT")
+
         # --- influencers ---
         _add_column(conn, "influencers", "profile_image VARCHAR(500)")
+
+        # --- influencers (Phase 5) ---
+        _add_column(conn, "influencers", "has_campaign_history VARCHAR(5) DEFAULT 'false'")
+        _add_column(conn, "influencers", "business_type VARCHAR(20)")
+        _add_column(conn, "influencers", "bank_name VARCHAR(100)")
+        _add_column(conn, "influencers", "account_number VARCHAR(100)")
+        _add_column(conn, "influencers", "account_holder VARCHAR(100)")
+        _add_column(conn, "influencers", "business_name VARCHAR(200)")
+        _add_column(conn, "influencers", "business_registration_number VARCHAR(50)")
+        _add_column(conn, "influencers", "representative_name VARCHAR(100)")
+        _add_column(conn, "influencers", "business_address TEXT")
+        _add_column(conn, "influencers", "tax_invoice_email VARCHAR(200)")
+        _add_column(conn, "influencers", "legal_name VARCHAR(100)")
+        _add_column(conn, "influencers", "resident_registration_number VARCHAR(30)")
+
+        # --- campaigns (Phase 5) ---
+        _add_column(conn, "campaigns", "unit_price FLOAT DEFAULT 0")
+        _add_column(conn, "campaigns", "seller_commission_rate FLOAT DEFAULT 0")
+        _add_column(conn, "campaigns", "vendor_commission_rate FLOAT DEFAULT 0")
+        _add_column(conn, "campaigns", "seller_commission_amount FLOAT DEFAULT 0")
+        _add_column(conn, "campaigns", "vendor_commission_amount FLOAT DEFAULT 0")
 
         conn.commit()
 
