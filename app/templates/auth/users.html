@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}사용자 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}사용자 관리{% endblock %}
+
+{% block header_actions %}
+<button onclick="document.getElementById('add-modal').classList.remove('hidden')"
+  class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+  </svg>
+  사용자 추가
+</button>
+{% endblock %}
+
+{% block content %}
+
+<!-- Stats -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-2xl font-bold text-gray-900">{{ users | length }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">전체 계정</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-2xl font-bold text-green-600">{{ users | selectattr('is_active') | list | length }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">활성 계정</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-2xl font-bold text-blue-600">{{ users | selectattr('role', 'equalto', 'admin') | list | length }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">관리자</div>
+  </div>
+</div>
+
+<!-- User table -->
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">아이디</th>
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">역할</th>
+        <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500">상태</th>
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">등록일</th>
+        <th class="px-3 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for u in users %}
+      <tr class="hover:bg-gray-50 transition-colors" x-data="{ editOpen: false, pwOpen: false }">
+        <td class="px-5 py-3.5">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
+              {% if u.role == 'admin' %}bg-blue-100 text-blue-700
+              {% elif u.role == 'staff' %}bg-purple-100 text-purple-700
+              {% else %}bg-gray-100 text-gray-600{% endif %}">
+              {{ u.username[0].upper() }}
+            </div>
+            <div>
+              <div class="font-medium text-gray-900">{{ u.username }}</div>
+              {% if u.id == current_user.id %}
+              <div class="text-xs text-blue-500">현재 계정</div>
+              {% endif %}
+            </div>
+          </div>
+        </td>
+        <td class="px-5 py-3.5">
+          <span class="text-xs px-2.5 py-1 rounded-full font-medium
+            {% if u.role == 'admin' %}bg-blue-100 text-blue-700
+            {% elif u.role == 'staff' %}bg-purple-100 text-purple-700
+            {% else %}bg-gray-100 text-gray-600{% endif %}">
+            {{ u.role | role_label }}
+          </span>
+        </td>
+        <td class="px-5 py-3.5 text-center">
+          {% if u.is_active %}
+          <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">활성</span>
+          {% else %}
+          <span class="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full">비활성</span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3.5 text-xs text-gray-400">{{ u.created_at | date }}</td>
+        <td class="px-3 py-3.5">
+          <div class="flex items-center gap-1 justify-end">
+
+            <!-- Edit role/status -->
+            <button type="button" @click="editOpen = !editOpen"
+              class="text-xs text-gray-500 hover:text-blue-600 px-2 py-1 rounded hover:bg-blue-50 transition-colors">
+              편집
+            </button>
+
+            <!-- Reset password -->
+            <button type="button" @click="pwOpen = !pwOpen"
+              class="text-xs text-gray-500 hover:text-amber-600 px-2 py-1 rounded hover:bg-amber-50 transition-colors">
+              비번
+            </button>
+
+            <!-- Delete -->
+            {% if u.id != current_user.id %}
+            <form method="post" action="/users/{{ u.id }}/delete"
+              onsubmit="return confirm('{{ u.username }} 계정을 삭제하시겠습니까?')">
+              <button type="submit" class="text-xs text-gray-300 hover:text-red-500 px-2 py-1 rounded hover:bg-red-50 transition-colors">
+                삭제
+              </button>
+            </form>
+            {% endif %}
+          </div>
+
+          <!-- Inline edit form -->
+          <div x-show="editOpen" x-cloak
+            class="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+            <form method="post" action="/users/{{ u.id }}/edit" class="space-y-2">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">역할</label>
+                <select name="role"
+                  class="w-full px-2 py-1.5 border border-gray-200 rounded-md text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {% for val, label in roles %}
+                  <option value="{{ val }}" {% if u.role == val %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="checkbox" name="is_active" id="active-{{ u.id }}" value="on"
+                  {% if u.is_active %}checked{% endif %}
+                  class="rounded text-blue-600 focus:ring-blue-500">
+                <label for="active-{{ u.id }}" class="text-xs text-gray-600 cursor-pointer">활성 계정</label>
+              </div>
+              <div class="flex gap-2">
+                <button type="submit" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700">저장</button>
+                <button type="button" @click="editOpen = false" class="text-xs px-3 py-1.5 text-gray-500 hover:text-gray-700">취소</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Inline password reset form -->
+          <div x-show="pwOpen" x-cloak
+            class="mt-2 p-3 bg-amber-50 rounded-lg border border-amber-200 space-y-2">
+            <form method="post" action="/users/{{ u.id }}/reset-password" class="space-y-2">
+              <div>
+                <label class="block text-xs font-medium text-amber-700 mb-1">새 비밀번호</label>
+                <input type="password" name="new_password" required minlength="6" placeholder="6자 이상"
+                  class="w-full px-2 py-1.5 border border-amber-200 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-amber-400">
+              </div>
+              <div class="flex gap-2">
+                <button type="submit" class="text-xs px-3 py-1.5 bg-amber-500 text-white rounded-md hover:bg-amber-600">초기화</button>
+                <button type="button" @click="pwOpen = false" class="text-xs px-3 py-1.5 text-gray-500 hover:text-gray-700">취소</button>
+              </div>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Role guide -->
+<div class="mt-4 bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+  <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">역할 안내</div>
+  <div class="grid grid-cols-3 gap-4 text-xs">
+    <div class="flex items-start gap-2">
+      <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium flex-shrink-0">관리자</span>
+      <span class="text-gray-500">모든 기능 접근 + 사용자 관리</span>
+    </div>
+    <div class="flex items-start gap-2">
+      <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-medium flex-shrink-0">스태프</span>
+      <span class="text-gray-500">제품·캠페인·정산 관리 가능</span>
+    </div>
+    <div class="flex items-start gap-2">
+      <span class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium flex-shrink-0">파트너</span>
+      <span class="text-gray-500">기본 조회 및 카탈로그 접근</span>
+    </div>
+  </div>
+</div>
+
+<!-- Add user modal -->
+<div id="add-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-semibold text-gray-800">사용자 추가</h2>
+      <button onclick="document.getElementById('add-modal').classList.add('hidden')"
+        class="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+    </div>
+    <form method="post" action="/users/new" class="space-y-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">아이디 <span class="text-red-500">*</span></label>
+        <input type="text" name="username" required placeholder="영문/숫자"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">초기 비밀번호 <span class="text-red-500">*</span></label>
+        <input type="password" name="password" required minlength="6" placeholder="6자 이상"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">역할</label>
+        <select name="role"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {% for val, label in roles %}
+          <option value="{{ val }}" {% if val == 'partner' %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="document.getElementById('add-modal').classList.add('hidden')"
+          class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">취소</button>
+        <button type="submit"
+          class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">추가</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
