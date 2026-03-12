@@ -26,63 +26,137 @@
   </div>
 </div>
 
-<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-  {% if campaigns %}
-  <table class="w-full text-sm">
-    <thead class="bg-gray-50 border-b border-gray-100">
-      <tr>
-        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">캠페인</th>
-        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">제품</th>
-        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">인플루언서</th>
-        <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">상태</th>
-        <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">기간</th>
-        <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">예상매출</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-gray-50">
-      {% for c in campaigns %}
-      <tr class="hover:bg-gray-50 transition-colors">
-        <td class="px-5 py-3.5">
-          <a href="/campaigns/{{ c.id }}" class="font-medium text-gray-900 hover:text-blue-600">{{ c.name }}</a>
-        </td>
-        <td class="px-5 py-3.5 text-gray-500 text-xs">
-          {% if c.product %}<a href="/products/{{ c.product.id }}" class="text-blue-600 hover:underline">{{ c.product.name }}</a>
-          {% else %}<span class="text-gray-300">-</span>{% endif %}
-        </td>
-        <td class="px-5 py-3.5 text-gray-500 text-xs">
-          {% if c.influencer %}<a href="/influencers/{{ c.influencer.id }}" class="text-purple-600 hover:underline">{{ c.influencer.name }}</a>
-          {% else %}<span class="text-gray-300">-</span>{% endif %}
-        </td>
-        <td class="px-5 py-3.5 text-center">
-          <span class="text-xs px-2 py-0.5 rounded-full font-medium
-            {% if c.status == 'active' %}bg-green-100 text-green-700
-            {% elif c.status == 'planning' %}bg-blue-100 text-blue-700
+{% if campaigns %}
+<!-- 3-column status bucket view -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+  <!-- 진행 예정 -->
+  <div>
+    <div class="flex items-center gap-2 mb-3">
+      <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">진행 예정</span>
+      <span class="text-xs text-gray-400 ml-auto">{{ campaigns | selectattr('status', 'in', ['planning','negotiating','contracted']) | list | length }}건</span>
+    </div>
+    <div class="space-y-2">
+      {% for c in campaigns if c.status in ['planning', 'negotiating', 'contracted'] %}
+      <a href="/campaigns/{{ c.id }}"
+        class="block bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-blue-200 transition-all group">
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <div class="font-medium text-sm text-gray-900 group-hover:text-blue-700 line-clamp-2 leading-snug">{{ c.name }}</div>
+          <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
+            {% if c.status == 'planning' %}bg-blue-100 text-blue-700
             {% elif c.status == 'negotiating' %}bg-yellow-100 text-yellow-700
-            {% elif c.status == 'contracted' %}bg-indigo-100 text-indigo-700
-            {% elif c.status == 'completed' %}bg-gray-100 text-gray-600
-            {% else %}bg-red-100 text-red-600{% endif %}">
+            {% else %}bg-indigo-100 text-indigo-700{% endif %}">
             {{ c.status | status_label }}
           </span>
-        </td>
-        <td class="px-5 py-3.5 text-right text-xs text-gray-400">
-          {% if c.start_date %}{{ c.start_date | date }}{% endif %}
-          {% if c.start_date and c.end_date %} ~ {% endif %}
-          {% if c.end_date %}{{ c.end_date | date }}{% endif %}
-          {% if not c.start_date and not c.end_date %}-{% endif %}
-        </td>
-        <td class="px-5 py-3.5 text-right text-gray-700 font-medium text-xs">
-          {% if c.expected_sales %}{{ c.expected_sales | num }}개{% else %}-{% endif %}
-        </td>
-      </tr>
+        </div>
+        {% if c.product or c.influencer %}
+        <div class="flex items-center gap-1.5 text-xs text-gray-400 flex-wrap">
+          {% if c.product %}<span class="text-blue-500">{{ c.product.name }}</span>{% endif %}
+          {% if c.product and c.influencer %}<span>·</span>{% endif %}
+          {% if c.influencer %}<span class="text-purple-500">{{ c.influencer.name }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if c.start_date %}
+        <div class="text-xs text-gray-400 mt-1.5">{{ c.start_date | date }} 시작</div>
+        {% endif %}
+      </a>
+      {% else %}
+      <div class="bg-gray-50 rounded-xl border border-dashed border-gray-200 p-6 text-center">
+        <p class="text-xs text-gray-400">없음</p>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <div class="py-16 text-center">
-    <div class="text-gray-400 text-sm mb-3">등록된 캠페인이 없습니다</div>
-    <a href="/campaigns/new" class="text-sm text-blue-600 hover:text-blue-700 font-medium">+ 첫 캠페인 생성하기</a>
+    </div>
   </div>
-  {% endif %}
+
+  <!-- 진행 중 -->
+  <div>
+    <div class="flex items-center gap-2 mb-3">
+      <div class="w-2 h-2 rounded-full bg-green-500"></div>
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">진행 중</span>
+      <span class="text-xs text-gray-400 ml-auto">{{ campaigns | selectattr('status', 'equalto', 'active') | list | length }}건</span>
+    </div>
+    <div class="space-y-2">
+      {% for c in campaigns if c.status == 'active' %}
+      <a href="/campaigns/{{ c.id }}"
+        class="block bg-white rounded-xl border border-green-100 shadow-sm p-4 hover:shadow-md hover:border-green-300 transition-all group">
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <div class="font-medium text-sm text-gray-900 group-hover:text-green-700 line-clamp-2 leading-snug">{{ c.name }}</div>
+          <span class="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">진행중</span>
+        </div>
+        {% if c.product or c.influencer %}
+        <div class="flex items-center gap-1.5 text-xs text-gray-400 flex-wrap">
+          {% if c.product %}<span class="text-blue-500">{{ c.product.name }}</span>{% endif %}
+          {% if c.product and c.influencer %}<span>·</span>{% endif %}
+          {% if c.influencer %}<span class="text-purple-500">{{ c.influencer.name }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if c.actual_revenue %}
+        <div class="mt-2 pt-2 border-t border-gray-50 flex items-center justify-between">
+          <span class="text-xs text-gray-400">실매출</span>
+          <span class="text-xs font-bold text-green-700">{{ c.actual_revenue | won }}</span>
+        </div>
+        {% endif %}
+        {% if c.end_date %}
+        <div class="text-xs text-gray-400 mt-1">~ {{ c.end_date | date }}</div>
+        {% endif %}
+      </a>
+      {% else %}
+      <div class="bg-gray-50 rounded-xl border border-dashed border-gray-200 p-6 text-center">
+        <p class="text-xs text-gray-400">없음</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 완료 -->
+  <div>
+    <div class="flex items-center gap-2 mb-3">
+      <div class="w-2 h-2 rounded-full bg-gray-400"></div>
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">완료</span>
+      <span class="text-xs text-gray-400 ml-auto">{{ campaigns | selectattr('status', 'in', ['completed','cancelled']) | list | length }}건</span>
+    </div>
+    <div class="space-y-2">
+      {% for c in campaigns if c.status in ['completed', 'cancelled'] %}
+      <a href="/campaigns/{{ c.id }}"
+        class="block bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-all group opacity-80 hover:opacity-100">
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <div class="font-medium text-sm text-gray-700 group-hover:text-gray-900 line-clamp-2 leading-snug">{{ c.name }}</div>
+          <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
+            {% if c.status == 'completed' %}bg-gray-100 text-gray-600{% else %}bg-red-100 text-red-600{% endif %}">
+            {{ c.status | status_label }}
+          </span>
+        </div>
+        {% if c.product or c.influencer %}
+        <div class="flex items-center gap-1.5 text-xs text-gray-400 flex-wrap">
+          {% if c.product %}<span>{{ c.product.name }}</span>{% endif %}
+          {% if c.product and c.influencer %}<span>·</span>{% endif %}
+          {% if c.influencer %}<span>{{ c.influencer.name }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if c.actual_revenue %}
+        <div class="mt-2 pt-2 border-t border-gray-50 flex items-center justify-between">
+          <span class="text-xs text-gray-400">최종 매출</span>
+          <span class="text-xs font-bold text-gray-700">{{ c.actual_revenue | won }}</span>
+        </div>
+        {% endif %}
+      </a>
+      {% else %}
+      <div class="bg-gray-50 rounded-xl border border-dashed border-gray-200 p-6 text-center">
+        <p class="text-xs text-gray-400">없음</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
 </div>
-{% if campaigns %}<div class="mt-3 text-xs text-gray-400 text-right">총 {{ campaigns | length }}개</div>{% endif %}
+
+{% else %}
+<div class="bg-white rounded-xl border border-gray-100 p-16 text-center">
+  <div class="text-gray-400 text-sm mb-3">등록된 캠페인이 없습니다</div>
+  <a href="/campaigns/new" class="text-sm text-blue-600 hover:text-blue-700 font-medium">+ 첫 캠페인 생성하기</a>
+</div>
+{% endif %}
+
+<div class="mt-3 text-xs text-gray-400 text-right">총 {{ campaigns | length }}개</div>
 {% endblock %}

@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Product
+from app.models import Product, Influencer
 from app.models.user import User
 from app.auth.dependencies import get_current_user
 
@@ -181,9 +181,26 @@ def product_detail(product_id: str, request: Request, db: Session = Depends(get_
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         return RedirectResponse("/products?err=제품을+찾을+수+없습니다", status_code=302)
+
+    # 추천 인플루언서: 카테고리 겹치는 활성 인플루언서 top 5
+    recommended_influencers = []
+    product_cats = set(product.categories or [])
+    if product_cats:
+        all_active = db.query(Influencer).filter(Influencer.status == "active").all()
+        scored = []
+        for inf in all_active:
+            overlap = len(product_cats & set(inf.categories or []))
+            if overlap > 0:
+                scored.append((overlap, inf))
+        scored.sort(key=lambda x: (-x[0], -(x[1].followers or 0)))
+        recommended_influencers = [inf for _, inf in scored[:5]]
+
     return templates.TemplateResponse(
         "products/detail.html",
-        {"request": request, "active_page": "products", "current_user": current_user, "product": product},
+        {
+            "request": request, "active_page": "products", "current_user": current_user,
+            "product": product, "recommended_influencers": recommended_influencers,
+        },
     )
 
 
