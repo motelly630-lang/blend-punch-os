@@ -20,13 +20,101 @@
     imagePreview: '{{ influencer.profile_image or '' if influencer else '' }}',
     bt: '{{ influencer.business_type or '' if influencer else '' }}',
     hasCampaign: {{ 'true' if influencer and influencer.has_campaign_history == 'true' else 'false' }},
-    showPayout: {{ 'true' if influencer and (influencer.business_type or influencer.bank_name) else 'false' }}
-  }">
+    showPayout: {{ 'true' if influencer and (influencer.business_type or influencer.bank_name) else 'false' }},
+    aiTab: 'url',
+    aiFilename: ''
+  }"
+  @inf-ai-fill.window="
+    if ($event.detail.imagePreview) imagePreview = $event.detail.imagePreview;
+    if ($event.detail.categories && $event.detail.categories.length) selected = $event.detail.categories;
+  ">
+
+  <!-- ── AI 자동 입력 ────────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-xl border border-blue-100 shadow-sm p-5 mb-5">
+    <div class="flex items-center gap-2 mb-3">
+      <svg class="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+      </svg>
+      <span class="text-sm font-semibold text-gray-700">AI 자동 입력</span>
+      <span class="text-xs text-gray-400">Instagram · YouTube · TikTok URL 또는 프로필 스크린샷</span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-1 mb-3 bg-gray-100 rounded-lg p-1 w-fit">
+      <button type="button" @click="aiTab='url'"
+        :class="aiTab==='url' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+        class="text-xs font-medium px-3 py-1.5 rounded-md transition-all">
+        🔗 URL 가져오기
+      </button>
+      <button type="button" @click="aiTab='image'"
+        :class="aiTab==='image' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+        class="text-xs font-medium px-3 py-1.5 rounded-md transition-all">
+        📷 스크린샷 OCR
+      </button>
+    </div>
+
+    <!-- URL tab -->
+    <div x-show="aiTab==='url'">
+      <form hx-post="/api/ai/influencer-url-fill"
+        hx-target="#ai-inf-result" hx-swap="innerHTML"
+        hx-indicator="#ai-url-spinner"
+        class="flex gap-2">
+        <input type="text" name="url" required placeholder="https://www.instagram.com/username"
+          class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <button type="submit"
+          class="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0">
+          <span id="ai-url-spinner" class="htmx-indicator">
+            <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+          </span>
+          분석
+        </button>
+      </form>
+      <p class="text-xs text-gray-400 mt-1.5">지원: instagram.com / youtube.com / tiktok.com 공개 프로필</p>
+    </div>
+
+    <!-- Screenshot OCR tab -->
+    <div x-show="aiTab==='image'" x-cloak>
+      <form hx-post="/api/ai/influencer-image-fill"
+        hx-target="#ai-inf-result" hx-swap="innerHTML"
+        hx-indicator="#ai-img-spinner"
+        hx-encoding="multipart/form-data"
+        class="flex gap-2 items-center">
+        <label class="flex-1 flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+          <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <span class="text-sm text-gray-500" x-text="aiFilename || '스크린샷 선택'"></span>
+          <input type="file" name="image" accept="image/*" class="hidden"
+            @change="aiFilename = $event.target.files[0]?.name || ''">
+        </label>
+        <button type="submit"
+          class="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0">
+          <span id="ai-img-spinner" class="htmx-indicator">
+            <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+          </span>
+          분석
+        </button>
+      </form>
+      <p class="text-xs text-gray-400 mt-1.5">프로필 화면 캡처 이미지를 업로드하면 이름·핸들·팔로워를 자동 추출합니다</p>
+    </div>
+
+    <!-- Result area -->
+    <div id="ai-inf-result" class="mt-3"></div>
+  </div>
 
   <form method="post"
     action="/influencers/{% if influencer %}{{ influencer.id }}/edit{% else %}new{% endif %}"
     enctype="multipart/form-data"
     class="space-y-5">
+
+    <!-- Hidden: AI-downloaded profile image path -->
+    <input type="hidden" id="saved_profile_image_path" name="saved_profile_image_path" value="">
 
     <!-- 기본 정보 -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
@@ -364,4 +452,49 @@
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function applyAiInfluencerFill(data) {
+  const set = (name, val) => {
+    if (val === undefined || val === null || val === '') return;
+    const el = document.querySelector('[name="' + name + '"]');
+    if (el) el.value = val;
+  };
+
+  set('name',        data.name);
+  set('handle',      data.handle);
+  set('followers',   data.followers);
+  set('profile_url', data.profile_url);
+
+  // Platform select
+  if (data.platform) {
+    const sel = document.querySelector('select[name="platform"]');
+    if (sel) for (let o of sel.options) {
+      if (o.value === data.platform) { o.selected = true; break; }
+    }
+  }
+
+  // AI-downloaded profile image — store path in hidden field + update Alpine preview
+  if (data.profile_image_path) {
+    document.getElementById('saved_profile_image_path').value = data.profile_image_path;
+    window.dispatchEvent(new CustomEvent('inf-ai-fill', {
+      detail: { imagePreview: data.profile_image_path }
+    }));
+  }
+
+  // Categories — update Alpine selected array
+  if (data.categories && data.categories.length) {
+    window.dispatchEvent(new CustomEvent('inf-ai-fill', {
+      detail: { categories: data.categories }
+    }));
+  }
+
+  document.getElementById('ai-inf-result').innerHTML =
+    '<div class="flex items-center gap-2 text-green-700 text-sm font-medium mt-2">' +
+    '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>' +
+    '폼에 적용되었습니다 — 내용 검토 후 저장하세요</div>';
+}
+</script>
 {% endblock %}

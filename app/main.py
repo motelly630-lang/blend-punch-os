@@ -14,7 +14,7 @@ from app.routers import public as public_router
 from app.routers import automation as automation_router
 from app.routers import catalog as catalog_router
 from app.routers import import_products as import_products_router
-from app.api import ai_product, ai_proposal, ai_playbook, ai_dm, ai_seller_content, ai_product_image
+from app.api import ai_product, ai_proposal, ai_playbook, ai_dm, ai_seller_content, ai_product_image, ai_influencer
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions
 
 
@@ -66,6 +66,7 @@ app.include_router(ai_playbook.router)
 app.include_router(ai_dm.router)
 app.include_router(ai_seller_content.router)
 app.include_router(ai_product_image.router)
+app.include_router(ai_influencer.router)
 app.include_router(catalog_router.router)
 app.include_router(import_products_router.router)
 

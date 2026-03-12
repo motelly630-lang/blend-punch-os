@@ -128,9 +128,10 @@ def influencer_create(
     tax_invoice_email: str = Form(""),
     legal_name: str = Form(""),
     resident_registration_number: str = Form(""),
+    saved_profile_image_path: str = Form(""),
 ):
     categories = _parse_categories(categories_json)
-    image_path = _save_image(profile_image)
+    image_path = _save_image(profile_image) or (saved_profile_image_path or None)
     influencer = Influencer(
         name=name, platform=platform, handle=handle,
         profile_url=profile_url or None,
@@ -227,13 +228,14 @@ def influencer_update(
     tax_invoice_email: str = Form(""),
     legal_name: str = Form(""),
     resident_registration_number: str = Form(""),
+    saved_profile_image_path: str = Form(""),
 ):
     influencer = db.query(Influencer).filter(Influencer.id == influencer_id).first()
     if not influencer:
         return RedirectResponse("/influencers", status_code=302)
 
     categories = _parse_categories(categories_json)
-    new_image = _save_image(profile_image)
+    new_image = _save_image(profile_image) or (saved_profile_image_path or None)
 
     influencer.name = name
     influencer.platform = platform
@@ -266,6 +268,8 @@ def influencer_update(
     influencer.resident_registration_number = resident_registration_number or None
     if new_image:
         influencer.profile_image = new_image
+    elif saved_profile_image_path and not influencer.profile_image:
+        influencer.profile_image = saved_profile_image_path
 
     db.commit()
     return RedirectResponse(f"/influencers/{influencer_id}?msg=수정되었습니다", status_code=302)
