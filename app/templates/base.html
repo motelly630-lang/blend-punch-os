@@ -63,6 +63,15 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="{{ path }}"/>
         </svg>
         {{ label }}
+        {% if page == 'outreach' %}
+          {% set _cnt = outreach_active_count() %}
+          {% if _cnt > 0 %}
+          <span class="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full leading-none
+            {% if active_page == page %}bg-white/20 text-white{% else %}bg-blue-600 text-white{% endif %}">
+            {{ _cnt }}
+          </span>
+          {% endif %}
+        {% endif %}
       </a>
       {% endfor %}
     </nav>

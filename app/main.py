@@ -164,6 +164,20 @@ def _setup_filters():
         env.filters["role_label"] = role_label
         env.globals["enumerate"] = enumerate
         env.filters["enumerate"] = enumerate
+        env.globals["outreach_active_count"] = _outreach_active_count
+
+
+def _outreach_active_count() -> int:
+    """Live count of in-progress outreach (제안발송/샘플요청/샘플발송) for sidebar badge."""
+    from app.database import SessionLocal
+    from app.models.outreach import OutreachLog
+    db = SessionLocal()
+    try:
+        return db.query(OutreachLog).filter(
+            OutreachLog.sample_status.in_(["제안발송", "샘플요청", "샘플발송"])
+        ).count()
+    finally:
+        db.close()
 
 
 _setup_filters()
