@@ -163,6 +163,7 @@ def _setup_filters():
         env.filters["status_label"] = status_label
         env.filters["role_label"] = role_label
         env.globals["enumerate"] = enumerate
+        env.filters["enumerate"] = enumerate
 
 
 _setup_filters()
