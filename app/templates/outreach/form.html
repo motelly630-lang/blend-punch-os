@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}아웃리치 기록 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}아웃리치 기록{% endblock %}
+
+{% block header_actions %}
+<a href="/outreach" class="text-sm text-gray-500 hover:text-gray-700">← 목록으로</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+
+  <!-- Info -->
+  <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
+    <div class="text-xs text-blue-600">
+      <span class="font-semibold text-blue-800">자동 동기화:</span>
+      입력한 인플루언서 핸들이 DB에 없으면 자동으로 기본 프로필이 생성됩니다.
+      나중에 인플루언서 페이지에서 상세 정보를 보완할 수 있습니다.
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <form method="post" action="/outreach/new" class="space-y-5">
+
+      <!-- Row 1: Operator + Date -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">담당자 <span class="text-red-400">*</span></label>
+          <input type="text" name="operator" required
+            value="{{ current_user.username if current_user else '' }}"
+            placeholder="담당자 이름"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">날짜 <span class="text-red-400">*</span></label>
+          <input type="date" name="outreach_date" required
+            value="{{ today }}"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+      </div>
+
+      <!-- Row 2: Handle + Status -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">인플루언서 핸들 <span class="text-red-400">*</span></label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">@</span>
+            <input type="text" name="influencer_handle" required
+              placeholder="handle"
+              class="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+          <p class="text-xs text-gray-400 mt-1">@ 없이 입력해도 됩니다</p>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1.5">샘플 상태</label>
+          <select name="sample_status"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            {% for s in sample_statuses %}
+            <option value="{{ s }}" {% if s == '제안발송' %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Product -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">제품 (선택)</label>
+        <select name="product_id"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="">— 제품 선택 안 함 —</option>
+          {% for p in products %}
+          <option value="{{ p.id }}">
+            {{ p.name }}{% if p.brand %} — {{ p.brand }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Notes -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">메모 (선택)</label>
+        <textarea name="notes" rows="3"
+          placeholder="DM 응답률, 미팅 일정, 조건 협의 내용 등 자유롭게"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-gray-100">
+        <a href="/outreach" class="text-sm text-gray-500 hover:text-gray-700">취소</a>
+        <button type="submit"
+          class="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+          기록 저장
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+{% endblock %}

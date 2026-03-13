@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}아웃리치 & 샘플 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}아웃리치 & 샘플 관리{% endblock %}
+
+{% block header_actions %}
+<a href="/outreach/new"
+  class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+  </svg>
+  아웃리치 기록
+</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Stats row ──────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 col-span-2 lg:col-span-1">
+    <div class="text-2xl font-bold text-gray-900">{{ total }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">전체 기록</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-2xl font-bold text-blue-600">{{ today_count }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">오늘 발송</div>
+  </div>
+  {% set color_classes = {
+    '제안발송': 'text-blue-600',
+    '샘플요청': 'text-amber-600',
+    '샘플발송': 'text-green-600',
+    '보류': 'text-gray-500',
+    '거절': 'text-red-500'
+  } %}
+  {% for status in sample_statuses %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-2xl font-bold {{ color_classes.get(status, 'text-gray-700') }}">{{ status_counts[status] }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">{{ status }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
+<form method="get" action="/outreach" class="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-3 mb-4 flex flex-wrap items-center gap-3">
+  <!-- Operator filter -->
+  <div class="flex items-center gap-2">
+    <label class="text-xs text-gray-500 whitespace-nowrap">담당자</label>
+    <select name="operator" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
+      <option value="">전체</option>
+      {% for op in operators %}
+      <option value="{{ op }}" {% if filter_operator == op %}selected{% endif %}>{{ op }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <!-- Status filter -->
+  <div class="flex items-center gap-2">
+    <label class="text-xs text-gray-500 whitespace-nowrap">상태</label>
+    <select name="status" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
+      <option value="">전체</option>
+      {% for s in sample_statuses %}
+      <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <!-- Product filter -->
+  <div class="flex items-center gap-2">
+    <label class="text-xs text-gray-500 whitespace-nowrap">제품</label>
+    <select name="product_id" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
+      <option value="">전체</option>
+      {% for p in products %}
+      <option value="{{ p.id }}" {% if filter_product_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="px-4 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors">필터 적용</button>
+  {% if filter_operator or filter_status or filter_product_id %}
+  <a href="/outreach" class="text-xs text-gray-400 hover:text-gray-600">필터 초기화</a>
+  {% endif %}
+</form>
+
+<!-- ── Log table ──────────────────────────────────────────────────────────── -->
+{% if enriched %}
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">날짜</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">담당자</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">인플루언서</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">제품</th>
+        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500">샘플 상태</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">메모</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for item in enriched %}
+      {% set log = item.log %}
+      {% set product = item.product %}
+      {% set influencer = item.influencer %}
+      {% set color = status_colors.get(log.sample_status, 'gray') %}
+      {% set badge_cls = {
+        'blue': 'bg-blue-100 text-blue-700',
+        'amber': 'bg-amber-100 text-amber-700',
+        'green': 'bg-green-100 text-green-700',
+        'gray': 'bg-gray-100 text-gray-600',
+        'red': 'bg-red-100 text-red-600'
+      } %}
+      <tr class="hover:bg-gray-50 transition-colors">
+        <td class="px-5 py-3 text-xs text-gray-500 whitespace-nowrap">{{ log.outreach_date }}</td>
+        <td class="px-4 py-3 text-sm font-medium text-gray-700">{{ log.operator }}</td>
+        <td class="px-4 py-3">
+          <div class="font-medium text-gray-800 text-sm">@{{ log.influencer_handle }}</div>
+          {% if influencer %}
+          <a href="/influencers/{{ influencer.id }}" class="text-xs text-blue-500 hover:text-blue-700">
+            {{ influencer.name }} →
+          </a>
+          {% else %}
+          <span class="text-xs text-gray-400 italic">DB 미등록</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if product %}
+          <a href="/products/{{ product.id }}" class="text-sm text-gray-700 hover:text-blue-600">{{ product.name }}</a>
+          {% if product.brand %}<div class="text-xs text-gray-400">{{ product.brand }}</div>{% endif %}
+          {% else %}
+          <span class="text-xs text-gray-400">—</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-center" id="status-cell-{{ log.id }}">
+          <div x-data="{ open: false }" class="relative inline-block">
+            <button @click="open = !open"
+              class="text-xs font-semibold px-2.5 py-1 rounded-full {{ badge_cls.get(color, 'bg-gray-100 text-gray-600') }} hover:opacity-80 transition-opacity">
+              {{ log.sample_status }}
+            </button>
+            <!-- Dropdown status picker -->
+            <div x-show="open" x-cloak @click.away="open = false"
+              class="absolute right-0 top-8 z-10 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-32">
+              {% for s in sample_statuses %}
+              {% set sc = status_colors.get(s, 'gray') %}
+              <button
+                hx-post="/outreach/{{ log.id }}/status"
+                hx-vals='{"sample_status": "{{ s }}"}'
+                hx-target="#status-cell-{{ log.id }}"
+                hx-swap="innerHTML"
+                @click="open = false"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 transition-colors
+                  {% if log.sample_status == s %}font-bold text-gray-900{% else %}text-gray-600{% endif %}">
+                {{ s }}
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+        </td>
+        <td class="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">
+          {{ log.notes or "—" }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white rounded-xl border border-gray-100 p-12 text-center">
+  <div class="text-3xl mb-3">📭</div>
+  <div class="text-sm text-gray-500 mb-4">아직 기록된 아웃리치가 없습니다.</div>
+  <a href="/outreach/new"
+    class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+    첫 번째 아웃리치 기록하기
+  </a>
+</div>
+{% endif %}
+
+{% endblock %}

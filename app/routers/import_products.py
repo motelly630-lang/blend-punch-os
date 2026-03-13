@@ -2,7 +2,7 @@
 Excel / CSV product import router.
 Routes:
   POST /products/import/upload   — parse file, return preview partial (htmx)
-  POST /products/import/confirm  — save confirmed rows
+  POST /products/import/confirm  — save confirmed rows (with optional AI enrichment)
 """
 import io
 import json
@@ -133,6 +133,32 @@ def _convert_value(field: str, raw: str):
     return raw or None
 
 
+def _ai_enrich(name: str, brand: str, category: str, description: str) -> dict | None:
+    """Call Claude to extract structured fields from product description."""
+    try:
+        from pathlib import Path
+        from app.ai.client import ClaudeClient
+
+        prompt_template = Path("app/prompts/product_import_fill.md").read_text()
+        prompt = (
+            prompt_template
+            .replace("{{name}}", name)
+            .replace("{{brand}}", brand)
+            .replace("{{category}}", category)
+            .replace("{{description}}", description[:2000])
+        )
+        # Split on ## User Template
+        parts = prompt.split("## User Template")
+        system = parts[0].replace("## System\n", "").strip()
+        user = parts[1].strip() if len(parts) > 1 else description
+
+        client = ClaudeClient()
+        result = client.complete_json(system=system, user=user)
+        return result
+    except Exception:
+        return None
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.post("/upload", response_class=HTMLResponse)
@@ -159,6 +185,9 @@ async def import_upload(
         "rows": rows,
     })
 
+    # Check if any column mapped to description (AI enrichment possible)
+    has_description_col = any(v == "description" for v in mapping.values())
+
     return templates.TemplateResponse(
         "products/import_preview.html",
         {
@@ -170,6 +199,7 @@ async def import_upload(
             "all_fields": ALL_PRODUCT_FIELDS,
             "payload": payload,
             "filename": file.filename,
+            "has_description_col": has_description_col,
         },
     )
 
@@ -181,6 +211,7 @@ async def import_confirm(
     current_user: User = Depends(get_current_user),
     payload_json: str = Form(...),
     mapping_json: str = Form(...),
+    use_ai: str = Form(""),
 ):
     try:
         payload = json.loads(payload_json)
@@ -190,9 +221,14 @@ async def import_confirm(
 
     headers = payload.get("headers", [])
     rows = payload.get("rows", [])
-    saved = 0
+    run_ai = use_ai == "1"
 
-    for row in rows:
+    saved = 0
+    ai_enriched = 0
+    skipped = 0
+    errors: list[str] = []
+
+    for row_idx, row in enumerate(rows):
         row_data: dict = {}
         for i, header in enumerate(headers):
             field = mapping.get(str(i), "__skip__")
@@ -204,7 +240,20 @@ async def import_confirm(
                 row_data[field] = converted
 
         if not row_data.get("name"):
+            skipped += 1
             continue  # skip rows without a product name
+
+        # Optional AI enrichment from description
+        ai_data = None
+        if run_ai and row_data.get("description"):
+            ai_data = _ai_enrich(
+                name=row_data.get("name", ""),
+                brand=row_data.get("brand", ""),
+                category=row_data.get("category", ""),
+                description=row_data["description"],
+            )
+            if ai_data:
+                ai_enriched += 1
 
         product = Product(
             name=row_data.get("name", ""),
@@ -222,9 +271,26 @@ async def import_confirm(
             product_link=row_data.get("product_link"),
             status="draft",
             visibility_status="active",
+            # AI-enriched fields
+            key_benefits=ai_data.get("key_benefits") if ai_data else None,
+            unique_selling_point=ai_data.get("unique_selling_point") if ai_data else None,
+            target_audience=ai_data.get("target_audience") if ai_data else None,
+            content_angle=ai_data.get("content_angle") if ai_data else None,
+            ai_analysis_raw=json.dumps(ai_data, ensure_ascii=False) if ai_data else None,
         )
         db.add(product)
         saved += 1
 
+        # Commit in batches of 50
+        if saved % 50 == 0:
+            db.flush()
+
     db.commit()
-    return RedirectResponse(f"/products?msg={saved}개+제품이+등록되었습니다", status_code=302)
+
+    msg_parts = [f"{saved}개+제품+등록"]
+    if run_ai and ai_enriched:
+        msg_parts.append(f"AI+분석+{ai_enriched}개")
+    if skipped:
+        msg_parts.append(f"{skipped}개+건너뜀")
+    msg = "+·+".join(msg_parts)
+    return RedirectResponse(f"/products?msg={msg}", status_code=302)

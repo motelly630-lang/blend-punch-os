@@ -77,6 +77,9 @@ def migrate():
         # --- trend_briefings (Trend Engine) ---
         # Table is created by init_db(); no extra columns needed
 
+        # --- outreach_logs (Outreach & Sample Tracking) ---
+        # Table is created by init_db(); no extra columns needed
+
         conn.commit()
 
     print("Migration complete.")
