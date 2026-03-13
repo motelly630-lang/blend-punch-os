@@ -19,65 +19,87 @@ def dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    now = datetime.now()
+
     # ── Basic counts ──────────────────────────────────────────────────────────
     product_count = db.query(func.count(Product.id)).scalar()
     influencer_count = db.query(func.count(Influencer.id)).scalar()
     campaign_count = db.query(func.count(Campaign.id)).scalar()
     proposal_count = db.query(func.count(Proposal.id)).scalar()
 
-    # ── Revenue KPIs ──────────────────────────────────────────────────────────
-    all_campaigns = db.query(Campaign).all()
-    completed = [c for c in all_campaigns if c.status == "completed"]
-    active_now = [c for c in all_campaigns if c.status == "active"]
+    # ── Revenue KPIs (SQL aggregates — no full table loads) ───────────────────
+    total_revenue = db.query(func.sum(Campaign.actual_revenue)).filter(
+        Campaign.status == "completed"
+    ).scalar() or 0
 
-    total_revenue = sum(c.actual_revenue or 0 for c in completed)
-    active_revenue = sum(c.actual_revenue or 0 for c in active_now)
+    active_revenue = db.query(func.sum(Campaign.actual_revenue)).filter(
+        Campaign.status == "active"
+    ).scalar() or 0
 
-    # This month
-    now = datetime.now()
     this_month = now.strftime("%Y-%m")
-    monthly_revenue = sum(
-        c.actual_revenue or 0 for c in completed
-        if c.updated_at and c.updated_at.strftime("%Y-%m") == this_month
-    )
+    monthly_revenue = db.query(func.sum(Campaign.actual_revenue)).filter(
+        Campaign.status == "completed",
+        func.strftime("%Y-%m", Campaign.updated_at) == this_month,
+    ).scalar() or 0
 
-    # Total seller commission paid out
-    total_seller_commission = sum(c.seller_commission_amount or 0 for c in completed)
+    total_seller_commission = db.query(func.sum(Campaign.seller_commission_amount)).filter(
+        Campaign.status == "completed"
+    ).scalar() or 0
 
-    # ── Settlement KPIs ───────────────────────────────────────────────────────
-    all_settlements = db.query(Settlement).all()
-    pending_amount = sum(s.final_payment or 0 for s in all_settlements if s.status == "pending")
-    confirmed_amount = sum(s.final_payment or 0 for s in all_settlements if s.status == "confirmed")
-    paid_amount = sum(s.final_payment or 0 for s in all_settlements if s.status == "paid")
-    pending_count = sum(1 for s in all_settlements if s.status == "pending")
-    confirmed_count = sum(1 for s in all_settlements if s.status == "confirmed")
+    # ── Settlement KPIs (SQL aggregates) ─────────────────────────────────────
+    pending_amount = db.query(func.sum(Settlement.final_payment)).filter(
+        Settlement.status == "pending"
+    ).scalar() or 0
+    confirmed_amount = db.query(func.sum(Settlement.final_payment)).filter(
+        Settlement.status == "confirmed"
+    ).scalar() or 0
+    paid_amount = db.query(func.sum(Settlement.final_payment)).filter(
+        Settlement.status == "paid"
+    ).scalar() or 0
+    pending_count = db.query(func.count(Settlement.id)).filter(
+        Settlement.status == "pending"
+    ).scalar() or 0
+    confirmed_count = db.query(func.count(Settlement.id)).filter(
+        Settlement.status == "confirmed"
+    ).scalar() or 0
 
-    # ── Monthly revenue trend (last 6 months) ─────────────────────────────────
+    # ── Monthly revenue trend (last 6 months, single GROUP BY query) ──────────
+    monthly_raw = db.query(
+        func.strftime("%Y-%m", Campaign.updated_at).label("ym"),
+        func.sum(Campaign.actual_revenue).label("rev"),
+    ).filter(
+        Campaign.status == "completed",
+        Campaign.actual_revenue.isnot(None),
+    ).group_by("ym").all()
+
+    monthly_by_ym = {row.ym: (row.rev or 0) for row in monthly_raw}
+
     monthly_trend = []
     for i in range(5, -1, -1):
-        # Go back i months from current month
         target = (now.replace(day=1) - timedelta(days=i * 28)).replace(day=1)
         label = target.strftime("%Y-%m")
         display = target.strftime("%-m월")
-        rev = sum(
-            c.actual_revenue or 0 for c in completed
-            if c.updated_at and c.updated_at.strftime("%Y-%m") == label
-        )
-        monthly_trend.append({"month": display, "revenue": rev})
+        monthly_trend.append({"month": display, "revenue": monthly_by_ym.get(label, 0)})
 
     max_trend_rev = max((m["revenue"] for m in monthly_trend), default=1) or 1
 
-    # ── Top products by revenue ────────────────────────────────────────────────
-    product_revenue: dict = {}
-    for c in completed:
-        if c.product_id and c.actual_revenue:
-            product_revenue[c.product_id] = product_revenue.get(c.product_id, 0) + c.actual_revenue
-    top_product_ids = sorted(product_revenue, key=lambda x: -product_revenue[x])[:5]
+    # ── Top products by revenue (SQL GROUP BY) ────────────────────────────────
+    top_raw = db.query(
+        Campaign.product_id,
+        func.sum(Campaign.actual_revenue).label("total_rev"),
+    ).filter(
+        Campaign.status == "completed",
+        Campaign.product_id.isnot(None),
+        Campaign.actual_revenue.isnot(None),
+    ).group_by(Campaign.product_id).order_by(
+        func.sum(Campaign.actual_revenue).desc()
+    ).limit(5).all()
+
     top_products = []
-    for pid in top_product_ids:
-        p = db.query(Product).filter(Product.id == pid).first()
+    for row in top_raw:
+        p = db.query(Product).filter(Product.id == row.product_id).first()
         if p:
-            top_products.append({"product": p, "revenue": product_revenue[pid]})
+            top_products.append({"product": p, "revenue": row.total_rev or 0})
 
     # ── Active campaigns ──────────────────────────────────────────────────────
     active_campaigns = (

@@ -167,17 +167,27 @@ def _setup_filters():
         env.globals["outreach_active_count"] = _outreach_active_count
 
 
+_outreach_cache: dict = {"value": 0, "expires": 0.0}
+
+
 def _outreach_active_count() -> int:
-    """Live count of in-progress outreach (제안발송/샘플요청/샘플발송) for sidebar badge."""
+    """Cached count (30s TTL) of in-progress outreach items for sidebar badge."""
+    import time
+    now = time.monotonic()
+    if now < _outreach_cache["expires"]:
+        return _outreach_cache["value"]
     from app.database import SessionLocal
     from app.models.outreach import OutreachLog
     db = SessionLocal()
     try:
-        return db.query(OutreachLog).filter(
+        count = db.query(OutreachLog).filter(
             OutreachLog.sample_status.in_(["제안발송", "샘플요청", "샘플발송"])
         ).count()
     finally:
         db.close()
+    _outreach_cache["value"] = count
+    _outreach_cache["expires"] = now + 30.0
+    return count
 
 
 _setup_filters()

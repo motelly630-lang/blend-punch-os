@@ -126,29 +126,16 @@
           {% endif %}
         </td>
         <td class="px-4 py-3 text-center" id="status-cell-{{ log.id }}">
-          <div x-data="{ open: false }" class="relative inline-block">
-            <button @click="open = !open"
-              class="text-xs font-semibold px-2.5 py-1 rounded-full {{ badge_cls.get(color, 'bg-gray-100 text-gray-600') }} hover:opacity-80 transition-opacity">
-              {{ log.sample_status }}
-            </button>
-            <!-- Dropdown status picker -->
-            <div x-show="open" x-cloak @click.away="open = false"
-              class="absolute right-0 top-8 z-10 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-32">
-              {% for s in sample_statuses %}
-              {% set sc = status_colors.get(s, 'gray') %}
-              <button
-                hx-post="/outreach/{{ log.id }}/status"
-                hx-vals='{"sample_status": "{{ s }}"}'
-                hx-target="#status-cell-{{ log.id }}"
-                hx-swap="innerHTML"
-                @click="open = false"
-                class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 transition-colors
-                  {% if log.sample_status == s %}font-bold text-gray-900{% else %}text-gray-600{% endif %}">
-                {{ s }}
-              </button>
-              {% endfor %}
-            </div>
-          </div>
+          <select name="sample_status"
+            hx-post="/outreach/{{ log.id }}/status"
+            hx-target="#status-cell-{{ log.id }}"
+            hx-swap="innerHTML"
+            hx-trigger="change"
+            class="text-xs font-semibold border-0 rounded-full px-2 py-1 cursor-pointer {{ badge_cls.get(color, 'bg-gray-100 text-gray-600') }}">
+            {% for s in sample_statuses %}
+            <option value="{{ s }}" {% if log.sample_status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
         </td>
         <td class="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">
           {{ log.notes or "—" }}

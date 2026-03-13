@@ -7,23 +7,88 @@
 
 {% block scripts %}
 <script>
-  function campaignFormData() {
-    return {
-      revenue: {{ campaign.actual_revenue | int if campaign else 0 }},
-      sellerPct: {{ (campaign.seller_commission_rate * 100) | round(1) if campaign and campaign.seller_commission_rate else 0 }},
-      vendorPct: {{ (campaign.vendor_commission_rate * 100) | round(1) if campaign and campaign.vendor_commission_rate else 0 }},
-      status: {{ (campaign.status if campaign else 'planning') | tojson }},
-      sellerAmt() { return Math.round(this.revenue * this.sellerPct / 100); },
-      vendorAmt() { return Math.round(this.revenue * this.vendorPct / 100); },
-      fmtWon(v) { return '\u20a9' + Math.round(v).toLocaleString('ko-KR'); },
-      isCompleting() { return this.status === 'completed'; }
-    };
+(function () {
+  var revenue = {{ campaign.actual_revenue | int if campaign else 0 }};
+  var sellerPct = {{ (campaign.seller_commission_rate * 100) | round(1) if campaign and campaign.seller_commission_rate else 0 }};
+  var vendorPct = {{ (campaign.vendor_commission_rate * 100) | round(1) if campaign and campaign.vendor_commission_rate else 0 }};
+
+  function fmtWon(v) {
+    return '\u20a9' + Math.round(v).toLocaleString('ko-KR');
   }
+
+  function updatePreview() {
+    var sellerAmt = Math.round(revenue * sellerPct / 100);
+    var vendorAmt = Math.round(revenue * vendorPct / 100);
+
+    var preview = document.getElementById('payout-preview');
+    if (preview) {
+      if (revenue > 0 && (sellerPct > 0 || vendorPct > 0)) {
+        preview.style.display = '';
+      } else {
+        preview.style.display = 'none';
+      }
+      var el;
+      el = document.getElementById('preview-revenue');
+      if (el) el.textContent = fmtWon(revenue);
+      el = document.getElementById('preview-seller-pct');
+      if (el) el.textContent = sellerPct + '%';
+      el = document.getElementById('preview-seller-amt');
+      if (el) el.textContent = fmtWon(sellerAmt);
+      el = document.getElementById('preview-vendor-pct');
+      if (el) el.textContent = vendorPct + '%';
+      el = document.getElementById('preview-vendor-amt');
+      if (el) el.textContent = fmtWon(vendorAmt);
+      el = document.getElementById('preview-remainder');
+      if (el) el.textContent = fmtWon(revenue - sellerAmt - vendorAmt);
+    }
+  }
+
+  function updateWarning(statusVal) {
+    var warning = document.getElementById('completing-warning');
+    if (warning) {
+      warning.style.display = statusVal === 'completed' ? '' : 'none';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var revenueInput = document.getElementById('revenue-input');
+    var sellerInput = document.getElementById('seller-pct-input');
+    var vendorInput = document.getElementById('vendor-pct-input');
+    var statusSelect = document.getElementById('status-select');
+
+    if (revenueInput) {
+      revenueInput.addEventListener('input', function () {
+        revenue = parseFloat(this.value) || 0;
+        updatePreview();
+      });
+    }
+    if (sellerInput) {
+      sellerInput.addEventListener('input', function () {
+        sellerPct = parseFloat(this.value) || 0;
+        updatePreview();
+      });
+    }
+    if (vendorInput) {
+      vendorInput.addEventListener('input', function () {
+        vendorPct = parseFloat(this.value) || 0;
+        updatePreview();
+      });
+    }
+    if (statusSelect) {
+      statusSelect.addEventListener('change', function () {
+        updateWarning(this.value);
+      });
+      updateWarning(statusSelect.value);
+    }
+
+    updatePreview();
+  });
+}());
 </script>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-2xl" x-data="campaignFormData()">
+<div class="max-w-2xl">
   <form method="post" action="/campaigns/{% if campaign %}{{ campaign.id }}/edit{% else %}new{% endif %}"
         class="space-y-5">
 
@@ -59,7 +124,7 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">상태</label>
-          <select name="status" x-model="status" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <select name="status" id="status-select" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
             {% for val, label in statuses %}
             <option value="{{ val }}" {% if campaign and campaign.status == val %}selected{% elif not campaign and val == 'planning' %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
@@ -92,7 +157,9 @@
         </div>
         <div class="col-span-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">실제 매출 (원)</label>
-          <input type="number" name="actual_revenue" x-model.number="revenue" min="0" step="1000"
+          <input type="number" name="actual_revenue" id="revenue-input"
+            value="{{ campaign.actual_revenue | int if campaign else 0 }}"
+            min="0" step="1000"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
         <!-- Legacy commission_rate field (hidden) -->
@@ -111,7 +178,8 @@
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">셀러 커미션율 (%)</label>
-          <input type="number" name="seller_commission_rate_pct" x-model.number="sellerPct"
+          <input type="number" name="seller_commission_rate_pct" id="seller-pct-input"
+            value="{{ (campaign.seller_commission_rate * 100) | round(1) if campaign and campaign.seller_commission_rate else 0 }}"
             step="0.1" min="0" max="100"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           <p class="text-xs text-gray-400 mt-1">인플루언서에게 지급</p>
@@ -121,7 +189,8 @@
             벤더 마진율 (%)
             <span class="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded font-normal">🔒 내부</span>
           </label>
-          <input type="number" name="vendor_commission_rate_pct" x-model.number="vendorPct"
+          <input type="number" name="vendor_commission_rate_pct" id="vendor-pct-input"
+            value="{{ (campaign.vendor_commission_rate * 100) | round(1) if campaign and campaign.vendor_commission_rate else 0 }}"
             step="0.1" min="0" max="100"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg bg-orange-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
           <p class="text-xs text-gray-400 mt-1">블렌드펀치 수익</p>
@@ -129,29 +198,29 @@
       </div>
 
       <!-- Live payout preview -->
-      <div class="bg-gray-50 rounded-xl p-4 space-y-2" x-show="revenue > 0 && (sellerPct > 0 || vendorPct > 0)">
+      <div id="payout-preview" class="bg-gray-50 rounded-xl p-4 space-y-2" style="display:none">
         <div class="text-xs font-semibold text-gray-500 mb-2">수익 배분 미리보기</div>
         <div class="flex items-center justify-between text-sm">
           <span class="text-gray-600">총 매출</span>
-          <span class="font-semibold text-gray-900" x-text="fmtWon(revenue)"></span>
+          <span id="preview-revenue" class="font-semibold text-gray-900"></span>
         </div>
         <div class="flex items-center justify-between text-sm">
-          <span class="text-gray-600">셀러 지급 (<span x-text="sellerPct + '%'"></span>)</span>
-          <span class="font-semibold text-blue-600" x-text="fmtWon(sellerAmt())"></span>
+          <span class="text-gray-600">셀러 지급 (<span id="preview-seller-pct"></span>)</span>
+          <span id="preview-seller-amt" class="font-semibold text-blue-600"></span>
         </div>
         <div class="flex items-center justify-between text-sm">
-          <span class="text-gray-600">벤더 수익 (<span x-text="vendorPct + '%'"></span>)</span>
-          <span class="font-semibold text-orange-600" x-text="fmtWon(vendorAmt())"></span>
+          <span class="text-gray-600">벤더 수익 (<span id="preview-vendor-pct"></span>)</span>
+          <span id="preview-vendor-amt" class="font-semibold text-orange-600"></span>
         </div>
         <div class="border-t border-gray-200 pt-2 flex items-center justify-between text-sm">
           <span class="text-gray-500">나머지</span>
-          <span class="font-semibold text-gray-700" x-text="fmtWon(revenue - sellerAmt() - vendorAmt())"></span>
+          <span id="preview-remainder" class="font-semibold text-gray-700"></span>
         </div>
       </div>
     </div>
 
     <!-- 완료 상태 경고 -->
-    <div x-show="isCompleting()" x-cloak
+    <div id="completing-warning" style="display:none"
       class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
       <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>

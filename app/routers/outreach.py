@@ -198,6 +198,17 @@ def outreach_update_status(
         "red": "bg-red-100 text-red-600",
     }
     cls = color_map.get(color, "bg-gray-100 text-gray-600")
+    opts = "".join(
+        f'<option value="{s}"{" selected" if s == sample_status else ""}>{s}</option>'
+        for s in SAMPLE_STATUSES
+    )
     return HTMLResponse(
-        f'<span class="text-xs font-semibold px-2.5 py-1 rounded-full {cls}">{sample_status}</span>'
+        f'<select name="sample_status"'
+        f' hx-post="/outreach/{log_id}/status"'
+        f' hx-target="#status-cell-{log_id}"'
+        f' hx-swap="innerHTML"'
+        f' hx-trigger="change"'
+        f' class="text-xs font-semibold border-0 rounded-full px-2 py-1 cursor-pointer {cls}">'
+        f'{opts}'
+        f'</select>'
     )

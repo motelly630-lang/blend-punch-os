@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
 from app.models import Settlement, Campaign, Influencer
 from app.models.user import User
@@ -20,22 +21,38 @@ TAX_RATES = {"사업자": 0.033, "간이사업자": 0.033, "프리랜서": 0.033
 def settlement_list(request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user),
                     tab: str = "pending"):
-    all_settlements = db.query(Settlement).order_by(Settlement.created_at.desc()).all()
-    total_paid = sum(s.final_payment for s in all_settlements if s.status == "paid")
-    pending_count = sum(1 for s in all_settlements if s.status == "pending")
-    confirmed_count = sum(1 for s in all_settlements if s.status == "confirmed")
-    paid_count = sum(1 for s in all_settlements if s.status == "paid")
-
-    if tab == "confirmed":
-        settlements = [s for s in all_settlements if s.status == "confirmed"]
-    elif tab == "paid":
-        settlements = [s for s in all_settlements if s.status == "paid"]
-    else:
-        settlements = [s for s in all_settlements if s.status == "pending"]
+    if tab not in ("pending", "confirmed", "paid"):
         tab = "pending"
 
-    # Unique periods for export filter
-    periods = sorted({s.period_label for s in all_settlements if s.period_label}, reverse=True)
+    # Aggregate counts/amounts via SQL — no full table load
+    total_paid = db.query(func.sum(Settlement.final_payment)).filter(
+        Settlement.status == "paid"
+    ).scalar() or 0
+    pending_count = db.query(func.count(Settlement.id)).filter(
+        Settlement.status == "pending"
+    ).scalar() or 0
+    confirmed_count = db.query(func.count(Settlement.id)).filter(
+        Settlement.status == "confirmed"
+    ).scalar() or 0
+    paid_count = db.query(func.count(Settlement.id)).filter(
+        Settlement.status == "paid"
+    ).scalar() or 0
+
+    # Load only the active tab's rows
+    settlements = (
+        db.query(Settlement)
+        .filter(Settlement.status == tab)
+        .order_by(Settlement.created_at.desc())
+        .limit(200)
+        .all()
+    )
+
+    # Unique periods for export filter (distinct query, no full load)
+    periods = sorted(
+        {r[0] for r in db.query(Settlement.period_label)
+         .filter(Settlement.period_label.isnot(None)).distinct().all()},
+        reverse=True,
+    )
 
     return templates.TemplateResponse("settlements/index.html", {
         "request": request, "active_page": "settlements", "current_user": current_user,

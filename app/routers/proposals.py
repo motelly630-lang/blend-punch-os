@@ -17,6 +17,7 @@ def proposal_list(request: Request, db: Session = Depends(get_db),
     proposals = (
         db.query(Proposal)
         .order_by(Proposal.created_at.desc())
+        .limit(200)
         .all()
     )
     return templates.TemplateResponse(
@@ -29,8 +30,8 @@ def proposal_list(request: Request, db: Session = Depends(get_db),
 def proposal_new(request: Request, db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user),
                  product_id: str = "", influencer_id: str = ""):
-    products = db.query(Product).filter(Product.status != "archived").order_by(Product.name).all()
-    influencers = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).all()
+    products = db.query(Product).filter(Product.status != "archived").order_by(Product.name).limit(300).all()
+    influencers = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).limit(300).all()
     return templates.TemplateResponse(
         "proposals/form.html",
         {
