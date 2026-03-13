@@ -4,6 +4,7 @@ Routes:
   POST /products/import/upload   — parse file, return preview partial (htmx)
   POST /products/import/confirm  — save confirmed rows (with optional AI enrichment)
 """
+import asyncio
 import io
 import json
 import uuid
@@ -169,7 +170,7 @@ async def import_upload(
 ):
     content = await file.read()
     try:
-        headers, rows = _parse_file(content, file.filename or "file.xlsx")
+        headers, rows = await asyncio.to_thread(_parse_file, content, file.filename or "file.xlsx")
     except Exception as e:
         return HTMLResponse(f'<p class="text-red-500 text-sm">파일 파싱 오류: {e}</p>')
 
@@ -246,11 +247,12 @@ async def import_confirm(
         # Optional AI enrichment from description
         ai_data = None
         if run_ai and row_data.get("description"):
-            ai_data = _ai_enrich(
-                name=row_data.get("name", ""),
-                brand=row_data.get("brand", ""),
-                category=row_data.get("category", ""),
-                description=row_data["description"],
+            ai_data = await asyncio.to_thread(
+                _ai_enrich,
+                row_data.get("name", ""),
+                row_data.get("brand", ""),
+                row_data.get("category", ""),
+                row_data["description"],
             )
             if ai_data:
                 ai_enriched += 1

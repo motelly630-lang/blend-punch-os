@@ -62,7 +62,7 @@ def product_list(request: Request, db: Session = Depends(get_db), q: str = "",
         )
     if category:
         query = query.filter(Product.category == category)
-    products = query.order_by(Product.created_at.desc()).all()
+    products = query.order_by(Product.created_at.desc()).limit(300).all()
     return templates.TemplateResponse(
         "products/list.html",
         {"request": request, "active_page": "products", "current_user": current_user,

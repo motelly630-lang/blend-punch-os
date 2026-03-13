@@ -75,11 +75,19 @@ def outreach_list(
         q = q.filter(OutreachLog.sample_status == status)
     if product_id:
         q = q.filter(OutreachLog.product_id == product_id)
-    logs = q.order_by(OutreachLog.outreach_date.desc(), OutreachLog.created_at.desc()).all()
+    logs = q.order_by(OutreachLog.outreach_date.desc(), OutreachLog.created_at.desc()).limit(500).all()
 
-    # Enrich with product/influencer names
-    product_map = {p.id: p for p in db.query(Product).all()}
-    influencer_map = {i.id: i for i in db.query(Influencer).all()}
+    # Targeted queries — only fetch records referenced by the current page logs
+    product_ids = {log.product_id for log in logs if log.product_id}
+    influencer_ids = {log.influencer_id for log in logs if log.influencer_id}
+    product_map = (
+        {p.id: p for p in db.query(Product).filter(Product.id.in_(product_ids)).all()}
+        if product_ids else {}
+    )
+    influencer_map = (
+        {i.id: i for i in db.query(Influencer).filter(Influencer.id.in_(influencer_ids)).all()}
+        if influencer_ids else {}
+    )
 
     enriched = []
     for log in logs:

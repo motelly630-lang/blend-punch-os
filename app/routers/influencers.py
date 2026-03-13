@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Influencer
@@ -60,19 +61,21 @@ def influencer_list(request: Request, db: Session = Depends(get_db), q: str = ""
         query = query.filter(Influencer.name.ilike(f"%{q}%") | Influencer.handle.ilike(f"%{q}%"))
     if platform:
         query = query.filter(Influencer.platform == platform)
-    influencers = query.order_by(Influencer.followers.desc()).all()
+    influencers = query.order_by(Influencer.followers.desc()).limit(300).all()
 
-    # Stats
-    all_influencers = db.query(Influencer).all()
-    total = len(all_influencers)
-    active_count = sum(1 for i in all_influencers if i.status == "active")
-    inactive_count = sum(1 for i in all_influencers if i.status == "inactive")
-    blacklist_count = sum(1 for i in all_influencers if i.status == "blacklist")
+    # Stats — SQL aggregates instead of loading all rows into Python
+    total = db.query(func.count(Influencer.id)).scalar()
+    active_count = db.query(func.count(Influencer.id)).filter(Influencer.status == "active").scalar()
+    inactive_count = db.query(func.count(Influencer.id)).filter(Influencer.status == "inactive").scalar()
+    blacklist_count = db.query(func.count(Influencer.id)).filter(Influencer.status == "blacklist").scalar()
 
-    platform_counts = Counter(i.platform for i in all_influencers)
+    platform_rows = db.query(Influencer.platform, func.count(Influencer.id)).group_by(Influencer.platform).all()
+    platform_counts = {row[0]: row[1] for row in platform_rows}
+
+    # Category stats — fetch only the JSON column (no full row load)
     cat_counts: Counter = Counter()
-    for inf in all_influencers:
-        for cat in (inf.categories or []):
+    for (cats,) in db.query(Influencer.categories).filter(Influencer.categories.isnot(None)).all():
+        for cat in (cats or []):
             cat_counts[cat] += 1
     top_categories = cat_counts.most_common(6)
 

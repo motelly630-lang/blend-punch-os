@@ -1,3 +1,4 @@
+import asyncio
 import re
 import uuid
 import json as _json
@@ -208,7 +209,9 @@ async def influencer_url_fill(
             .replace("{{html_snippet}}", snippet)
         )
         try:
-            data = claude.complete_json(system, user_text, max_tokens=1024)
+            data = await asyncio.to_thread(
+                lambda: claude.complete_json(system, user_text, max_tokens=1024)
+            )
         except Exception:
             pass
 
@@ -224,7 +227,7 @@ async def influencer_url_fill(
     profile_image_path = ""
     img_url = data.get("profile_image_url") or (html and _og_image(html)) or ""
     if img_url:
-        result = _download_image(img_url)
+        result = await asyncio.to_thread(_download_image, img_url)
         if result:
             img_bytes, ext = result
             profile_image_path = _save_image_bytes(img_bytes, ext)
@@ -270,7 +273,9 @@ async def influencer_image_fill(
         system = raw.split("## User Template")[0].replace("## System\n", "").strip()
         user_text = raw.split("## User Template\n", 1)[1].strip()
 
-        data = claude.complete_vision_json(system, user_text, image_bytes, media_type)
+        data = await asyncio.to_thread(
+            lambda: claude.complete_vision_json(system, user_text, image_bytes, media_type)
+        )
     except Exception as e:
         return HTMLResponse(
             f'<div id="ai-inf-result" class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">'

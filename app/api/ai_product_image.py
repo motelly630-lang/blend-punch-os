@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, UploadFile, File, Depends
 from fastapi.responses import HTMLResponse
 from app.auth.dependencies import get_current_user
@@ -31,7 +32,9 @@ async def ai_product_image_fill(
         system = prompt.split("## User")[0].replace("## System\n", "").strip()
         user_text = prompt.split("## User Template\n", 1)[1].strip()
 
-        data = claude.complete_vision_json(system, user_text, image_bytes, media_type)
+        data = await asyncio.to_thread(
+            lambda: claude.complete_vision_json(system, user_text, image_bytes, media_type)
+        )
     except Exception as e:
         return HTMLResponse(
             f'<div id="ai-fill-result" class="text-red-600 text-sm p-3 bg-red-50 rounded-lg border border-red-200">'
