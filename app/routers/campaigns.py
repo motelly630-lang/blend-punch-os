@@ -41,8 +41,8 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
 def campaign_new(request: Request, db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user),
                  product_id: str = "", influencer_id: str = ""):
-    products = db.query(Product).filter(Product.status != "archived").order_by(Product.name).all()
-    influencers = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).all()
+    products = db.query(Product).filter(Product.status != "archived").order_by(Product.name).limit(300).all()
+    influencers = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).limit(300).all()
     return templates.TemplateResponse("campaigns/form.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": None, "products": products, "influencers": influencers, "statuses": STATUSES,
@@ -155,8 +155,8 @@ def campaign_edit(campaign_id: str, request: Request, db: Session = Depends(get_
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     if not campaign:
         return RedirectResponse("/campaigns", status_code=302)
-    products = db.query(Product).filter(Product.status != "archived").order_by(Product.name).all()
-    influencers = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).all()
+    products = db.query(Product).filter(Product.status != "archived").order_by(Product.name).limit(300).all()
+    influencers = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).limit(300).all()
     return templates.TemplateResponse("campaigns/form.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": campaign, "products": products, "influencers": influencers, "statuses": STATUSES,
