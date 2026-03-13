@@ -19,6 +19,13 @@
       </svg>
     </a>
   </div>
+  <!-- Excel bulk import -->
+  <button onclick="openImportModal()" class="inline-flex items-center gap-1.5 bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+    </svg>
+    Excel 일괄 업로드
+  </button>
   <a href="/products/new" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
     제품 등록
@@ -151,4 +158,119 @@
   <a href="/products/new" class="text-sm text-blue-600 hover:text-blue-700 font-medium">+ 첫 제품 등록하기</a>
 </div>
 {% endif %}
+
+<!-- ── Excel Import Modal ──────────────────────────────────────────────────── -->
+<div id="import-modal" style="display:none"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+
+    <!-- Modal header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div>
+        <div class="text-base font-semibold text-gray-900">Excel / CSV 일괄 업로드</div>
+        <div class="text-xs text-gray-400 mt-0.5">.xlsx 또는 .csv 파일을 선택하거나 드래그하세요</div>
+      </div>
+      <button onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Upload zone + preview target -->
+    <div class="p-6">
+      <!-- Drop zone (hidden once file is picked) -->
+      <div id="import-dropzone"
+        class="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center transition-colors cursor-pointer hover:border-green-400 hover:bg-green-50"
+        onclick="document.getElementById('import-file-input').click()"
+        ondragover="event.preventDefault(); this.classList.add('border-green-400','bg-green-50')"
+        ondragleave="this.classList.remove('border-green-400','bg-green-50')"
+        ondrop="handleImportDrop(event)">
+        <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+        </svg>
+        <div class="text-sm font-medium text-gray-600 mb-1">파일을 여기에 드래그하거나 클릭해서 선택</div>
+        <div class="text-xs text-gray-400">.xlsx, .xls, .csv 지원</div>
+      </div>
+
+      <!-- Spinner (shown during upload) -->
+      <div id="import-spinner" style="display:none" class="py-8 text-center">
+        <svg class="w-8 h-8 animate-spin text-green-600 mx-auto mb-3" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <div class="text-sm text-gray-500">파일 파싱 중...</div>
+      </div>
+
+      <!-- Preview area (htmx result) -->
+      <div id="import-preview-area"></div>
+
+      <!-- Hidden file input -->
+      <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" class="hidden"
+        onchange="submitImportFile(this.files[0])">
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openImportModal() {
+  document.getElementById('import-modal').style.display = 'flex';
+  document.getElementById('import-dropzone').style.display = 'block';
+  document.getElementById('import-spinner').style.display = 'none';
+  document.getElementById('import-preview-area').innerHTML = '';
+}
+function closeImportModal() {
+  document.getElementById('import-modal').style.display = 'none';
+}
+// Close on backdrop click
+document.getElementById('import-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeImportModal();
+});
+
+function handleImportDrop(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('border-green-400', 'bg-green-50');
+  var file = event.dataTransfer.files[0];
+  if (file) submitImportFile(file);
+}
+
+function submitImportFile(file) {
+  if (!file) return;
+  var allowed = ['.xlsx', '.xls', '.csv'];
+  var ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!allowed.includes(ext)) {
+    alert('Excel(.xlsx/.xls) 또는 CSV 파일만 업로드할 수 있습니다.');
+    return;
+  }
+  // Show spinner, hide drop zone
+  document.getElementById('import-dropzone').style.display = 'none';
+  document.getElementById('import-spinner').style.display = 'block';
+
+  var fd = new FormData();
+  fd.append('file', file);
+
+  fetch('/products/import/upload', {
+    method: 'POST',
+    body: fd,
+  })
+  .then(function(r) { return r.text(); })
+  .then(function(html) {
+    document.getElementById('import-spinner').style.display = 'none';
+    var area = document.getElementById('import-preview-area');
+    area.innerHTML = html;
+    // Let htmx process newly inserted content (for hx-* attributes in preview)
+    if (window.htmx) htmx.process(area);
+    // Let Alpine process newly inserted content (for x-data, x-model, etc.)
+    if (window.Alpine) Alpine.initTree(area);
+  })
+  .catch(function(err) {
+    document.getElementById('import-spinner').style.display = 'none';
+    document.getElementById('import-preview-area').innerHTML =
+      '<p class="text-red-500 text-sm">업로드 오류: ' + err.message + '</p>';
+  });
+}
+</script>
 {% endblock %}

@@ -168,43 +168,92 @@
     </div>
 
     <!-- ── 세트 구성 ── -->
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6" x-data="{
-      sets: {{ (product.set_options or []) | tojson if product else '[]' }},
-      addSet() { this.sets.push({name:'', qty:1, price:0, notes:''}); },
-      removeSet(i) { this.sets.splice(i, 1); }
-    }">
-      <div class="flex items-center justify-between mb-4">
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6"
+      x-data="setOptionsData({{ (product.set_options or []) | tojson if product else '[]' }})">
+      <div class="flex items-center justify-between mb-1">
         <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">세트 구성 옵션</h3>
-        <button type="button" @click="addSet()" class="text-xs text-blue-600 hover:text-blue-700 font-medium">+ 세트 추가</button>
+        <button type="button" @click="addSet()"
+          class="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
+          <span class="text-base leading-none">+</span> 세트 추가
+        </button>
       </div>
-      <div class="space-y-3">
+      <p class="text-xs text-gray-400 mb-4">각 세트에 구성품(품목명 · 옵션 · 수량)을 추가할 수 있습니다</p>
+
+      <div class="space-y-4">
         <template x-for="(s, i) in sets" :key="i">
-          <div class="grid grid-cols-12 gap-2 items-start p-3 bg-gray-50 rounded-lg border border-gray-100">
-            <div class="col-span-3">
-              <label class="block text-xs text-gray-400 mb-1">세트명</label>
-              <input type="text" x-model="s.name" placeholder="예: 1+1 세트" class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <div class="p-4 bg-gray-50 rounded-xl border border-gray-200">
+
+            <!-- Set name + total price + delete -->
+            <div class="flex items-start gap-3 mb-3">
+              <div class="flex-1">
+                <label class="block text-xs text-gray-400 mb-1">세트명</label>
+                <input type="text" x-model="s.name" placeholder="예: Set A · 프리미엄 세트"
+                  class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+              <div class="w-36 flex-shrink-0">
+                <label class="block text-xs text-gray-400 mb-1">세트 판매가 (원)</label>
+                <input type="number" x-model.number="s.price" min="0" step="100" placeholder="총 판매가"
+                  class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+              <div class="pt-5 flex-shrink-0">
+                <button type="button" @click="removeSet(i)"
+                  class="text-gray-300 hover:text-red-500 transition-colors text-xl leading-none">✕</button>
+              </div>
             </div>
-            <div class="col-span-2">
-              <label class="block text-xs text-gray-400 mb-1">수량</label>
-              <input type="number" x-model.number="s.qty" min="1" class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+            <!-- Components sub-list -->
+            <div class="bg-white rounded-lg border border-gray-100 p-3 mb-3">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-gray-500">구성품 목록</span>
+                <button type="button" @click="addComponent(i)"
+                  class="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
+                  <span class="text-base leading-none">+</span> 구성품 추가
+                </button>
+              </div>
+              <!-- Column headers -->
+              <template x-if="s.components && s.components.length > 0">
+                <div>
+                  <div class="flex items-center gap-2 mb-1.5 px-1">
+                    <span class="flex-1 text-xs text-gray-400">품목명</span>
+                    <span class="w-28 text-xs text-gray-400">옵션</span>
+                    <span class="w-16 text-xs text-gray-400 text-center">수량</span>
+                    <span class="w-5"></span>
+                  </div>
+                  <div class="space-y-1.5">
+                    <template x-for="(c, j) in s.components" :key="j">
+                      <div class="flex items-center gap-2">
+                        <input type="text" x-model="c.item_name" placeholder="예: 24cm 냄비"
+                          class="flex-1 px-2 py-1.5 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="text" x-model="c.option" placeholder="예: 블랙"
+                          class="w-28 px-2 py-1.5 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="number" x-model.number="c.qty" min="1" placeholder="1"
+                          class="w-16 px-2 py-1.5 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center">
+                        <button type="button" @click="removeComponent(i, j)"
+                          class="w-5 text-gray-300 hover:text-red-400 transition-colors text-base leading-none flex-shrink-0">×</button>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+              <template x-if="!s.components || s.components.length === 0">
+                <p class="text-xs text-gray-400 text-center py-2">구성품 없음 · 오른쪽 버튼으로 추가</p>
+              </template>
             </div>
-            <div class="col-span-3">
-              <label class="block text-xs text-gray-400 mb-1">판매가 (원)</label>
-              <input type="number" x-model.number="s.price" min="0" step="100" class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="col-span-3">
+
+            <!-- Notes -->
+            <div>
               <label class="block text-xs text-gray-400 mb-1">메모</label>
-              <input type="text" x-model="s.notes" placeholder="구성 특이사항" class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="col-span-1 pt-5">
-              <button type="button" @click="removeSet(i)" class="w-full text-gray-300 hover:text-red-500 transition-colors text-lg leading-none">✕</button>
+              <input type="text" x-model="s.notes" placeholder="세트 특이사항 (선택 입력)"
+                class="w-full px-2.5 py-1.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
           </div>
         </template>
+
         <template x-if="sets.length === 0">
-          <div class="text-xs text-gray-400 py-2 text-center">세트 옵션 없음 (단품) · 위 버튼으로 추가</div>
+          <div class="text-xs text-gray-400 py-3 text-center">세트 옵션 없음 (단품) · 위 버튼으로 추가</div>
         </template>
       </div>
+
       <input type="hidden" name="set_options_json" :value="JSON.stringify(sets)">
     </div>
 
@@ -472,6 +521,27 @@
 
 {% block scripts %}
 <script>
+function setOptionsData(rawSets) {
+  var sets = (rawSets || []).map(function(s) {
+    return {
+      name: s.name || '',
+      price: s.price || 0,
+      notes: s.notes || '',
+      // Normalize: old format had qty (int), new has components (array)
+      components: Array.isArray(s.components) ? s.components.map(function(c) {
+        return { item_name: c.item_name || '', option: c.option || '', qty: c.qty || 1 };
+      }) : [],
+    };
+  });
+  return {
+    sets: sets,
+    addSet: function() { this.sets.push({ name: '', price: 0, notes: '', components: [] }); },
+    removeSet: function(i) { this.sets.splice(i, 1); },
+    addComponent: function(i) { this.sets[i].components.push({ item_name: '', option: '', qty: 1 }); },
+    removeComponent: function(i, j) { this.sets[i].components.splice(j, 1); },
+  };
+}
+
 function productForm(initCats, initShippingType, initSampleType) {
   return {
     selectedCats: initCats || [],
