@@ -3,7 +3,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request, Depends, Form
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -304,6 +304,33 @@ def campaign_update(
         db.commit()
 
     return RedirectResponse(f"/campaigns/{campaign_id}?msg=수정되었습니다", status_code=302)
+
+
+@router.post("/{campaign_id}/update-sales")
+def update_sales(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    actual_sales: int = Form(0),
+):
+    """Inline sales volume update — recalculates revenue & commission amounts."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    campaign.actual_sales = actual_sales
+    if campaign.unit_price:
+        campaign.actual_revenue = actual_sales * campaign.unit_price
+    seller_rate = campaign.seller_commission_rate or campaign.commission_rate or 0.0
+    vendor_rate = campaign.vendor_commission_rate or 0.0
+    rev = campaign.actual_revenue or 0.0
+    campaign.seller_commission_amount = round(rev * seller_rate)
+    campaign.vendor_commission_amount = round(rev * vendor_rate)
+    db.commit()
+    return JSONResponse({
+        "actual_sales": campaign.actual_sales,
+        "actual_revenue": campaign.actual_revenue or 0,
+        "seller_commission_amount": campaign.seller_commission_amount or 0,
+    })
 
 
 @router.post("/{campaign_id}/delete")

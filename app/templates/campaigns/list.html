@@ -111,10 +111,9 @@
     </div>
     <div class="space-y-2">
       {% for c in campaigns if status_map[c.id] == 'active' %}
-      <a href="/campaigns/{{ c.id }}"
-        class="flex items-center gap-4 bg-white rounded-xl border border-green-100 shadow-sm p-4 hover:shadow-md hover:border-green-300 transition-all group">
+      <div class="flex items-center gap-4 bg-white rounded-xl border border-green-100 shadow-sm p-4 hover:shadow-md hover:border-green-300 transition-all group">
         <div class="w-1 h-12 rounded-full bg-green-400 flex-shrink-0"></div>
-        <div class="flex-1 min-w-0">
+        <a href="/campaigns/{{ c.id }}" class="flex-1 min-w-0">
           <div class="font-medium text-sm text-gray-900 group-hover:text-green-700 truncate">{{ c.name }}</div>
           {% if c.product or c.influencer %}
           <div class="text-xs text-gray-400 mt-0.5 truncate">
@@ -123,13 +122,25 @@
             {% if c.influencer %}<span class="text-purple-500">{{ c.influencer.name }}</span>{% endif %}
           </div>
           {% endif %}
-        </div>
-        <div class="text-right flex-shrink-0">
-          {% if c.actual_revenue %}<div class="text-sm font-bold text-green-700">{{ c.actual_revenue | won }}</div>{% endif %}
+        </a>
+        <!-- 판매량 인라인 입력 -->
+        <div class="flex flex-col items-end gap-1 flex-shrink-0" onclick="event.stopPropagation()">
+          <div class="flex items-center gap-1">
+            <span class="text-xs text-gray-400">판매량</span>
+            <input type="number" min="0"
+              id="sales-{{ c.id }}"
+              value="{{ c.actual_sales or 0 }}"
+              class="w-20 text-xs border border-gray-200 rounded px-2 py-1 text-right focus:outline-none focus:ring-1 focus:ring-green-400"
+              onchange="updateSales('{{ c.id }}', this.value)"
+              onclick="event.preventDefault()">
+          </div>
+          <div id="rev-{{ c.id }}" class="text-sm font-bold text-green-700">
+            {% if c.actual_revenue %}{{ c.actual_revenue | won }}{% else %}₩0{% endif %}
+          </div>
           {% if c.end_date %}<div class="text-xs text-gray-400">~ {{ c.end_date | date }}</div>{% endif %}
         </div>
         <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">진행중</span>
-      </a>
+      </div>
       {% endfor %}
     </div>
   </div>
@@ -258,6 +269,21 @@
 {% block scripts %}
 <script>
 (function () {
+
+  // ── Inline sales update ───────────────────────────────────────────────
+  window.updateSales = function (campaignId, val) {
+    var fd = new FormData();
+    fd.append('actual_sales', val);
+    fetch('/campaigns/' + campaignId + '/update-sales', { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var el = document.getElementById('rev-' + campaignId);
+        if (el && data.actual_revenue !== undefined) {
+          el.textContent = '₩' + Math.round(data.actual_revenue).toLocaleString('ko-KR');
+        }
+      });
+  };
+
   var CAL_DATA = {{ cal_json | safe }};
   var TODAY_STR = '{{ today }}';
   var todayDate = new Date(TODAY_STR + 'T00:00:00');

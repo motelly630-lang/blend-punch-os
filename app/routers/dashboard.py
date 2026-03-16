@@ -39,7 +39,7 @@ def dashboard(
     this_month = now.strftime("%Y-%m")
     monthly_revenue = db.query(func.sum(Campaign.actual_revenue)).filter(
         Campaign.status == "completed",
-        func.strftime("%Y-%m", Campaign.updated_at) == this_month,
+        func.strftime("%Y-%m", Campaign.end_date) == this_month,
     ).scalar() or 0
 
     total_seller_commission = db.query(func.sum(Campaign.seller_commission_amount)).filter(
@@ -65,11 +65,12 @@ def dashboard(
 
     # ── Monthly revenue trend (last 6 months, single GROUP BY query) ──────────
     monthly_raw = db.query(
-        func.strftime("%Y-%m", Campaign.updated_at).label("ym"),
+        func.strftime("%Y-%m", Campaign.end_date).label("ym"),
         func.sum(Campaign.actual_revenue).label("rev"),
     ).filter(
         Campaign.status == "completed",
         Campaign.actual_revenue.isnot(None),
+        Campaign.end_date.isnot(None),
     ).group_by("ym").all()
 
     monthly_by_ym = {row.ym: (row.rev or 0) for row in monthly_raw}
