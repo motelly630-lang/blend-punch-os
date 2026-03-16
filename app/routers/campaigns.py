@@ -184,7 +184,7 @@ def campaign_create(
     status: str = Form("planning"),
     start_date: str = Form(""),
     end_date: str = Form(""),
-    commission_rate: float = Form(0.15),
+    commission_rate: str = Form("0.15"),
     unit_price: float = Form(0.0),
     seller_commission_rate_pct: float = Form(0.0),
     vendor_commission_rate_pct: float = Form(0.0),
@@ -193,6 +193,10 @@ def campaign_create(
     actual_revenue: float = Form(0.0),
     notes: str = Form(""),
 ):
+    try:
+        commission_rate_f = float(commission_rate) if commission_rate and commission_rate != "None" else 0.15
+    except (ValueError, TypeError):
+        commission_rate_f = 0.15
     seller_rate = seller_commission_rate_pct / 100 if seller_commission_rate_pct else 0.0
     vendor_rate = vendor_commission_rate_pct / 100 if vendor_commission_rate_pct else 0.0
     seller_amt = round(actual_revenue * seller_rate)
@@ -205,7 +209,7 @@ def campaign_create(
         status=status,
         start_date=_parse_date(start_date),
         end_date=_parse_date(end_date),
-        commission_rate=commission_rate,
+        commission_rate=commission_rate_f,
         unit_price=unit_price,
         seller_commission_rate=seller_rate,
         vendor_commission_rate=vendor_rate,
@@ -262,7 +266,7 @@ def campaign_update(
     status: str = Form("planning"),
     start_date: str = Form(""),
     end_date: str = Form(""),
-    commission_rate: float = Form(0.15),
+    commission_rate: str = Form("0.15"),
     unit_price: float = Form(0.0),
     seller_commission_rate_pct: float = Form(0.0),
     vendor_commission_rate_pct: float = Form(0.0),
@@ -275,6 +279,10 @@ def campaign_update(
     if not campaign:
         return RedirectResponse("/campaigns", status_code=302)
 
+    try:
+        commission_rate_f = float(commission_rate) if commission_rate and commission_rate != "None" else 0.15
+    except (ValueError, TypeError):
+        commission_rate_f = 0.15
     prev_status = campaign.status
     seller_rate = seller_commission_rate_pct / 100 if seller_commission_rate_pct else 0.0
     vendor_rate = vendor_commission_rate_pct / 100 if vendor_commission_rate_pct else 0.0
@@ -287,7 +295,7 @@ def campaign_update(
     campaign.status = status
     campaign.start_date = _parse_date(start_date)
     campaign.end_date = _parse_date(end_date)
-    campaign.commission_rate = commission_rate
+    campaign.commission_rate = commission_rate_f
     campaign.unit_price = unit_price
     campaign.seller_commission_rate = seller_rate
     campaign.vendor_commission_rate = vendor_rate
