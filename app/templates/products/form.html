@@ -11,11 +11,16 @@
   <!-- AI 자동 채우기 -->
   {% if not product %}
   <div class="mb-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4"
-    x-data="{ tab: 'url' }">
+    x-data="{ tab: 'text' }">
     <div class="flex items-center justify-between mb-3">
       <div class="text-sm font-semibold text-blue-800">AI 자동 채우기</div>
       <!-- Tab toggle -->
       <div class="flex bg-white border border-blue-200 rounded-lg p-0.5 gap-0.5">
+        <button type="button" @click="tab='text'"
+          :class="tab==='text' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-50'"
+          class="text-xs px-3 py-1 rounded-md font-medium transition-colors">
+          📋 텍스트 분석
+        </button>
         <button type="button" @click="tab='url'"
           :class="tab==='url' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-50'"
           class="text-xs px-3 py-1 rounded-md font-medium transition-colors">
@@ -27,6 +32,27 @@
           📷 이미지 OCR
         </button>
       </div>
+    </div>
+
+    <!-- Text tab -->
+    <div x-show="tab==='text'" x-cloak>
+      <div class="text-xs text-blue-600 mb-2">카톡 내용, PDF 텍스트, 메모 등을 그대로 붙여넣으면 AI가 제품 정보를 추출합니다</div>
+      <form
+        hx-post="/api/ai/product-text-fill"
+        hx-target="#ai-result"
+        hx-swap="innerHTML"
+        hx-indicator="#ai-spinner-text"
+        class="space-y-2">
+        <textarea name="raw_text" rows="5" placeholder="예) 공구가 29,900원 / 소비자가 59,000원 / 커미션 15% ..."
+          class="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white resize-y"></textarea>
+        <button type="submit"
+          class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+          <span id="ai-spinner-text" class="htmx-indicator">
+            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          </span>
+          AI 분석
+        </button>
+      </form>
     </div>
 
     <!-- URL tab -->
