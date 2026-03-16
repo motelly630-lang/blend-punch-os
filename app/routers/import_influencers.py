@@ -41,6 +41,8 @@ COLUMN_MAP: dict[str, str] = {
     "평균조회수": "avg_views_per_post",
     "과거매출": "past_gmv",
     "메모": "notes",
+    "이미지URL": "profile_image", "이미지url": "profile_image", "이미지링크": "profile_image",
+    "프로필사진": "profile_image", "사진URL": "profile_image", "사진링크": "profile_image",
     # English
     "name": "name",
     "platform": "platform",
@@ -55,6 +57,7 @@ COLUMN_MAP: dict[str, str] = {
     "agency_name": "agency_name",
     "avg_views": "avg_views_per_post",
     "notes": "notes",
+    "profile_image": "profile_image",
 }
 
 NUMERIC_INT_FIELDS = {"followers", "avg_views_per_post"}
@@ -75,6 +78,7 @@ ALL_FIELDS = [
     ("avg_views_per_post", "평균 조회수"),
     ("past_gmv", "과거 매출"),
     ("notes", "메모"),
+    ("profile_image", "이미지 URL"),
     ("__skip__", "— 가져오지 않음 —"),
 ]
 
@@ -235,6 +239,7 @@ async def import_confirm(
                 engagement_rate=row_data.get("engagement_rate", 0.0),
                 categories=row_data.get("categories"),
                 profile_url=row_data.get("profile_url"),
+                profile_image=row_data.get("profile_image"),
                 contact_email=row_data.get("contact_email"),
                 contact_phone=row_data.get("contact_phone"),
                 contact_kakao=row_data.get("contact_kakao"),
