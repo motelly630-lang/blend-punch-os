@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{% if pipeline %}파이프라인 수정{% else %}파이프라인 추가{% endif %} | BLEND PUNCH OS{% endblock %}
+{% block page_title %}{% if pipeline %}파이프라인 수정{% else %}파이프라인 추가{% endif %}{% endblock %}
+
+{% block header_actions %}
+<a href="/crm" class="text-sm text-gray-500 hover:text-gray-700">← 목록으로</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+  <form method="post" action="{% if pipeline %}/crm/{{ pipeline.id }}/edit{% else %}/crm/new{% endif %}" class="space-y-4">
+
+    <!-- 인플루언서 -->
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">인플루언서</label>
+      <select name="influencer_id" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <option value="">선택 안함</option>
+        {% for inf in influencers %}
+        <option value="{{ inf.id }}"
+          {% if pipeline and pipeline.influencer_id == inf.id %}selected
+          {% elif prefill_influencer_id == inf.id %}selected
+          {% endif %}>
+          {{ inf.name }}{% if inf.handle %} (@{{ inf.handle }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- 제품 -->
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">제품</label>
+      <select name="product_id" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <option value="">선택 안함</option>
+        {% for p in products %}
+        <option value="{{ p.id }}"
+          {% if pipeline and pipeline.product_id == p.id %}selected
+          {% elif prefill_product_id == p.id %}selected
+          {% endif %}>
+          {{ p.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- 상태 -->
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">상태</label>
+      <select name="status" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        {% for s in crm_statuses %}
+        <option value="{{ s }}" {% if pipeline and pipeline.status == s %}selected{% elif not pipeline and s == 'new' %}selected{% endif %}>
+          {{ status_labels[s] }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <!-- DM 횟수 -->
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">DM 발송 횟수</label>
+        <input type="number" name="dm_count" value="{{ pipeline.dm_count if pipeline else 0 }}" min="0"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <!-- 마지막 연락일 -->
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">마지막 연락일</label>
+        <input type="date" name="last_contact_date"
+          value="{{ pipeline.last_contact_date.isoformat() if pipeline and pipeline.last_contact_date else '' }}"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+
+    <!-- 메모 -->
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">메모</label>
+      <textarea name="notes" rows="3"
+        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+        placeholder="협의 내용, 특이사항 등">{{ pipeline.notes if pipeline and pipeline.notes else '' }}</textarea>
+    </div>
+
+    <div class="flex justify-end gap-3 pt-2">
+      <a href="/crm" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">취소</a>
+      <button type="submit" class="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+        {% if pipeline %}저장{% else %}추가{% endif %}
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

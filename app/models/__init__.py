@@ -8,5 +8,6 @@ from app.models.trend import TrendItem
 from app.models.playbook import Playbook
 from app.models.trend_engine import TrendBriefing
 from app.models.outreach import OutreachLog
+from app.models.crm import CrmPipeline, SampleLog
 
-__all__ = ["User", "Product", "Influencer", "Campaign", "Proposal", "Settlement", "TrendItem", "Playbook", "TrendBriefing", "OutreachLog"]
+__all__ = ["User", "Product", "Influencer", "Campaign", "Proposal", "Settlement", "TrendItem", "Playbook", "TrendBriefing", "OutreachLog", "CrmPipeline", "SampleLog"]

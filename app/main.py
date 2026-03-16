@@ -19,6 +19,7 @@ from app.routers import import_campaigns as import_campaigns_router
 from app.api import ai_product, ai_proposal, ai_playbook, ai_dm, ai_seller_content, ai_product_image, ai_influencer
 from app.routers import trend_engine as trend_engine_router
 from app.routers import outreach as outreach_router
+from app.routers import crm as crm_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions
 
 
@@ -81,6 +82,7 @@ app.include_router(ai_influencer.router)
 app.include_router(trend_engine_router.router)
 app.include_router(catalog_router.router)
 app.include_router(outreach_router.router)
+app.include_router(crm_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────
@@ -156,8 +158,9 @@ def _setup_filters():
     import app.routers.import_campaigns as imp_camp
     import app.routers.trend_engine as teng
     import app.routers.outreach as out
+    import app.routers.crm as crm
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, teng, out]:
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, teng, out, crm]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num

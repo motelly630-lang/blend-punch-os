@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}CRM 파이프라인 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}CRM 파이프라인{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-2">
+  <!-- View toggle -->
+  <div class="flex bg-gray-100 rounded-lg p-1">
+    <a href="/crm?view=kanban{% if filter_product_id %}&product_id={{ filter_product_id }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}"
+      class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors {% if view == 'kanban' %}bg-white text-gray-800 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+      칸반
+    </a>
+    <a href="/crm?view=list{% if filter_product_id %}&product_id={{ filter_product_id }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}"
+      class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors {% if view == 'list' %}bg-white text-gray-800 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+      목록
+    </a>
+  </div>
+
+  <!-- Product filter -->
+  <select onchange="location.href='/crm?view={{ view }}&product_id='+this.value"
+    class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
+    <option value="">전체 제품</option>
+    {% for p in products %}
+    <option value="{{ p.id }}" {% if filter_product_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+    {% endfor %}
+  </select>
+
+  <a href="/crm/new"
+    class="inline-flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+    파이프라인 추가
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Summary stats -->
+<div class="grid grid-cols-4 gap-4 mb-5">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-xs text-gray-400 mb-1">전체</div>
+    <div class="text-xl font-bold text-gray-900">{{ total }}건</div>
+  </div>
+  <div class="bg-indigo-50 rounded-xl border border-indigo-100 p-4">
+    <div class="text-xs text-indigo-600 mb-1">진행 중</div>
+    <div class="text-xl font-bold text-indigo-700">{{ active_count }}건</div>
+  </div>
+  <div class="bg-green-50 rounded-xl border border-green-100 p-4">
+    <div class="text-xs text-green-600 mb-1">계약 완료</div>
+    <div class="text-xl font-bold text-green-700">{{ completed_count }}건</div>
+  </div>
+  <div class="bg-red-50 rounded-xl border border-red-100 p-4">
+    <div class="text-xs text-red-500 mb-1">거절</div>
+    <div class="text-xl font-bold text-red-600">{{ rejected_count }}건</div>
+  </div>
+</div>
+
+{% if view == 'kanban' %}
+<!-- ── KANBAN VIEW ── -->
+<div class="flex gap-3 overflow-x-auto pb-4" style="min-width:0;">
+  {% for s in crm_statuses %}
+  {% set cards = kanban[s] %}
+  {% set col_colors = {
+    'new': 'border-gray-200',
+    'dm_sent': 'border-blue-200',
+    'replied': 'border-indigo-200',
+    'sample_requested': 'border-amber-200',
+    'sample_sent': 'border-orange-200',
+    'negotiating': 'border-purple-200',
+    'completed': 'border-green-200',
+    'rejected': 'border-red-200',
+  } %}
+  {% set header_colors = {
+    'new': 'bg-gray-100 text-gray-600',
+    'dm_sent': 'bg-blue-100 text-blue-700',
+    'replied': 'bg-indigo-100 text-indigo-700',
+    'sample_requested': 'bg-amber-100 text-amber-700',
+    'sample_sent': 'bg-orange-100 text-orange-700',
+    'negotiating': 'bg-purple-100 text-purple-700',
+    'completed': 'bg-green-100 text-green-700',
+    'rejected': 'bg-red-100 text-red-600',
+  } %}
+  <div class="flex-shrink-0 w-52 bg-white rounded-xl border {{ col_colors[s] }} shadow-sm overflow-hidden">
+    <!-- Column header -->
+    <div class="px-3 py-2.5 flex items-center justify-between {{ header_colors[s] }}">
+      <span class="text-xs font-semibold">{{ status_labels[s] }}</span>
+      <span class="text-xs font-bold">{{ cards | length }}</span>
+    </div>
+    <!-- Cards -->
+    <div class="p-2 space-y-2 min-h-[100px]">
+      {% for pipeline in cards %}
+      <a href="/crm/{{ pipeline.id }}"
+        class="block bg-white border border-gray-100 rounded-lg p-3 hover:border-indigo-200 hover:shadow-sm transition-all">
+        <div class="font-medium text-gray-900 text-xs leading-snug mb-1 truncate">
+          {{ pipeline.influencer.name if pipeline.influencer else '인플루언서 미지정' }}
+        </div>
+        {% if pipeline.product %}
+        <div class="text-xs text-gray-400 truncate mb-2">{{ pipeline.product.name }}</div>
+        {% endif %}
+        <div class="flex items-center justify-between mt-1">
+          {% if pipeline.dm_count %}
+          <span class="text-xs text-blue-500">DM {{ pipeline.dm_count }}회</span>
+          {% else %}
+          <span></span>
+          {% endif %}
+          {% if pipeline.last_contact_date %}
+          <span class="text-xs text-gray-400">{{ pipeline.last_contact_date | date }}</span>
+          {% endif %}
+        </div>
+        {% if pipeline.sample_logs %}
+        <div class="mt-1.5 text-xs text-orange-500 font-medium">샘플 {{ pipeline.sample_logs | length }}건</div>
+        {% endif %}
+      </a>
+      {% endfor %}
+      {% if not cards %}
+      <div class="text-center py-4 text-xs text-gray-300">없음</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<!-- ── LIST VIEW ── -->
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+  {% if pipelines %}
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">인플루언서</th>
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">제품</th>
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">상태</th>
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">DM</th>
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">마지막 연락</th>
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">샘플</th>
+        <th class="px-3 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for pipeline in pipelines %}
+      {% set sc = status_colors[pipeline.status] %}
+      {% set sc_map = {
+        'gray': 'bg-gray-100 text-gray-600',
+        'blue': 'bg-blue-100 text-blue-700',
+        'indigo': 'bg-indigo-100 text-indigo-700',
+        'amber': 'bg-amber-100 text-amber-700',
+        'orange': 'bg-orange-100 text-orange-700',
+        'purple': 'bg-purple-100 text-purple-700',
+        'green': 'bg-green-100 text-green-700',
+        'red': 'bg-red-100 text-red-600',
+      } %}
+      <tr class="hover:bg-gray-50 transition-colors">
+        <td class="px-5 py-3.5">
+          {% if pipeline.influencer %}
+          <a href="/influencers/{{ pipeline.influencer.id }}" class="font-medium text-gray-900 hover:text-indigo-600">{{ pipeline.influencer.name }}</a>
+          {% if pipeline.influencer.handle %}<div class="text-xs text-gray-400">@{{ pipeline.influencer.handle }}</div>{% endif %}
+          {% else %}
+          <span class="text-gray-400">-</span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3.5 text-sm text-gray-600">{{ pipeline.product.name if pipeline.product else '-' }}</td>
+        <td class="px-5 py-3.5" id="status-cell-{{ pipeline.id }}">
+          <select name="status"
+            hx-post="/crm/{{ pipeline.id }}/status"
+            hx-target="#status-cell-{{ pipeline.id }}"
+            hx-swap="innerHTML"
+            hx-trigger="change"
+            class="text-xs font-semibold border-0 rounded-full px-2 py-1 cursor-pointer {{ sc_map[sc] }}">
+            {% for sv in crm_statuses %}
+            <option value="{{ sv }}" {% if pipeline.status == sv %}selected{% endif %}>{{ status_labels[sv] }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td class="px-5 py-3.5 text-sm text-gray-600">{{ pipeline.dm_count or 0 }}회</td>
+        <td class="px-5 py-3.5 text-sm text-gray-500">{{ pipeline.last_contact_date | date if pipeline.last_contact_date else '-' }}</td>
+        <td class="px-5 py-3.5">
+          {% if pipeline.sample_logs %}
+          <span class="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full font-medium">{{ pipeline.sample_logs | length }}건</span>
+          {% else %}
+          <span class="text-gray-300 text-xs">-</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-3.5">
+          <div class="flex gap-1">
+            <a href="/crm/{{ pipeline.id }}" class="text-xs text-gray-500 hover:text-indigo-600 px-2 py-1 rounded hover:bg-gray-100">상세</a>
+            <form method="post" action="/crm/{{ pipeline.id }}/delete" onsubmit="return confirm('삭제하시겠습니까?')">
+              <button type="submit" class="text-xs text-gray-300 hover:text-red-500 px-2 py-1 rounded hover:bg-red-50">삭제</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="py-16 text-center text-sm text-gray-400">
+    파이프라인이 없습니다
+    <br><a href="/crm/new" class="mt-3 text-indigo-600 hover:text-indigo-700 font-medium inline-block">+ 첫 파이프라인 추가</a>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

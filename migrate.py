@@ -84,6 +84,9 @@ def migrate():
         # --- outreach_logs (Outreach & Sample Tracking) ---
         # Table is created by init_db(); no extra columns needed
 
+        # --- crm_pipelines / sample_logs (CRM Pipeline) ---
+        # Tables are created by init_db(); no extra columns needed
+
         conn.commit()
 
     print("Migration complete.")

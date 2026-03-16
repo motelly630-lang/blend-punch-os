@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% block title %}CRM 상세 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}CRM 파이프라인 상세{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-2">
+  <a href="/crm" class="text-sm text-gray-500 hover:text-gray-700">← 목록으로</a>
+  <a href="/crm/new?influencer_id={{ pipeline.influencer_id or '' }}&product_id={{ pipeline.product_id or '' }}"
+    class="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5 border border-gray-200 rounded-lg">복제</a>
+  <form method="post" action="/crm/{{ pipeline.id }}/delete" onsubmit="return confirm('삭제하시겠습니까?')" class="inline">
+    <button type="submit" class="text-sm text-red-400 hover:text-red-600 px-3 py-1.5 border border-red-100 rounded-lg hover:bg-red-50">삭제</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-3 gap-5">
+
+  <!-- ── 왼쪽: 파이프라인 정보 ── -->
+  <div class="col-span-2 space-y-4">
+
+    <!-- 상태 진행 표시 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div class="flex items-center gap-1 overflow-x-auto pb-1">
+        {% for s in crm_statuses %}
+        {% if s not in ('rejected',) %}
+        {% set is_current = pipeline.status == s %}
+        {% set sc = status_colors[s] %}
+        {% set sc_map = {
+          'gray': ('bg-gray-100 text-gray-500', 'bg-gray-500'),
+          'blue': ('bg-blue-100 text-blue-700', 'bg-blue-500'),
+          'indigo': ('bg-indigo-100 text-indigo-700', 'bg-indigo-500'),
+          'amber': ('bg-amber-100 text-amber-700', 'bg-amber-500'),
+          'orange': ('bg-orange-100 text-orange-700', 'bg-orange-500'),
+          'purple': ('bg-purple-100 text-purple-700', 'bg-purple-500'),
+          'green': ('bg-green-100 text-green-700', 'bg-green-500'),
+          'red': ('bg-red-100 text-red-600', 'bg-red-500'),
+        } %}
+        <form method="post" action="/crm/{{ pipeline.id }}/edit" class="flex-shrink-0">
+          <input type="hidden" name="influencer_id" value="{{ pipeline.influencer_id or '' }}">
+          <input type="hidden" name="product_id" value="{{ pipeline.product_id or '' }}">
+          <input type="hidden" name="status" value="{{ s }}">
+          <input type="hidden" name="dm_count" value="{{ pipeline.dm_count or 0 }}">
+          <input type="hidden" name="last_contact_date" value="{{ pipeline.last_contact_date.isoformat() if pipeline.last_contact_date else '' }}">
+          <input type="hidden" name="notes" value="{{ pipeline.notes or '' }}">
+          <button type="submit"
+            class="px-3 py-1.5 text-xs font-semibold rounded-full transition-all
+              {% if is_current %}{{ sc_map[sc][0] }} ring-2 ring-offset-1 ring-{{ sc }}-400
+              {% else %}bg-gray-50 text-gray-400 hover:bg-gray-100{% endif %}">
+            {{ status_labels[s] }}
+          </button>
+        </form>
+        {% if not loop.last and s != 'negotiating' %}
+        <svg class="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+        <!-- Rejected separately -->
+        <div class="ml-2 flex-shrink-0">
+          <form method="post" action="/crm/{{ pipeline.id }}/edit">
+            <input type="hidden" name="influencer_id" value="{{ pipeline.influencer_id or '' }}">
+            <input type="hidden" name="product_id" value="{{ pipeline.product_id or '' }}">
+            <input type="hidden" name="status" value="rejected">
+            <input type="hidden" name="dm_count" value="{{ pipeline.dm_count or 0 }}">
+            <input type="hidden" name="last_contact_date" value="{{ pipeline.last_contact_date.isoformat() if pipeline.last_contact_date else '' }}">
+            <input type="hidden" name="notes" value="{{ pipeline.notes or '' }}">
+            <button type="submit"
+              class="px-3 py-1.5 text-xs font-semibold rounded-full transition-all
+                {% if pipeline.status == 'rejected' %}bg-red-100 text-red-600 ring-2 ring-offset-1 ring-red-300
+                {% else %}bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500{% endif %}">
+              거절
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- 기본 정보 수정 폼 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">파이프라인 정보</div>
+      <form method="post" action="/crm/{{ pipeline.id }}/edit" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">인플루언서</label>
+            <select name="influencer_id" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">선택 안함</option>
+              {% for inf in influencers %}
+              <option value="{{ inf.id }}" {% if pipeline.influencer_id == inf.id %}selected{% endif %}>
+                {{ inf.name }}{% if inf.handle %} (@{{ inf.handle }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">제품</label>
+            <select name="product_id" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">선택 안함</option>
+              {% for p in products %}
+              <option value="{{ p.id }}" {% if pipeline.product_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">DM 발송 횟수</label>
+            <input type="number" name="dm_count" value="{{ pipeline.dm_count or 0 }}" min="0"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">마지막 연락일</label>
+            <input type="date" name="last_contact_date"
+              value="{{ pipeline.last_contact_date.isoformat() if pipeline.last_contact_date else '' }}"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">메모</label>
+          <textarea name="notes" rows="3"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none">{{ pipeline.notes or '' }}</textarea>
+        </div>
+        <input type="hidden" name="status" value="{{ pipeline.status }}">
+        <div class="flex justify-end">
+          <button type="submit" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">저장</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- 샘플 발송 내역 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div class="flex items-center justify-between mb-4">
+        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide">샘플 발송 내역</div>
+        <button onclick="document.getElementById('sample-modal').classList.remove('hidden')"
+          class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">+ 샘플 추가</button>
+      </div>
+
+      {% if pipeline.sample_logs %}
+      <div class="space-y-2">
+        {% for sample in pipeline.sample_logs %}
+        {% set ssc = sample_status_colors[sample.status] %}
+        {% set ssc_map = {
+          'gray': 'bg-gray-100 text-gray-600',
+          'blue': 'bg-blue-100 text-blue-700',
+          'green': 'bg-green-100 text-green-700',
+          'amber': 'bg-amber-100 text-amber-700',
+          'red': 'bg-red-100 text-red-600',
+        } %}
+        <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ ssc_map[ssc] }}">
+                {{ sample_status_labels[sample.status] }}
+              </span>
+              {% if sample.product %}
+              <span class="text-xs text-gray-600 truncate">{{ sample.product.name }}</span>
+              {% endif %}
+            </div>
+            <div class="grid grid-cols-2 gap-x-4 text-xs text-gray-500">
+              {% if sample.tracking_number %}
+              <div>운송장: <span class="font-medium text-gray-700">{{ sample.tracking_number }}</span></div>
+              {% endif %}
+              {% if sample.sent_at %}
+              <div>발송: {{ sample.sent_at | date }}</div>
+              {% endif %}
+              {% if sample.delivered_at %}
+              <div>수령: {{ sample.delivered_at | date }}</div>
+              {% endif %}
+            </div>
+            {% if sample.notes %}
+            <div class="text-xs text-gray-400 mt-1">{{ sample.notes }}</div>
+            {% endif %}
+          </div>
+          <div class="flex gap-1 flex-shrink-0">
+            <!-- Quick status update -->
+            <form method="post" action="/crm/{{ pipeline.id }}/samples/{{ sample.id }}/status" class="inline">
+              <input type="hidden" name="tracking_number" value="{{ sample.tracking_number or '' }}">
+              <select name="status" onchange="this.form.submit()"
+                class="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white cursor-pointer">
+                {% for ss in sample_statuses %}
+                <option value="{{ ss }}" {% if sample.status == ss %}selected{% endif %}>{{ sample_status_labels[ss] }}</option>
+                {% endfor %}
+              </select>
+            </form>
+            <form method="post" action="/crm/{{ pipeline.id }}/samples/{{ sample.id }}/delete" onsubmit="return confirm('삭제?')">
+              <button type="submit" class="text-xs text-gray-300 hover:text-red-500 px-1.5 py-1">✕</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-6 text-sm text-gray-300">샘플 발송 기록 없음</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── 오른쪽: 인플루언서 정보 ── -->
+  <div class="space-y-4">
+    {% if pipeline.influencer %}
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">인플루언서</div>
+      {% set inf = pipeline.influencer %}
+      <div class="flex items-center gap-3 mb-3">
+        {% if inf.profile_image %}
+        <img src="{{ inf.profile_image }}" class="w-12 h-12 rounded-full object-cover bg-gray-100">
+        {% else %}
+        <div class="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-lg">
+          {{ inf.name[0] if inf.name else '?' }}
+        </div>
+        {% endif %}
+        <div>
+          <a href="/influencers/{{ inf.id }}" class="font-semibold text-gray-900 hover:text-indigo-600 text-sm">{{ inf.name }}</a>
+          {% if inf.handle %}<div class="text-xs text-gray-400">@{{ inf.handle }}</div>{% endif %}
+        </div>
+      </div>
+      <div class="space-y-1.5 text-xs">
+        {% if inf.platform %}
+        <div class="flex justify-between"><span class="text-gray-400">플랫폼</span><span class="text-gray-700">{{ inf.platform | platform_label }}</span></div>
+        {% endif %}
+        {% if inf.followers %}
+        <div class="flex justify-between"><span class="text-gray-400">팔로워</span><span class="text-gray-700">{{ inf.followers | num }}</span></div>
+        {% endif %}
+        {% if inf.categories %}
+        <div class="flex justify-between"><span class="text-gray-400">카테고리</span><span class="text-gray-700 text-right">{{ inf.categories | join(', ') if inf.categories is iterable and inf.categories is not string else inf.categories }}</span></div>
+        {% endif %}
+        {% if inf.business_type %}
+        <div class="flex justify-between"><span class="text-gray-400">사업자유형</span><span class="text-gray-700">{{ inf.business_type }}</span></div>
+        {% endif %}
+        {% if inf.bank_name %}
+        <div class="flex justify-between"><span class="text-gray-400">은행</span><span class="text-gray-700">{{ inf.bank_name }}</span></div>
+        {% endif %}
+      </div>
+      <a href="/influencers/{{ inf.id }}" class="mt-3 block text-center text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-100 rounded-lg py-1.5 hover:bg-indigo-50 transition-colors">
+        인플루언서 상세 보기 →
+      </a>
+    </div>
+    {% endif %}
+
+    {% if pipeline.product %}
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">제품</div>
+      {% set prod = pipeline.product %}
+      {% if prod.product_image %}
+      <img src="{{ prod.product_image }}" class="w-full h-28 object-cover rounded-lg mb-3 bg-gray-100">
+      {% endif %}
+      <div class="font-semibold text-gray-900 text-sm mb-2">{{ prod.name }}</div>
+      <div class="space-y-1.5 text-xs">
+        {% if prod.brand %}<div class="flex justify-between"><span class="text-gray-400">브랜드</span><span class="text-gray-700">{{ prod.brand }}</span></div>{% endif %}
+        {% if prod.groupbuy_price %}<div class="flex justify-between"><span class="text-gray-400">공구가</span><span class="text-gray-700">{{ prod.groupbuy_price | won }}</span></div>{% endif %}
+        {% if prod.seller_commission_rate %}<div class="flex justify-between"><span class="text-gray-400">커미션</span><span class="text-gray-700">{{ prod.seller_commission_rate | pct }}</span></div>{% endif %}
+      </div>
+      <a href="/products/{{ prod.id }}" class="mt-3 block text-center text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-100 rounded-lg py-1.5 hover:bg-indigo-50 transition-colors">
+        제품 상세 보기 →
+      </a>
+    </div>
+    {% endif %}
+
+    <!-- Meta -->
+    <div class="bg-gray-50 rounded-xl border border-gray-100 p-4 text-xs text-gray-400 space-y-1">
+      <div>생성: {{ pipeline.created_at | dt }}</div>
+      <div>수정: {{ pipeline.updated_at | dt }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Sample add modal -->
+<div id="sample-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-semibold text-gray-800">샘플 발송 추가</h2>
+      <button onclick="document.getElementById('sample-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">✕</button>
+    </div>
+    <form method="post" action="/crm/{{ pipeline.id }}/samples/new" class="space-y-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">제품</label>
+        <select name="product_id" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">기본 (파이프라인 제품)</option>
+          {% for p in products %}
+          <option value="{{ p.id }}" {% if pipeline.product_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">상태</label>
+          <select name="status" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% for ss in sample_statuses %}
+            <option value="{{ ss }}" {% if ss == 'sent' %}selected{% endif %}>{{ sample_status_labels[ss] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">발송일</label>
+          <input type="date" name="sent_at" value="{{ today }}"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">운송장 번호</label>
+        <input type="text" name="tracking_number" placeholder="선택 사항"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">메모</label>
+        <input type="text" name="notes" placeholder="참고 사항"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="document.getElementById('sample-modal').classList.add('hidden')" class="px-4 py-2 text-sm text-gray-500">취소</button>
+        <button type="submit" class="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">추가</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -27,4 +27,5 @@ def init_db():
     import app.models.playbook  # noqa
     import app.models.trend_engine  # noqa
     import app.models.outreach  # noqa
+    import app.models.crm  # noqa
     Base.metadata.create_all(bind=engine)
