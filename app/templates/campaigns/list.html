@@ -10,8 +10,9 @@
 {% endblock %}
 
 {% block content %}
+
 <!-- Stats -->
-<div class="grid grid-cols-3 gap-4 mb-6">
+<div class="grid grid-cols-4 gap-3 mb-5">
   <div class="bg-green-50 rounded-xl p-4 border border-green-100">
     <div class="text-2xl font-bold text-green-700">{{ active_count }}</div>
     <div class="text-sm text-green-600 mt-0.5">진행중</div>
@@ -24,139 +25,354 @@
     <div class="text-2xl font-bold text-gray-600">{{ done_count }}</div>
     <div class="text-sm text-gray-500 mt-0.5">완료</div>
   </div>
+  <div class="bg-amber-50 rounded-xl p-4 border border-amber-100">
+    <div class="text-2xl font-bold text-amber-600">{{ archive_count }}</div>
+    <div class="text-sm text-amber-500 mt-0.5">보관</div>
+  </div>
+</div>
+
+<!-- Tab + View toggle -->
+<div class="flex items-center justify-between mb-4">
+  <!-- Tabs -->
+  <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
+    <a href="/campaigns?tab=active"
+      class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors {% if tab != 'archive' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+      활성 캠페인
+    </a>
+    <a href="/campaigns?tab=archive"
+      class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors {% if tab == 'archive' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+      보관함 {{ archive_count > 0 and ('(' ~ archive_count ~ ')') or '' }}
+    </a>
+  </div>
+  <!-- View toggle (only on active tab) -->
+  {% if tab != 'archive' %}
+  <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
+    <button id="btn-list-view" onclick="setView('list')"
+      class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors">
+      <svg class="w-3.5 h-3.5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>리스트
+    </button>
+    <button id="btn-cal-view" onclick="setView('calendar')"
+      class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors">
+      <svg class="w-3.5 h-3.5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>캘린더
+    </button>
+  </div>
+  {% endif %}
 </div>
 
 {% if campaigns %}
-<!-- 3-column status bucket view -->
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-  <!-- 진행 예정 -->
-  <div>
-    <div class="flex items-center gap-2 mb-3">
-      <div class="w-2 h-2 rounded-full bg-blue-500"></div>
-      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">진행 예정</span>
-      <span class="text-xs text-gray-400 ml-auto">{{ campaigns | selectattr('status', 'in', ['planning','negotiating','contracted']) | list | length }}건</span>
-    </div>
-    <div class="space-y-2">
-      {% for c in campaigns if c.status in ['planning', 'negotiating', 'contracted'] %}
-      <a href="/campaigns/{{ c.id }}"
-        class="block bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-blue-200 transition-all group">
-        <div class="flex items-start justify-between gap-2 mb-2">
-          <div class="font-medium text-sm text-gray-900 group-hover:text-blue-700 line-clamp-2 leading-snug">{{ c.name }}</div>
-          <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
-            {% if c.status == 'planning' %}bg-blue-100 text-blue-700
-            {% elif c.status == 'negotiating' %}bg-yellow-100 text-yellow-700
-            {% else %}bg-indigo-100 text-indigo-700{% endif %}">
-            {{ c.status | status_label }}
-          </span>
-        </div>
+<!-- ── LIST VIEW ────────────────────────────────────────────────────── -->
+<div id="view-list">
+
+  {% if tab == 'archive' %}
+  <!-- Archive: simple list -->
+  <div class="space-y-2">
+    {% for c in campaigns %}
+    {% set st = status_map[c.id] %}
+    <a href="/campaigns/{{ c.id }}"
+      class="flex items-center gap-4 bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-all opacity-70 hover:opacity-100">
+      <div class="flex-1 min-w-0">
+        <div class="font-medium text-sm text-gray-700 truncate">{{ c.name }}</div>
         {% if c.product or c.influencer %}
-        <div class="flex items-center gap-1.5 text-xs text-gray-400 flex-wrap">
-          {% if c.product %}<span class="text-blue-500">{{ c.product.name }}</span>{% endif %}
-          {% if c.product and c.influencer %}<span>·</span>{% endif %}
-          {% if c.influencer %}<span class="text-purple-500">{{ c.influencer.name }}</span>{% endif %}
+        <div class="text-xs text-gray-400 mt-0.5 truncate">
+          {% if c.product %}{{ c.product.name }}{% endif %}
+          {% if c.product and c.influencer %} · {% endif %}
+          {% if c.influencer %}{{ c.influencer.name }}{% endif %}
         </div>
         {% endif %}
-        {% if c.start_date %}
-        <div class="text-xs text-gray-400 mt-1.5">{{ c.start_date | date }} 시작</div>
-        {% endif %}
-      </a>
-      {% else %}
-      <div class="bg-gray-50 rounded-xl border border-dashed border-gray-200 p-6 text-center">
-        <p class="text-xs text-gray-400">없음</p>
       </div>
-      {% endfor %}
-    </div>
+      <div class="text-right flex-shrink-0">
+        {% if c.actual_revenue %}<div class="text-sm font-bold text-gray-700">{{ c.actual_revenue | won }}</div>{% endif %}
+        <div class="text-xs text-gray-400">{{ c.start_date | date }} ~ {{ c.end_date | date }}</div>
+      </div>
+      <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 flex-shrink-0">보관됨</span>
+    </a>
+    {% endfor %}
   </div>
 
-  <!-- 진행 중 -->
-  <div>
+  {% else %}
+  <!-- Active: vertical stack — 진행중 → 예정 → 완료 -->
+
+  {% set active_campaigns   = campaigns | selectattr('id', 'in', status_map | selectattr_value('active') | list) | list %}
+  {% set planning_campaigns = campaigns | selectattr('id', 'in', status_map | selectattr_value_in(['planning','negotiating','contracted']) | list) | list %}
+  {% set done_campaigns     = campaigns | selectattr('id', 'in', status_map | selectattr_value_in(['completed','cancelled']) | list) | list %}
+
+  <!-- 진행중 -->
+  {% set section_campaigns = [] %}
+  {% for c in campaigns if status_map[c.id] == 'active' %}{% set _ = section_campaigns.append(c) %}{% endfor %}
+  {% if section_campaigns %}
+  <div class="mb-5">
     <div class="flex items-center gap-2 mb-3">
       <div class="w-2 h-2 rounded-full bg-green-500"></div>
-      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">진행 중</span>
-      <span class="text-xs text-gray-400 ml-auto">{{ campaigns | selectattr('status', 'equalto', 'active') | list | length }}건</span>
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">진행중</span>
+      <span class="text-xs text-gray-400">{{ section_campaigns | length }}건</span>
     </div>
     <div class="space-y-2">
-      {% for c in campaigns if c.status == 'active' %}
+      {% for c in campaigns if status_map[c.id] == 'active' %}
       <a href="/campaigns/{{ c.id }}"
-        class="block bg-white rounded-xl border border-green-100 shadow-sm p-4 hover:shadow-md hover:border-green-300 transition-all group">
-        <div class="flex items-start justify-between gap-2 mb-2">
-          <div class="font-medium text-sm text-gray-900 group-hover:text-green-700 line-clamp-2 leading-snug">{{ c.name }}</div>
-          <span class="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">진행중</span>
+        class="flex items-center gap-4 bg-white rounded-xl border border-green-100 shadow-sm p-4 hover:shadow-md hover:border-green-300 transition-all group">
+        <div class="w-1 h-12 rounded-full bg-green-400 flex-shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-sm text-gray-900 group-hover:text-green-700 truncate">{{ c.name }}</div>
+          {% if c.product or c.influencer %}
+          <div class="text-xs text-gray-400 mt-0.5 truncate">
+            {% if c.product %}<span class="text-blue-500">{{ c.product.name }}</span>{% endif %}
+            {% if c.product and c.influencer %} · {% endif %}
+            {% if c.influencer %}<span class="text-purple-500">{{ c.influencer.name }}</span>{% endif %}
+          </div>
+          {% endif %}
         </div>
-        {% if c.product or c.influencer %}
-        <div class="flex items-center gap-1.5 text-xs text-gray-400 flex-wrap">
-          {% if c.product %}<span class="text-blue-500">{{ c.product.name }}</span>{% endif %}
-          {% if c.product and c.influencer %}<span>·</span>{% endif %}
-          {% if c.influencer %}<span class="text-purple-500">{{ c.influencer.name }}</span>{% endif %}
+        <div class="text-right flex-shrink-0">
+          {% if c.actual_revenue %}<div class="text-sm font-bold text-green-700">{{ c.actual_revenue | won }}</div>{% endif %}
+          {% if c.end_date %}<div class="text-xs text-gray-400">~ {{ c.end_date | date }}</div>{% endif %}
         </div>
-        {% endif %}
-        {% if c.actual_revenue %}
-        <div class="mt-2 pt-2 border-t border-gray-50 flex items-center justify-between">
-          <span class="text-xs text-gray-400">실매출</span>
-          <span class="text-xs font-bold text-green-700">{{ c.actual_revenue | won }}</span>
-        </div>
-        {% endif %}
-        {% if c.end_date %}
-        <div class="text-xs text-gray-400 mt-1">~ {{ c.end_date | date }}</div>
-        {% endif %}
+        <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">진행중</span>
       </a>
-      {% else %}
-      <div class="bg-gray-50 rounded-xl border border-dashed border-gray-200 p-6 text-center">
-        <p class="text-xs text-gray-400">없음</p>
-      </div>
       {% endfor %}
     </div>
   </div>
+  {% endif %}
+
+  <!-- 예정 -->
+  {% set section2 = [] %}
+  {% for c in campaigns if status_map[c.id] in ['planning','negotiating','contracted'] %}{% set _ = section2.append(c) %}{% endfor %}
+  {% if section2 %}
+  <div class="mb-5">
+    <div class="flex items-center gap-2 mb-3">
+      <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">예정</span>
+      <span class="text-xs text-gray-400">{{ section2 | length }}건</span>
+    </div>
+    <div class="space-y-2">
+      {% for c in campaigns if status_map[c.id] in ['planning','negotiating','contracted'] %}
+      <a href="/campaigns/{{ c.id }}"
+        class="flex items-center gap-4 bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-blue-200 transition-all group">
+        <div class="w-1 h-12 rounded-full bg-blue-400 flex-shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-sm text-gray-900 group-hover:text-blue-700 truncate">{{ c.name }}</div>
+          {% if c.product or c.influencer %}
+          <div class="text-xs text-gray-400 mt-0.5 truncate">
+            {% if c.product %}<span class="text-blue-500">{{ c.product.name }}</span>{% endif %}
+            {% if c.product and c.influencer %} · {% endif %}
+            {% if c.influencer %}<span class="text-purple-500">{{ c.influencer.name }}</span>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        <div class="text-right flex-shrink-0">
+          {% if c.start_date %}<div class="text-xs text-gray-400">{{ c.start_date | date }} 시작</div>{% endif %}
+        </div>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 flex-shrink-0">예정</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- 완료 -->
-  <div>
+  {% set section3 = [] %}
+  {% for c in campaigns if status_map[c.id] in ['completed','cancelled'] %}{% set _ = section3.append(c) %}{% endfor %}
+  {% if section3 %}
+  <div class="mb-5">
     <div class="flex items-center gap-2 mb-3">
       <div class="w-2 h-2 rounded-full bg-gray-400"></div>
       <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">완료</span>
-      <span class="text-xs text-gray-400 ml-auto">{{ campaigns | selectattr('status', 'in', ['completed','cancelled']) | list | length }}건</span>
+      <span class="text-xs text-gray-400">{{ section3 | length }}건</span>
     </div>
     <div class="space-y-2">
-      {% for c in campaigns if c.status in ['completed', 'cancelled'] %}
+      {% for c in campaigns if status_map[c.id] in ['completed','cancelled'] %}
       <a href="/campaigns/{{ c.id }}"
-        class="block bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-all group opacity-80 hover:opacity-100">
-        <div class="flex items-start justify-between gap-2 mb-2">
-          <div class="font-medium text-sm text-gray-700 group-hover:text-gray-900 line-clamp-2 leading-snug">{{ c.name }}</div>
-          <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
-            {% if c.status == 'completed' %}bg-gray-100 text-gray-600{% else %}bg-red-100 text-red-600{% endif %}">
-            {{ c.status | status_label }}
-          </span>
+        class="flex items-center gap-4 bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-all opacity-75 hover:opacity-100 group">
+        <div class="w-1 h-12 rounded-full bg-gray-300 flex-shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-sm text-gray-700 group-hover:text-gray-900 truncate">{{ c.name }}</div>
+          {% if c.product or c.influencer %}
+          <div class="text-xs text-gray-400 mt-0.5 truncate">
+            {% if c.product %}{{ c.product.name }}{% endif %}
+            {% if c.product and c.influencer %} · {% endif %}
+            {% if c.influencer %}{{ c.influencer.name }}{% endif %}
+          </div>
+          {% endif %}
         </div>
-        {% if c.product or c.influencer %}
-        <div class="flex items-center gap-1.5 text-xs text-gray-400 flex-wrap">
-          {% if c.product %}<span>{{ c.product.name }}</span>{% endif %}
-          {% if c.product and c.influencer %}<span>·</span>{% endif %}
-          {% if c.influencer %}<span>{{ c.influencer.name }}</span>{% endif %}
+        <div class="text-right flex-shrink-0">
+          {% if c.actual_revenue %}<div class="text-sm font-bold text-gray-600">{{ c.actual_revenue | won }}</div>{% endif %}
+          {% if c.end_date %}<div class="text-xs text-gray-400">{{ c.end_date | date }} 종료</div>{% endif %}
         </div>
-        {% endif %}
-        {% if c.actual_revenue %}
-        <div class="mt-2 pt-2 border-t border-gray-50 flex items-center justify-between">
-          <span class="text-xs text-gray-400">최종 매출</span>
-          <span class="text-xs font-bold text-gray-700">{{ c.actual_revenue | won }}</span>
-        </div>
-        {% endif %}
+        <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0
+          {% if status_map[c.id] == 'completed' %}bg-gray-100 text-gray-600{% else %}bg-red-100 text-red-600{% endif %}">
+          {{ status_map[c.id] | status_label }}
+        </span>
       </a>
-      {% else %}
-      <div class="bg-gray-50 rounded-xl border border-dashed border-gray-200 p-6 text-center">
-        <p class="text-xs text-gray-400">없음</p>
-      </div>
       {% endfor %}
     </div>
   </div>
+  {% endif %}
 
+  {% endif %}{# end active/archive #}
+</div>
+
+<!-- ── CALENDAR VIEW ─────────────────────────────────────────────────── -->
+<div id="view-calendar" style="display:none">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-4">
+      <button id="cal-prev" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <div id="cal-title" class="text-sm font-semibold text-gray-800"></div>
+      <button id="cal-next" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+    <!-- Day headers -->
+    <div class="grid grid-cols-7 mb-1">
+      {% for d in ['일','월','화','수','목','금','토'] %}
+      <div class="text-center text-xs text-gray-400 font-medium py-1">{{ d }}</div>
+      {% endfor %}
+    </div>
+    <!-- Calendar grid -->
+    <div id="cal-grid" class="grid grid-cols-7 gap-px bg-gray-100 rounded-lg overflow-hidden"></div>
+    <!-- Legend -->
+    <div class="flex items-center gap-4 mt-4 text-xs text-gray-500">
+      <span class="flex items-center gap-1"><span class="w-3 h-2 rounded bg-green-400 inline-block"></span>진행중</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-2 rounded bg-blue-400 inline-block"></span>예정</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-2 rounded bg-gray-300 inline-block"></span>완료</span>
+    </div>
+  </div>
 </div>
 
 {% else %}
 <div class="bg-white rounded-xl border border-gray-100 p-16 text-center">
-  <div class="text-gray-400 text-sm mb-3">등록된 캠페인이 없습니다</div>
+  <div class="text-gray-400 text-sm mb-3">
+    {% if tab == 'archive' %}보관된 캠페인이 없습니다{% else %}등록된 캠페인이 없습니다{% endif %}
+  </div>
+  {% if tab != 'archive' %}
   <a href="/campaigns/new" class="text-sm text-blue-600 hover:text-blue-700 font-medium">+ 첫 캠페인 생성하기</a>
+  {% endif %}
 </div>
 {% endif %}
 
 <div class="mt-3 text-xs text-gray-400 text-right">총 {{ campaigns | length }}개</div>
+
+{% block scripts %}
+<script>
+(function () {
+  var CAL_DATA = {{ cal_json | safe }};
+  var TODAY_STR = '{{ today }}';
+  var todayDate = new Date(TODAY_STR + 'T00:00:00');
+
+  // ── View toggle ──────────────────────────────────────────────────────
+  var currentView = localStorage.getItem('campaign_view') || 'list';
+  var btnList = document.getElementById('btn-list-view');
+  var btnCal  = document.getElementById('btn-cal-view');
+  var viewList = document.getElementById('view-list');
+  var viewCal  = document.getElementById('view-calendar');
+
+  function setView(v) {
+    currentView = v;
+    localStorage.setItem('campaign_view', v);
+    if (v === 'list') {
+      viewList && (viewList.style.display = '');
+      viewCal  && (viewCal.style.display = 'none');
+      btnList && btnList.classList.add('bg-white', 'text-gray-900', 'shadow-sm');
+      btnList && btnList.classList.remove('text-gray-500');
+      btnCal  && btnCal.classList.remove('bg-white', 'text-gray-900', 'shadow-sm');
+      btnCal  && btnCal.classList.add('text-gray-500');
+    } else {
+      viewList && (viewList.style.display = 'none');
+      viewCal  && (viewCal.style.display = '');
+      btnCal  && btnCal.classList.add('bg-white', 'text-gray-900', 'shadow-sm');
+      btnCal  && btnCal.classList.remove('text-gray-500');
+      btnList && btnList.classList.remove('bg-white', 'text-gray-900', 'shadow-sm');
+      btnList && btnList.classList.add('text-gray-500');
+      renderCalendar();
+    }
+  }
+  window.setView = setView;
+  setView(currentView);
+
+  // ── Calendar ─────────────────────────────────────────────────────────
+  var calYear  = todayDate.getFullYear();
+  var calMonth = todayDate.getMonth(); // 0-indexed
+
+  var STATUS_COLOR = { active: 'bg-green-400', planning: 'bg-blue-400', negotiating: 'bg-blue-400', contracted: 'bg-blue-400', completed: 'bg-gray-300', cancelled: 'bg-red-300' };
+
+  function renderCalendar() {
+    var grid  = document.getElementById('cal-grid');
+    var title = document.getElementById('cal-title');
+    if (!grid) return;
+
+    title.textContent = calYear + '년 ' + (calMonth + 1) + '월';
+
+    var firstDay = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+    var daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+    grid.innerHTML = '';
+
+    // Parse campaign date ranges for this month
+    var monthStart = new Date(calYear, calMonth, 1);
+    var monthEnd   = new Date(calYear, calMonth, daysInMonth);
+
+    // Build day→campaigns map
+    var dayMap = {};
+    CAL_DATA.forEach(function (c) {
+      var s = new Date(c.start + 'T00:00:00');
+      var e = new Date(c.end   + 'T00:00:00');
+      for (var d = new Date(Math.max(s, monthStart)); d <= Math.min(e, monthEnd); d.setDate(d.getDate() + 1)) {
+        var key = d.getDate();
+        if (!dayMap[key]) dayMap[key] = [];
+        dayMap[key].push(c);
+      }
+    });
+
+    // Empty cells before first day
+    for (var i = 0; i < firstDay; i++) {
+      var empty = document.createElement('div');
+      empty.className = 'bg-white min-h-[70px]';
+      grid.appendChild(empty);
+    }
+
+    // Day cells
+    for (var day = 1; day <= daysInMonth; day++) {
+      var cell = document.createElement('div');
+      var isToday = (calYear === todayDate.getFullYear() && calMonth === todayDate.getMonth() && day === todayDate.getDate());
+      cell.className = 'bg-white min-h-[70px] p-1 ' + (isToday ? 'ring-2 ring-blue-500 ring-inset' : '');
+
+      var dayNum = document.createElement('div');
+      dayNum.className = 'text-xs font-medium mb-1 ' + (isToday ? 'text-blue-600' : 'text-gray-500');
+      dayNum.textContent = day;
+      cell.appendChild(dayNum);
+
+      var campaigns = dayMap[day] || [];
+      campaigns.slice(0, 3).forEach(function (c) {
+        var bar = document.createElement('a');
+        bar.href = '/campaigns/' + c.id;
+        bar.className = 'block text-white text-xs px-1 rounded truncate mb-0.5 ' + (STATUS_COLOR[c.status] || 'bg-gray-300');
+        bar.title = c.name;
+        bar.textContent = c.name;
+        cell.appendChild(bar);
+      });
+      if (campaigns.length > 3) {
+        var more = document.createElement('div');
+        more.className = 'text-xs text-gray-400 px-1';
+        more.textContent = '+' + (campaigns.length - 3);
+        cell.appendChild(more);
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  var prevBtn = document.getElementById('cal-prev');
+  var nextBtn = document.getElementById('cal-next');
+  if (prevBtn) prevBtn.addEventListener('click', function () {
+    calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
+    renderCalendar();
+  });
+  if (nextBtn) nextBtn.addEventListener('click', function () {
+    calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
+    renderCalendar();
+  });
+}());
+</script>
+{% endblock %}
+
 {% endblock %}

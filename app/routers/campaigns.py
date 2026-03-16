@@ -1,4 +1,7 @@
+import json
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -8,6 +11,42 @@ from app.models import Campaign, Product, Influencer
 from app.models.settlement import Settlement
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+
+KST = ZoneInfo("Asia/Seoul")
+
+
+def _kst_today() -> date:
+    return datetime.now(KST).date()
+
+
+def _auto_status(c: Campaign, today: date) -> str:
+    """Compute KST-based status from dates. Cancelled is never overridden."""
+    if c.status == "cancelled":
+        return "cancelled"
+    if c.start_date and c.end_date:
+        if today < c.start_date:
+            return "planning"
+        elif today <= c.end_date:
+            return "active"
+        else:
+            return "completed"
+    if c.start_date and today >= c.start_date:
+        return "active"
+    return c.status
+
+
+def _run_archiving(db: Session):
+    """Auto-archive campaigns whose end_date month < current KST month."""
+    today = _kst_today()
+    first_of_month = today.replace(day=1)
+    to_archive = db.query(Campaign).filter(
+        Campaign.is_archived == False,
+        Campaign.end_date < first_of_month,
+    ).all()
+    if to_archive:
+        for c in to_archive:
+            c.is_archived = True
+        db.commit()
 
 router = APIRouter(prefix="/campaigns")
 templates = Jinja2Templates(directory="app/templates")
@@ -24,16 +63,42 @@ STATUSES = [
 
 @router.get("")
 def campaign_list(request: Request, db: Session = Depends(get_db),
-                  current_user: User = Depends(get_current_user)):
-    campaigns = db.query(Campaign).order_by(Campaign.created_at.desc()).all()
-    # dashboard counts
-    active_count = sum(1 for c in campaigns if c.status == "active")
-    planning_count = sum(1 for c in campaigns if c.status in ("planning", "negotiating", "contracted"))
-    done_count = sum(1 for c in campaigns if c.status == "completed")
+                  current_user: User = Depends(get_current_user),
+                  tab: str = "active"):
+    _run_archiving(db)
+    today = _kst_today()
+
+    if tab == "archive":
+        campaigns = db.query(Campaign).filter(Campaign.is_archived == True).order_by(Campaign.end_date.desc()).all()
+    else:
+        campaigns = db.query(Campaign).filter(Campaign.is_archived == False).order_by(Campaign.start_date.asc().nullslast()).all()
+
+    # Compute auto-status per campaign (KST-based, display only)
+    status_map = {c.id: _auto_status(c, today) for c in campaigns}
+
+    active_count   = sum(1 for s in status_map.values() if s == "active")
+    planning_count = sum(1 for s in status_map.values() if s in ("planning", "negotiating", "contracted"))
+    done_count     = sum(1 for s in status_map.values() if s in ("completed", "cancelled"))
+    archive_count  = db.query(Campaign).filter(Campaign.is_archived == True).count()
+
+    # Calendar JSON — only campaigns with dates
+    cal_data = []
+    for c in campaigns:
+        if c.start_date:
+            cal_data.append({
+                "id": c.id,
+                "name": c.name,
+                "start": c.start_date.isoformat(),
+                "end": (c.end_date or c.start_date).isoformat(),
+                "status": status_map[c.id],
+            })
+
     return templates.TemplateResponse("campaigns/list.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
-        "campaigns": campaigns,
-        "active_count": active_count, "planning_count": planning_count, "done_count": done_count,
+        "campaigns": campaigns, "status_map": status_map, "today": today, "tab": tab,
+        "active_count": active_count, "planning_count": planning_count,
+        "done_count": done_count, "archive_count": archive_count,
+        "cal_json": json.dumps(cal_data, ensure_ascii=False),
     })
 
 

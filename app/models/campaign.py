@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Date, ForeignKey
+from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Date, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -28,6 +28,7 @@ class Campaign(Base):
     vendor_commission_rate = Column(Float, default=0.0)      # 벤더 마진율
     seller_commission_amount = Column(Float, default=0.0)    # 셀러 지급액 (calculated)
     vendor_commission_amount = Column(Float, default=0.0)    # 벤더 수익액 (calculated)
+    is_archived = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
