@@ -279,7 +279,12 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(function (html) {
         spinner.style.display = 'none';
         preview.innerHTML = html;
-        // Re-process htmx and Alpine on injected content
+        // innerHTML does not execute <script> tags — re-run them manually
+        preview.querySelectorAll('script').forEach(function(oldScript) {
+          var newScript = document.createElement('script');
+          newScript.textContent = oldScript.textContent;
+          oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
         if (window.htmx) htmx.process(preview);
         if (window.Alpine) Alpine.initTree(preview);
       })
