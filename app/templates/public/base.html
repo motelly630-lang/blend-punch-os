@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
   <title>{% block title %}BLEND PUNCH 셀러 카탈로그{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-50 min-h-screen flex flex-col">
 
   <!-- Top bar -->
   <header class="bg-white border-b border-gray-100 sticky top-0 z-10">
@@ -25,9 +26,23 @@
   </header>
 
   <!-- Main content -->
-  <main class="max-w-6xl mx-auto px-6 py-8">
+  <main class="max-w-6xl mx-auto px-6 py-8 flex-1 w-full">
     {% block content %}{% endblock %}
   </main>
+
+  <!-- Footer -->
+  <footer class="mt-12 bg-white border-t border-gray-100">
+    <div class="max-w-6xl mx-auto px-6 py-8">
+      <div class="text-center space-y-2">
+        <p class="text-sm font-semibold text-gray-700">© 2026 Blend Punch. All rights reserved.</p>
+        <p class="text-xs text-gray-400 leading-relaxed">
+          본 사이트에 게시된 모든 콘텐츠(이미지, 텍스트, 제품 설명 등)는<br>
+          블랜드펀치(Blend Punch)의 자산이며 저작권법의 보호를 받습니다.<br>
+          사전 동의 없는 복제, 배포, 재사용을 금지합니다.
+        </p>
+      </div>
+    </div>
+  </footer>
 
 </body>
 </html>

@@ -2,9 +2,10 @@ import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 from app.database import init_db
 from app.backup import run_backup
 from app.routers import dashboard, products, influencers, proposals
@@ -45,6 +46,23 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="BLEND PUNCH OS", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+class NoIndexMiddleware(BaseHTTPMiddleware):
+    """퍼블릭 카탈로그 경로에 X-Robots-Tag: noindex, nofollow 헤더 추가."""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/public"):
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return response
+
+
+app.add_middleware(NoIndexMiddleware)
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots_txt():
+    return FileResponse("static/robots.txt", media_type="text/plain")
 
 
 # ── Exception handlers ────────────────────────────────────────────────────────

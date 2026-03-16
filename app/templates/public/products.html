@@ -2,99 +2,39 @@
 {% block title %}제품 카탈로그 | BLEND PUNCH{% endblock %}
 
 {% block content %}
+
+<!-- 저작권 안내 배너 -->
+<div class="mb-6 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+  <p class="text-xs text-amber-700 leading-relaxed">
+    본 페이지는 블랜드펀치 공동구매 파트너를 위한 제품 카탈로그입니다.
+    제품 콘텐츠 및 이미지의 무단 복제 또는 재배포를 금지합니다.
+  </p>
+</div>
+
+<!-- 헤더 -->
 <div class="mb-6">
   <h1 class="text-2xl font-bold text-gray-900 mb-1">제품 카탈로그</h1>
-  <p class="text-sm text-gray-500">공동구매 협업 가능한 셀러 제품 목록입니다</p>
+  <p class="text-sm text-gray-500">공동구매 협업 가능한 브랜드 목록입니다. 브랜드를 선택하여 제품을 확인하세요.</p>
 </div>
 
-<!-- Search -->
-<form method="get" class="mb-5 flex gap-2">
-  {% if brand_filter %}<input type="hidden" name="brand" value="{{ brand_filter }}">{% endif %}
-  <input type="text" name="q" value="{{ q }}" placeholder="제품명 또는 브랜드 검색..."
-    class="flex-1 max-w-sm px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-  <button type="submit" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors">검색</button>
-  {% if q or category_filter or brand_filter %}<a href="/public/products" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">초기화</a>{% endif %}
-</form>
-
-<!-- 브랜드 카드 (필터 없을 때만) -->
-{% if brands and not q and not category_filter and not brand_filter %}
-<div class="mb-8">
-  <h2 class="text-sm font-bold text-gray-700 mb-3">브랜드별 보기</h2>
-  <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-    {% for b in brands %}
-    <a href="/public/brand/{{ b.name | urlencode }}"
-      class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center hover:border-blue-300 hover:shadow-md transition-all group">
-      <div class="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-2 group-hover:bg-blue-100 transition-colors">
-        <span class="text-sm font-bold text-blue-600">{{ b.name[0] }}</span>
-      </div>
-      <div class="text-xs font-semibold text-gray-800 truncate">{{ b.name }}</div>
-      <div class="text-xs text-gray-400 mt-0.5">{{ b.count }}개</div>
-    </a>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
-<!-- 브랜드 필터 활성 시 브레드크럼 -->
-{% if brand_filter %}
-<div class="mb-4 flex items-center gap-2">
-  <a href="/public/products" class="text-xs text-gray-400 hover:text-blue-600">← 전체 브랜드</a>
-  <span class="text-gray-300">|</span>
-  <span class="text-sm font-semibold text-gray-800">{{ brand_filter }}</span>
-  <span class="text-xs text-gray-400">{{ products | length }}개 제품</span>
-</div>
-{% endif %}
-
-<!-- Category filter pills -->
-<div class="mb-6 flex flex-wrap gap-2">
-  <a href="/public/products{% if q %}?q={{ q }}{% endif %}{% if brand_filter %}&brand={{ brand_filter }}{% endif %}"
-    class="text-sm px-3 py-1.5 rounded-full border font-medium transition-colors {% if not category_filter %}bg-gray-900 text-white border-gray-900{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-400{% endif %}">전체</a>
-  {% for cat in filter_categories %}
-  <a href="/public/products?{% if q %}q={{ q }}&{% endif %}{% if brand_filter %}brand={{ brand_filter }}&{% endif %}category={{ cat }}"
-    class="text-sm px-3 py-1.5 rounded-full border font-medium transition-colors {% if category_filter == cat %}bg-purple-600 text-white border-purple-600{% else %}bg-white text-gray-600 border-gray-200 hover:border-purple-400 hover:text-purple-600{% endif %}">{{ cat }}</a>
-  {% endfor %}
-</div>
-
-{% if products %}
+<!-- 브랜드 카드 그리드 -->
+{% if brands %}
 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-  {% for p in products %}
-  <a href="/public/products/{{ p.id }}"
-    class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all hover:-translate-y-0.5 group">
-    <!-- Image -->
-    <div class="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
-      {% if p.product_image %}
-      <img src="{{ p.product_image }}" alt="{{ p.name }}" loading="lazy" class="w-full h-full object-cover">
-      {% else %}
-      <svg class="w-10 h-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-      </svg>
-      {% endif %}
+  {% for b in brands %}
+  <a href="/public/products/brand/{{ b.name | urlencode }}"
+    class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 text-center hover:border-blue-300 hover:shadow-md transition-all group">
+    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center mx-auto mb-3 group-hover:from-blue-100 group-hover:to-indigo-200 transition-colors">
+      <span class="text-lg font-bold text-blue-600">{{ b.name[0] }}</span>
     </div>
-    <!-- Info -->
-    <div class="p-3.5">
-      <div class="text-xs text-gray-400 mb-0.5">{{ p.brand }}</div>
-      <div class="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 mb-2">{{ p.name }}</div>
-      {% if p.unique_selling_point %}
-      <div class="text-xs text-gray-500 line-clamp-2 mb-2">{{ p.unique_selling_point }}</div>
-      {% endif %}
-      {% if p.categories %}
-      <div class="flex flex-wrap gap-1">
-        {% for cat in p.categories[:3] %}
-        <span class="text-xs px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded-full">{{ cat }}</span>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
+    <div class="text-sm font-semibold text-gray-800 truncate">{{ b.name }}</div>
+    <div class="text-xs text-gray-400 mt-1">제품 {{ b.count }}개</div>
   </a>
   {% endfor %}
 </div>
-<div class="mt-4 text-xs text-gray-400 text-right">총 {{ products | length }}개</div>
-
 {% else %}
 <div class="bg-white rounded-xl border border-gray-100 p-16 text-center">
-  <div class="text-gray-400 text-sm">
-    {% if q or category_filter or brand_filter %}검색 결과가 없습니다{% else %}등록된 제품이 없습니다{% endif %}
-  </div>
+  <div class="text-gray-400 text-sm">등록된 브랜드가 없습니다</div>
 </div>
 {% endif %}
+
 {% endblock %}

@@ -28,7 +28,7 @@
 {% if products %}
 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
   {% for p in products %}
-  <a href="/public/products/{{ p.id }}"
+  <a href="/public/products/product/{{ p.id }}"
     class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all hover:-translate-y-0.5 group">
     <div class="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
       {% if p.product_image %}
@@ -71,7 +71,7 @@
   <div class="flex flex-wrap gap-2">
     {% for b in brands %}
     {% if b.name != brand_name %}
-    <a href="/public/brand/{{ b.name | urlencode }}"
+    <a href="/public/products/brand/{{ b.name | urlencode }}"
       class="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-full text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors">
       <span class="w-4 h-4 rounded-full bg-blue-50 flex items-center justify-center font-bold text-blue-500 text-[10px]">{{ b.name[0] }}</span>
       {{ b.name }}

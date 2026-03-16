@@ -41,22 +41,9 @@ def _parse_set_options(raw: str) -> list | None:
 
 
 @router.get("")
-def product_list(request: Request, db: Session = Depends(get_db), q: str = "",
-                 view: str = "gallery", category: str = "", brand: str = "",
+def product_list(request: Request, db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
     from sqlalchemy import func
-    query = db.query(Product)
-    if q:
-        query = query.filter(
-            Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%")
-        )
-    if category:
-        query = query.filter(Product.category == category)
-    if brand:
-        query = query.filter(Product.brand == brand)
-    products = query.order_by(Product.created_at.desc()).limit(300).all()
-
-    # Brand cards: name + product count (for landing view)
     brand_rows = (
         db.query(Product.brand, func.count(Product.id).label("cnt"))
         .filter(Product.brand.isnot(None), Product.brand != "")
@@ -65,22 +52,51 @@ def product_list(request: Request, db: Session = Depends(get_db), q: str = "",
         .all()
     )
     brand_list = [{"name": r.brand, "count": r.cnt} for r in brand_rows]
-
     return templates.TemplateResponse(
         "products/list.html",
         {"request": request, "active_page": "products", "current_user": current_user,
-         "products": products, "q": q, "view": view,
-         "filter_categories": CATEGORIES, "category_filter": category,
-         "brand_filter": brand, "brand_list": brand_list},
+         "brand_list": brand_list},
+    )
+
+
+@router.get("/brand/{brand_name}")
+def product_brand(brand_name: str, request: Request, db: Session = Depends(get_db),
+                  q: str = "", view: str = "gallery",
+                  current_user: User = Depends(get_current_user)):
+    from sqlalchemy import func
+    query = db.query(Product).filter(Product.brand == brand_name)
+    if q:
+        query = query.filter(Product.name.ilike(f"%{q}%"))
+    products = query.order_by(Product.created_at.desc()).limit(300).all()
+    brand_rows = (
+        db.query(Product.brand, func.count(Product.id).label("cnt"))
+        .filter(Product.brand.isnot(None), Product.brand != "")
+        .group_by(Product.brand)
+        .order_by(Product.brand)
+        .all()
+    )
+    brand_list = [{"name": r.brand, "count": r.cnt} for r in brand_rows]
+    return templates.TemplateResponse(
+        "products/brand.html",
+        {"request": request, "active_page": "products", "current_user": current_user,
+         "brand_name": brand_name, "products": products, "q": q, "view": view,
+         "brand_list": brand_list, "filter_categories": CATEGORIES},
     )
 
 
 @router.get("/new")
-def product_new(request: Request, current_user: User = Depends(get_current_user)):
+def product_new(request: Request, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
+    from sqlalchemy import func
+    existing_brands = sorted({
+        r.brand for r in db.query(Product.brand)
+        .filter(Product.brand.isnot(None), Product.brand != "").distinct()
+    })
     return templates.TemplateResponse(
         "products/form.html",
         {"request": request, "active_page": "products", "current_user": current_user,
-         "product": None, "categories": CATEGORIES, "carriers": CARRIERS},
+         "product": None, "categories": CATEGORIES, "carriers": CARRIERS,
+         "existing_brands": existing_brands},
     )
 
 
@@ -214,10 +230,15 @@ def product_edit(product_id: str, request: Request, db: Session = Depends(get_db
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         return RedirectResponse("/products", status_code=302)
+    existing_brands = sorted({
+        r.brand for r in db.query(Product.brand)
+        .filter(Product.brand.isnot(None), Product.brand != "").distinct()
+    })
     return templates.TemplateResponse(
         "products/form.html",
         {"request": request, "active_page": "products", "current_user": current_user,
-         "product": product, "categories": CATEGORIES, "carriers": CARRIERS},
+         "product": product, "categories": CATEGORIES, "carriers": CARRIERS,
+         "existing_brands": existing_brands},
     )
 
 

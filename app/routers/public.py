@@ -9,8 +9,6 @@ from app.models import Product
 router = APIRouter(prefix="/public")
 templates = Jinja2Templates(directory="app/templates")
 
-FILTER_CATEGORIES = ["식품", "주방", "리빙", "뷰티", "건강", "다이어트", "육아", "반려동물"]
-
 
 def _brand_list(db: Session) -> list[dict]:
     rows = (
@@ -23,30 +21,19 @@ def _brand_list(db: Session) -> list[dict]:
     return [{"name": r.brand, "count": r.cnt} for r in rows]
 
 
+# ── /public/products — 브랜드 목록 ─────────────────────────────
 @router.get("/products")
-def public_product_list(request: Request, db: Session = Depends(get_db),
-                        q: str = "", category: str = "", brand: str = ""):
-    query = db.query(Product).filter(Product.status == "active")
-    if q:
-        query = query.filter(
-            Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%")
-        )
-    if brand:
-        query = query.filter(Product.brand == brand)
-    products = query.order_by(Product.created_at.desc()).all()
-    if category:
-        products = [p for p in products if category in (p.categories or [])]
+def public_product_list(request: Request, db: Session = Depends(get_db)):
     brands = _brand_list(db)
     return templates.TemplateResponse(
         "public/products.html",
-        {"request": request, "products": products, "q": q,
-         "filter_categories": FILTER_CATEGORIES, "category_filter": category,
-         "brand_filter": brand, "brands": brands},
+        {"request": request, "brands": brands},
     )
 
 
-@router.get("/brand/{brand_name}")
-def public_brand(brand_name: str, request: Request, db: Session = Depends(get_db)):
+# ── /public/products/brand/{brand} — 브랜드별 제품 목록 ─────────
+@router.get("/products/brand/{brand_name}")
+def public_brand_products(brand_name: str, request: Request, db: Session = Depends(get_db)):
     products = (
         db.query(Product)
         .filter(Product.status == "active", Product.brand == brand_name)
@@ -61,7 +48,8 @@ def public_brand(brand_name: str, request: Request, db: Session = Depends(get_db
     )
 
 
-@router.get("/products/{product_id}")
+# ── /public/products/product/{id} — 제품 상세 ──────────────────
+@router.get("/products/product/{product_id}")
 def public_product_detail(product_id: str, request: Request, db: Session = Depends(get_db)):
     product = db.query(Product).filter(
         Product.id == product_id, Product.status == "active"
@@ -72,3 +60,14 @@ def public_product_detail(product_id: str, request: Request, db: Session = Depen
         "public/product_detail.html",
         {"request": request, "product": product},
     )
+
+
+# ── 하위 호환 리다이렉트 ────────────────────────────────────────
+@router.get("/brand/{brand_name}")
+def public_brand_redirect(brand_name: str):
+    return RedirectResponse(f"/public/products/brand/{brand_name}", status_code=301)
+
+
+@router.get("/products/{product_id}")
+def public_product_redirect(product_id: str):
+    return RedirectResponse(f"/public/products/product/{product_id}", status_code=301)
