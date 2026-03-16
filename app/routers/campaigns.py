@@ -37,21 +37,28 @@ def _auto_status(c: Campaign, today: date) -> str:
 
 def _run_archiving(db: Session):
     """Auto-archive campaigns whose end_date month < current KST month,
-    and sync KST-based status to DB for all non-archived campaigns."""
+    sync KST-based status to DB, and auto-create settlements for completed campaigns."""
     today = _kst_today()
     first_of_month = today.replace(day=1)
 
     all_active = db.query(Campaign).filter(Campaign.is_archived == False).all()
     changed = False
+    newly_completed = []
     for c in all_active:
         new_status = _auto_status(c, today)
         if c.status != new_status:
             c.status = new_status
             changed = True
+            if new_status == "completed":
+                newly_completed.append(c)
         if c.end_date and c.end_date < first_of_month:
             c.is_archived = True
             changed = True
     if changed:
+        db.commit()
+    for c in newly_completed:
+        _auto_settle(db, c)
+    if newly_completed:
         db.commit()
 
 router = APIRouter(prefix="/campaigns")
@@ -72,6 +79,16 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user),
                   tab: str = "active"):
     _run_archiving(db)
+    # Backfill: create settlements for existing completed campaigns that have none
+    completed_no_settlement = db.query(Campaign).filter(
+        Campaign.status == "completed",
+        Campaign.influencer_id.isnot(None),
+        ~Campaign.id.in_(db.query(Settlement.campaign_id).filter(Settlement.campaign_id.isnot(None)))
+    ).all()
+    if completed_no_settlement:
+        for c in completed_no_settlement:
+            _auto_settle(db, c)
+        db.commit()
     today = _kst_today()
 
     if tab == "archive":
