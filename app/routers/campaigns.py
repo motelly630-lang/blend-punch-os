@@ -351,6 +351,22 @@ def campaign_delete(campaign_id: str, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     if campaign:
+        db.query(Settlement).filter_by(campaign_id=campaign_id).delete()
         db.delete(campaign)
         db.commit()
     return RedirectResponse("/campaigns?msg=삭제되었습니다", status_code=302)
+
+
+@router.post("/bulk-delete")
+def campaign_bulk_delete(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    ids: str = Form(""),
+):
+    id_list = [i.strip() for i in ids.split(",") if i.strip()]
+    if id_list:
+        db.query(Settlement).filter(Settlement.campaign_id.in_(id_list)).delete(synchronize_session=False)
+        db.query(Campaign).filter(Campaign.id.in_(id_list)).delete(synchronize_session=False)
+        db.commit()
+    return RedirectResponse(f"/campaigns?msg={len(id_list)}개+캠페인+삭제됨", status_code=302)
