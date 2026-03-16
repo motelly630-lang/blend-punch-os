@@ -5,6 +5,17 @@
 {% block header_actions %}
 <div class="flex items-center gap-2">
   <a href="/settlements" class="text-sm text-gray-500 hover:text-gray-700">← 목록으로</a>
+  <!-- 유형 변경 + 재계산 -->
+  <form method="post" action="/settlements/{{ s.id }}/recalc" class="inline-flex items-center gap-2">
+    <select name="seller_type" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
+      {% for t in ['사업자', '간이사업자', '프리랜서'] %}
+      <option value="{{ t }}" {% if s.seller_type == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="inline-flex items-center gap-1.5 bg-amber-500 text-white text-sm font-medium px-3 py-2 rounded-lg hover:bg-amber-600 transition-colors">
+      재계산
+    </button>
+  </form>
   <button onclick="saveAsImage()"
     class="inline-flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>

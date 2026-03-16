@@ -202,6 +202,28 @@ def settlement_create(
     return RedirectResponse("/settlements?msg=정산+내역이+등록되었습니다", status_code=302)
 
 
+@router.post("/{settlement_id}/recalc")
+def settlement_recalc(
+    settlement_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    seller_type: str = Form("사업자"),
+):
+    """유형 변경 후 금액 재계산."""
+    s = db.query(Settlement).filter(Settlement.id == settlement_id).first()
+    if not s:
+        return RedirectResponse("/settlements", status_code=302)
+    calc = calc_settlement(s.sales_amount or 0, s.commission_rate or 0, seller_type)
+    s.seller_type = seller_type
+    s.vat_amount = calc["vat_amount"]
+    s.tax_rate = calc["tax_rate"]
+    s.tax_amount = calc["tax_amount"]
+    s.commission_amount = calc["commission_amount"]
+    s.final_payment = calc["final_payment"]
+    db.commit()
+    return RedirectResponse(f"/settlements/{settlement_id}?msg=재계산+완료", status_code=302)
+
+
 @router.post("/{settlement_id}/confirm")
 def settlement_confirm(settlement_id: str, db: Session = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
