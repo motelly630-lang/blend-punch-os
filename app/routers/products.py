@@ -53,8 +53,9 @@ def _parse_set_options(raw: str) -> list | None:
 
 @router.get("")
 def product_list(request: Request, db: Session = Depends(get_db), q: str = "",
-                 view: str = "gallery", category: str = "",
+                 view: str = "gallery", category: str = "", brand: str = "",
                  current_user: User = Depends(get_current_user)):
+    from sqlalchemy import func
     query = db.query(Product)
     if q:
         query = query.filter(
@@ -62,12 +63,26 @@ def product_list(request: Request, db: Session = Depends(get_db), q: str = "",
         )
     if category:
         query = query.filter(Product.category == category)
+    if brand:
+        query = query.filter(Product.brand == brand)
     products = query.order_by(Product.created_at.desc()).limit(300).all()
+
+    # Brand cards: name + product count (for landing view)
+    brand_rows = (
+        db.query(Product.brand, func.count(Product.id).label("cnt"))
+        .filter(Product.brand.isnot(None), Product.brand != "")
+        .group_by(Product.brand)
+        .order_by(Product.brand)
+        .all()
+    )
+    brand_list = [{"name": r.brand, "count": r.cnt} for r in brand_rows]
+
     return templates.TemplateResponse(
         "products/list.html",
         {"request": request, "active_page": "products", "current_user": current_user,
          "products": products, "q": q, "view": view,
-         "filter_categories": CATEGORIES, "category_filter": category},
+         "filter_categories": CATEGORIES, "category_filter": category,
+         "brand_filter": brand, "brand_list": brand_list},
     )
 
 

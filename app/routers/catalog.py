@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Product, Campaign
@@ -44,6 +45,48 @@ def _public_product(p: Product) -> dict:
         "recommended_commission_rate": p.seller_commission_rate or p.recommended_commission_rate,
         # NOTE: supplier_price, vendor_commission_rate, internal_notes intentionally excluded
     }
+
+
+def _brand_list(db: Session) -> list[dict]:
+    rows = (
+        db.query(Product.brand, func.count(Product.id).label("cnt"))
+        .filter(
+            Product.status == "active",
+            Product.visibility_status == "active",
+            Product.brand.isnot(None),
+            Product.brand != "",
+        )
+        .group_by(Product.brand)
+        .order_by(Product.brand)
+        .all()
+    )
+    return [{"name": r.brand, "count": r.cnt} for r in rows]
+
+
+@router.get("/brand/{brand_name}")
+def catalog_brand(brand_name: str, request: Request, db: Session = Depends(get_db),
+                  page: int = 1):
+    base_query = db.query(Product).filter(
+        Product.status == "active",
+        Product.visibility_status == "active",
+        Product.brand == brand_name,
+    )
+    total = base_query.count()
+    total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+    page = max(1, min(page, total_pages))
+    products_raw = base_query.order_by(Product.created_at.desc()) \
+        .offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).all()
+    products = [_public_product(p) for p in products_raw]
+    brands = _brand_list(db)
+    return templates.TemplateResponse("catalog/brand.html", {
+        "request": request,
+        "brand_name": brand_name,
+        "products": products,
+        "page": page,
+        "total_pages": total_pages,
+        "total": total,
+        "brands": brands,
+    })
 
 
 @router.get("")
