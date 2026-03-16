@@ -18,6 +18,7 @@ from app.models.outreach import OutreachLog, SAMPLE_STATUSES
 from app.models.influencer import Influencer
 from app.models.product import Product
 from app.models.user import User
+from app.models.crm import CrmPipeline
 from app.auth.dependencies import get_current_user
 
 router = APIRouter(prefix="/outreach")
@@ -89,12 +90,22 @@ def outreach_list(
         if influencer_ids else {}
     )
 
+    # CRM pipeline lookup: (influencer_id, product_id) → pipeline_id
+    crm_pipelines = db.query(CrmPipeline).filter(
+        CrmPipeline.influencer_id.in_(influencer_ids)
+    ).all() if influencer_ids else []
+    crm_map: dict[tuple, str] = {
+        (p.influencer_id, p.product_id): p.id for p in crm_pipelines
+    }
+
     enriched = []
     for log in logs:
+        key = (log.influencer_id, log.product_id)
         enriched.append({
             "log": log,
             "product": product_map.get(log.product_id) if log.product_id else None,
             "influencer": influencer_map.get(log.influencer_id) if log.influencer_id else None,
+            "crm_pipeline_id": crm_map.get(key),
         })
 
     # Stats per status
@@ -212,3 +223,46 @@ def outreach_update_status(
         f'{opts}'
         f'</select>'
     )
+
+
+# ── Promote to CRM Pipeline ────────────────────────────────────────────────────
+
+OUTREACH_TO_CRM_STATUS = {
+    "제안발송": "dm_sent",
+    "샘플요청": "sample_requested",
+    "샘플발송": "sample_sent",
+    "보류": "negotiating",
+    "거절": "rejected",
+}
+
+
+@router.post("/{log_id}/to-crm")
+def outreach_to_crm(
+    log_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    log = db.query(OutreachLog).filter(OutreachLog.id == log_id).first()
+    if not log or not log.influencer_id:
+        return RedirectResponse("/outreach?err=인플루언서+DB+등록이+필요합니다", status_code=302)
+
+    # 이미 동일 (인플루언서 + 제품) 파이프라인 존재 여부 확인
+    existing = db.query(CrmPipeline).filter(
+        CrmPipeline.influencer_id == log.influencer_id,
+        CrmPipeline.product_id == log.product_id,
+    ).first()
+    if existing:
+        return RedirectResponse(f"/crm/{existing.id}?msg=이미+CRM에+등록된+파이프라인입니다", status_code=302)
+
+    crm_status = OUTREACH_TO_CRM_STATUS.get(log.sample_status, "dm_sent")
+    pipeline = CrmPipeline(
+        influencer_id=log.influencer_id,
+        product_id=log.product_id,
+        status=crm_status,
+        last_contact_date=date.fromisoformat(log.outreach_date) if log.outreach_date else None,
+        dm_count=1,
+        notes=f"[아웃리치 연동] {log.outreach_date} / {log.operator} / {log.notes or ''}".strip(" /"),
+    )
+    db.add(pipeline)
+    db.commit()
+    return RedirectResponse(f"/crm/{pipeline.id}?msg=CRM+파이프라인으로+등록되었습니다", status_code=302)

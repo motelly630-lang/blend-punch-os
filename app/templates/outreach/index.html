@@ -89,6 +89,7 @@
         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">제품</th>
         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500">샘플 상태</th>
         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">메모</th>
+        <th class="px-3 py-3"></th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-50">
@@ -139,6 +140,23 @@
         </td>
         <td class="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">
           {{ log.notes or "—" }}
+        </td>
+        <td class="px-3 py-3 whitespace-nowrap">
+          {% if item.crm_pipeline_id %}
+          <a href="/crm/{{ item.crm_pipeline_id }}"
+            class="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50 transition-colors">
+            CRM 보기 →
+          </a>
+          {% elif log.influencer_id and log.sample_status in ['샘플요청', '샘플발송', '보류'] %}
+          <form method="post" action="/outreach/{{ log.id }}/to-crm" class="inline">
+            <button type="submit"
+              class="text-xs text-indigo-500 hover:text-indigo-700 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50 transition-colors">
+              CRM 등록
+            </button>
+          </form>
+          {% else %}
+          <span class="text-xs text-gray-200">—</span>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
