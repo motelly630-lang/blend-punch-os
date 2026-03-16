@@ -129,6 +129,7 @@
         </td>
         <td class="px-3 py-3.5">
           <div class="flex gap-1">
+            <a href="/settlements/{{ s.id }}" class="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">정산서</a>
             {% if s.status == 'pending' %}
             <form method="post" action="/settlements/{{ s.id }}/confirm"><button type="submit" class="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50">확정</button></form>
             {% elif s.status == 'confirmed' %}

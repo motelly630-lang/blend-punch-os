@@ -13,8 +13,38 @@ router = APIRouter(prefix="/settlements")
 templates = Jinja2Templates(directory="app/templates")
 
 SELLER_TYPES = ["사업자", "간이사업자", "프리랜서"]
-# 원천세율: 사업자 3.3%, 간이사업자 3.3%, 프리랜서 3.3% (공통 기본값)
-TAX_RATES = {"사업자": 0.033, "간이사업자": 0.033, "프리랜서": 0.033}
+
+
+def calc_settlement(sales_amount: float, commission_rate: float, seller_type: str) -> dict:
+    """
+    사업자   : 커미션 + 부가세(10%) → 총 지급액 (세금계산서 발행)
+    간이사업자: 커미션만 지급 (부가세·원천징수 없음)
+    프리랜서  : 커미션 - 부가세(10%) = 순수수료 → 순수수료 × 3.3% 원천징수 차감 → 최종
+    """
+    commission = sales_amount * commission_rate
+    if seller_type == "사업자":
+        vat = round(commission * 0.1)
+        withholding = 0
+        final = round(commission) + vat
+        tax_rate = 0.0
+    elif seller_type == "간이사업자":
+        vat = 0
+        withholding = 0
+        final = round(commission)
+        tax_rate = 0.0
+    else:  # 프리랜서
+        vat = round(commission * 0.1)
+        net = commission - vat
+        withholding = round(net * 0.033)
+        final = round(net) - withholding
+        tax_rate = 0.033
+    return {
+        "commission_amount": round(commission),
+        "vat_amount": vat,
+        "tax_rate": tax_rate,
+        "tax_amount": withholding,
+        "final_payment": final,
+    }
 
 
 @router.get("")
@@ -131,6 +161,19 @@ def settlement_export(
     )
 
 
+@router.get("/{settlement_id}")
+def settlement_detail(settlement_id: str, request: Request,
+                      db: Session = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    s = db.query(Settlement).filter(Settlement.id == settlement_id).first()
+    if not s:
+        return RedirectResponse("/settlements", status_code=302)
+    return templates.TemplateResponse("settlements/detail.html", {
+        "request": request, "active_page": "settlements",
+        "current_user": current_user, "s": s,
+    })
+
+
 @router.post("/new")
 def settlement_create(
     db: Session = Depends(get_db),
@@ -143,11 +186,7 @@ def settlement_create(
     commission_rate: float = Form(0.15),
     notes: str = Form(""),
 ):
-    commission_amount = sales_amount * commission_rate
-    tax_rate = TAX_RATES.get(seller_type, 0.033)
-    tax_amount = commission_amount * tax_rate
-    final_payment = commission_amount - tax_amount
-
+    calc = calc_settlement(sales_amount, commission_rate, seller_type)
     s = Settlement(
         influencer_id=influencer_id or None,
         campaign_id=campaign_id or None,
@@ -155,10 +194,7 @@ def settlement_create(
         seller_type=seller_type,
         sales_amount=sales_amount,
         commission_rate=commission_rate,
-        commission_amount=round(commission_amount),
-        tax_rate=tax_rate,
-        tax_amount=round(tax_amount),
-        final_payment=round(final_payment),
+        **calc,
         notes=notes or None,
     )
     db.add(s)

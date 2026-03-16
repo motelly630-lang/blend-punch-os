@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}정산서 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}정산서{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-2">
+  <a href="/settlements" class="text-sm text-gray-500 hover:text-gray-700">← 목록으로</a>
+  <button onclick="saveAsImage()"
+    class="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+    이미지 저장
+  </button>
+  {% if s.status == 'pending' %}
+  <form method="post" action="/settlements/{{ s.id }}/confirm" class="inline">
+    <button type="submit" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">확정</button>
+  </form>
+  {% elif s.status == 'confirmed' %}
+  <form method="post" action="/settlements/{{ s.id }}/paid" class="inline">
+    <button type="submit" class="inline-flex items-center gap-1.5 bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">지급완료</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- 정산서 카드 (이미지 캡처 영역) -->
+<div id="settlement-card" class="max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+
+  <!-- 헤더 -->
+  <div class="bg-gray-900 px-8 py-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-white text-xl font-bold tracking-tight">정산서</div>
+        <div class="text-gray-400 text-sm mt-1">{{ s.period_label or '-' }}</div>
+      </div>
+      <div class="text-right">
+        <div class="text-gray-400 text-xs">상태</div>
+        <div class="mt-1">
+          {% if s.status == 'paid' %}
+          <span class="bg-green-500 text-white text-xs font-semibold px-3 py-1 rounded-full">지급완료</span>
+          {% elif s.status == 'confirmed' %}
+          <span class="bg-blue-500 text-white text-xs font-semibold px-3 py-1 rounded-full">확정됨</span>
+          {% else %}
+          <span class="bg-amber-500 text-white text-xs font-semibold px-3 py-1 rounded-full">미확정</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="px-8 py-6 space-y-6">
+
+    <!-- 인플루언서 정보 -->
+    <div>
+      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">인플루언서 정보</div>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div><span class="text-gray-400">이름</span><span class="ml-2 font-medium text-gray-900">{{ s.influencer.name if s.influencer else '-' }}</span></div>
+        <div><span class="text-gray-400">사업자 유형</span><span class="ml-2 font-medium text-gray-900">{{ s.seller_type or '-' }}</span></div>
+        {% if s.influencer %}
+        {% if s.seller_type == '사업자' or s.seller_type == '간이사업자' %}
+        <div><span class="text-gray-400">상호명</span><span class="ml-2 font-medium text-gray-900">{{ s.influencer.business_name or '-' }}</span></div>
+        <div><span class="text-gray-400">사업자번호</span><span class="ml-2 font-medium text-gray-900">{{ s.influencer.business_registration_number or '-' }}</span></div>
+        {% else %}
+        <div><span class="text-gray-400">실명</span><span class="ml-2 font-medium text-gray-900">{{ s.influencer.legal_name or '-' }}</span></div>
+        <div><span class="text-gray-400">주민번호</span><span class="ml-2 font-medium text-gray-900">{{ s.influencer.resident_registration_number or '-' }}</span></div>
+        {% endif %}
+        <div><span class="text-gray-400">은행</span><span class="ml-2 font-medium text-gray-900">{{ s.influencer.bank_name or '-' }}</span></div>
+        <div><span class="text-gray-400">계좌번호</span><span class="ml-2 font-medium text-gray-900">{{ s.influencer.account_number or '-' }}</span></div>
+        <div><span class="text-gray-400">예금주</span><span class="ml-2 font-medium text-gray-900">{{ s.influencer.account_holder or '-' }}</span></div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 캠페인 -->
+    {% if s.campaign %}
+    <div>
+      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">캠페인</div>
+      <div class="text-sm font-medium text-gray-900">{{ s.campaign.name }}</div>
+      {% if s.campaign.start_date or s.campaign.end_date %}
+      <div class="text-xs text-gray-400 mt-1">{{ s.campaign.start_date | date }} ~ {{ s.campaign.end_date | date }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 정산 계산 -->
+    <div>
+      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">정산 내역</div>
+      <div class="bg-gray-50 rounded-xl p-4 space-y-2.5 text-sm">
+
+        <div class="flex justify-between">
+          <span class="text-gray-500">총 판매 매출</span>
+          <span class="font-medium text-gray-900">{{ s.sales_amount | won }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">커미션율</span>
+          <span class="font-medium text-gray-900">{{ s.commission_rate | pct }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">커미션 금액</span>
+          <span class="font-medium text-gray-900">{{ s.commission_amount | won }}</span>
+        </div>
+
+        {% if s.seller_type == '사업자' %}
+        <div class="border-t border-gray-200 pt-2 flex justify-between text-blue-600">
+          <span>부가세 (10%)</span>
+          <span class="font-medium">+ {{ (s.vat_amount or 0) | won }}</span>
+        </div>
+        <div class="flex justify-between text-xs text-gray-400">
+          <span>세금계산서 발행 대상</span>
+        </div>
+
+        {% elif s.seller_type == '간이사업자' %}
+        <div class="border-t border-gray-200 pt-2 flex justify-between text-xs text-gray-400">
+          <span>부가세 · 원천징수 없음</span>
+        </div>
+
+        {% else %}{# 프리랜서 #}
+        <div class="border-t border-gray-200 pt-2 flex justify-between text-red-500">
+          <span>부가세 차감 (10%)</span>
+          <span class="font-medium">- {{ (s.vat_amount or 0) | won }}</span>
+        </div>
+        <div class="flex justify-between text-gray-600">
+          <span>부가세 차감 후 금액</span>
+          <span class="font-medium">{{ ((s.commission_amount or 0) - (s.vat_amount or 0)) | won }}</span>
+        </div>
+        <div class="flex justify-between text-red-500">
+          <span>원천징수 (3.3%)</span>
+          <span class="font-medium">- {{ (s.tax_amount or 0) | won }}</span>
+        </div>
+        {% endif %}
+
+        <div class="border-t-2 border-gray-900 pt-3 flex justify-between">
+          <span class="font-bold text-gray-900 text-base">최종 지급액</span>
+          <span class="font-bold text-gray-900 text-xl">{{ s.final_payment | won }}</span>
+        </div>
+      </div>
+    </div>
+
+    {% if s.notes %}
+    <div class="text-xs text-gray-400 border-t border-gray-100 pt-4">{{ s.notes }}</div>
+    {% endif %}
+
+    <div class="text-xs text-gray-300 text-right">BLEND PUNCH OS · {{ s.created_at.strftime('%Y.%m.%d') if s.created_at else '' }}</div>
+  </div>
+</div>
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+function saveAsImage() {
+  var card = document.getElementById('settlement-card');
+  html2canvas(card, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(function (canvas) {
+    var link = document.createElement('a');
+    link.download = '정산서_{{ (s.influencer.name if s.influencer else "정산") | replace(" ", "_") }}_{{ s.period_label or "" }}.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+}
+</script>
+{% endblock %}
+
+{% endblock %}

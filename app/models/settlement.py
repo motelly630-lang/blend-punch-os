@@ -15,9 +15,10 @@ class Settlement(Base):
     seller_type = Column(String(20), default="사업자")     # 사업자|간이사업자|프리랜서
     sales_amount = Column(Float, default=0.0)              # 총 매출
     commission_rate = Column(Float, default=0.15)          # 커미션율
-    commission_amount = Column(Float, default=0.0)         # 커미션 금액
-    tax_rate = Column(Float, default=0.033)                # 원천세율
-    tax_amount = Column(Float, default=0.0)                # 원천세 금액
+    commission_amount = Column(Float, default=0.0)         # 커미션 금액 (매출 × 커미션율)
+    vat_amount = Column(Float, default=0.0)                # 부가세 (커미션 × 10%)
+    tax_rate = Column(Float, default=0.0)                  # 원천징수율 (프리랜서 0.033)
+    tax_amount = Column(Float, default=0.0)                # 원천징수액
     final_payment = Column(Float, default=0.0)             # 최종 지급액
     status = Column(String(20), default="pending")         # pending|confirmed|paid
     notes = Column(Text, nullable=True)

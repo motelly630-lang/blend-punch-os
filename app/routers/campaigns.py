@@ -154,24 +154,22 @@ def _auto_settle(db: Session, campaign: Campaign):
     existing = db.query(Settlement).filter_by(campaign_id=campaign.id).first()
     if existing:
         return
+    from app.routers.settlements import calc_settlement
     inf = db.query(Influencer).filter_by(id=campaign.influencer_id).first()
+    seller_type = (inf.business_type if inf and inf.business_type else "사업자")
     seller_rate = campaign.seller_commission_rate or campaign.commission_rate or 0.0
-    commission_amt = round((campaign.actual_revenue or 0) * seller_rate)
-    tax_rate = 0.033 if (inf and inf.business_type == "프리랜서") else 0.0
-    tax_amt = round(commission_amt * tax_rate)
+    calc = calc_settlement(campaign.actual_revenue or 0, seller_rate, seller_type)
+    period = (campaign.end_date.strftime("%Y년 %m월") if campaign.end_date else datetime.now().strftime("%Y년 %m월"))
     s = Settlement(
         influencer_id=campaign.influencer_id,
         campaign_id=campaign.id,
-        period_label=datetime.now().strftime("%Y년 %m월"),
-        seller_type=(inf.business_type if inf and inf.business_type else "사업자"),
+        period_label=period,
+        seller_type=seller_type,
         sales_amount=campaign.actual_revenue or 0,
         commission_rate=seller_rate,
-        commission_amount=commission_amt,
-        tax_rate=tax_rate,
-        tax_amount=tax_amt,
-        final_payment=commission_amt - tax_amt,
         status="pending",
         notes="캠페인 완료 시 자동 생성",
+        **calc,
     )
     db.add(s)
 
