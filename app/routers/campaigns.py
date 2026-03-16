@@ -125,6 +125,8 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
     })
 
 
+
+
 @router.get("/new")
 def campaign_new(request: Request, db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user),
