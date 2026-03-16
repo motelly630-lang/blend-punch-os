@@ -7,8 +7,11 @@ Routes:
 import asyncio
 import io
 import json
+import logging
 import uuid
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, Form, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -217,11 +220,18 @@ async def import_confirm(
     mapping_json: str = Form(...),
     use_ai: str = Form(""),
 ):
+    from urllib.parse import quote
     try:
         payload = json.loads(payload_json)
-        mapping = json.loads(mapping_json)  # {str(col_idx): field_name}
-    except Exception:
-        return RedirectResponse("/products/import?err=데이터+오류", status_code=302)
+    except Exception as e:
+        logger.exception("payload_json 파싱 실패")
+        return RedirectResponse(f"/products/import?err={quote(f'payload JSON 오류: {e}')}", status_code=302)
+
+    try:
+        mapping = json.loads(mapping_json)
+    except Exception as e:
+        logger.exception("mapping_json 파싱 실패")
+        return RedirectResponse(f"/products/import?err={quote(f'mapping JSON 오류: {e}')}", status_code=302)
 
     headers = payload.get("headers", [])
     rows = payload.get("rows", [])
@@ -260,43 +270,60 @@ async def import_confirm(
             if ai_data:
                 ai_enriched += 1
 
-        product = Product(
-            name=row_data.get("name", ""),
-            brand=row_data.get("brand", ""),
-            category=row_data.get("category", "기타"),
-            description=row_data.get("description"),
-            consumer_price=row_data.get("consumer_price", 0.0),
-            lowest_price=row_data.get("lowest_price", 0.0),
-            supplier_price=row_data.get("supplier_price", 0.0),
-            groupbuy_price=row_data.get("groupbuy_price", 0.0),
-            discount_rate=row_data.get("discount_rate", 0.0),
-            seller_commission_rate=row_data.get("seller_commission_rate", 0.0),
-            vendor_commission_rate=row_data.get("vendor_commission_rate", 0.0),
-            shipping_cost=row_data.get("shipping_cost"),
-            product_link=row_data.get("product_link"),
-            product_image=row_data.get("product_image"),
-            status="draft",
-            visibility_status="active",
-            # AI-enriched fields
-            key_benefits=ai_data.get("key_benefits") if ai_data else None,
-            unique_selling_point=ai_data.get("unique_selling_point") if ai_data else None,
-            target_audience=ai_data.get("target_audience") if ai_data else None,
-            content_angle=ai_data.get("content_angle") if ai_data else None,
-            ai_analysis_raw=json.dumps(ai_data, ensure_ascii=False) if ai_data else None,
-        )
-        db.add(product)
-        saved += 1
+        try:
+            product = Product(
+                name=row_data.get("name", ""),
+                brand=row_data.get("brand", ""),
+                category=row_data.get("category", "기타"),
+                description=row_data.get("description"),
+                consumer_price=row_data.get("consumer_price", 0.0),
+                lowest_price=row_data.get("lowest_price", 0.0),
+                supplier_price=row_data.get("supplier_price", 0.0),
+                groupbuy_price=row_data.get("groupbuy_price", 0.0),
+                discount_rate=row_data.get("discount_rate", 0.0),
+                seller_commission_rate=row_data.get("seller_commission_rate", 0.0),
+                vendor_commission_rate=row_data.get("vendor_commission_rate", 0.0),
+                shipping_cost=row_data.get("shipping_cost"),
+                product_link=row_data.get("product_link"),
+                product_image=row_data.get("product_image"),
+                status="draft",
+                visibility_status="active",
+                key_benefits=ai_data.get("key_benefits") if ai_data else None,
+                unique_selling_point=ai_data.get("unique_selling_point") if ai_data else None,
+                target_audience=ai_data.get("target_audience") if ai_data else None,
+                content_angle=ai_data.get("content_angle") if ai_data else None,
+                ai_analysis_raw=json.dumps(ai_data, ensure_ascii=False) if ai_data else None,
+            )
+            db.add(product)
+            saved += 1
+        except Exception as e:
+            logger.exception(f"Row {row_idx + 2} 저장 오류: {row_data.get('name', '?')}")
+            errors.append(f"행 {row_idx + 2} ({row_data.get('name', '?')}): {e}")
+            continue
 
         # Commit in batches of 50
         if saved % 50 == 0:
-            db.flush()
+            try:
+                db.flush()
+            except Exception as e:
+                logger.exception("DB flush 오류")
+                db.rollback()
+                errors.append(f"DB flush 오류: {e}")
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        logger.exception("DB commit 오류")
+        db.rollback()
+        from urllib.parse import quote
+        return RedirectResponse(f"/products/import?err={quote(str(e))}", status_code=302)
 
-    msg_parts = [f"{saved}개+제품+등록"]
+    from urllib.parse import quote
+    msg_parts = [f"{saved}개 제품 등록"]
     if run_ai and ai_enriched:
-        msg_parts.append(f"AI+분석+{ai_enriched}개")
+        msg_parts.append(f"AI 분석 {ai_enriched}개")
     if skipped:
-        msg_parts.append(f"{skipped}개+건너뜀")
-    msg = "+·+".join(msg_parts)
-    return RedirectResponse(f"/products?msg={msg}", status_code=302)
+        msg_parts.append(f"{skipped}개 건너뜀")
+    if errors:
+        msg_parts.append(f"오류 {len(errors)}행: {errors[0]}")
+    return RedirectResponse(f"/products?msg={quote(' · '.join(msg_parts))}", status_code=302)
