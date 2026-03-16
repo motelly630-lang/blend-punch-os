@@ -42,6 +42,7 @@ def _parse_set_options(raw: str) -> list | None:
 
 @router.get("")
 def product_list(request: Request, db: Session = Depends(get_db),
+                 q: str = "", category: str = "",
                  current_user: User = Depends(get_current_user)):
     from sqlalchemy import func
     brand_rows = (
@@ -52,10 +53,23 @@ def product_list(request: Request, db: Session = Depends(get_db),
         .all()
     )
     brand_list = [{"name": r.brand, "count": r.cnt} for r in brand_rows]
+
+    products = []
+    if q or category:
+        query = db.query(Product)
+        if q:
+            query = query.filter(
+                Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%")
+            )
+        if category:
+            query = query.filter(Product.category == category)
+        products = query.order_by(Product.created_at.desc()).limit(300).all()
+
     return templates.TemplateResponse(
         "products/list.html",
         {"request": request, "active_page": "products", "current_user": current_user,
-         "brand_list": brand_list},
+         "brand_list": brand_list, "products": products,
+         "q": q, "category_filter": category, "filter_categories": CATEGORIES},
     )
 
 
