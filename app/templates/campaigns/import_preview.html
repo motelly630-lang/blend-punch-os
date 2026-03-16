@@ -1,0 +1,77 @@
+{# htmx partial — vanilla JS only #}
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h3 class="text-sm font-semibold text-gray-800">📋 미리보기 — {{ filename }}</h3>
+      <p class="text-xs text-gray-400 mt-0.5">총 {{ total_rows }}행 · 처음 10행 표시</p>
+    </div>
+    <span class="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded-full">컬럼 자동 매핑 완료</span>
+  </div>
+
+  <div class="mb-4 overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="bg-gray-50 border-b border-gray-100">
+          {% for i, h in headers | enumerate %}
+          <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap">{{ h }}</th>
+          {% endfor %}
+        </tr>
+        <tr class="bg-blue-50 border-b border-blue-100">
+          {% for i, h in headers | enumerate %}
+          <th class="px-2 py-1.5">
+            <select data-col="{{ i }}" onchange="campImportUpdateMapping({{ i }}, this.value)"
+              class="w-full text-xs border border-blue-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+              {% for field, label in all_fields %}
+              <option value="{{ field }}" {% if mapping[i] == field %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for row in preview_rows %}
+        <tr class="hover:bg-gray-50">
+          {% for cell in row %}
+          <td class="px-3 py-2 text-gray-600 whitespace-nowrap max-w-[160px] truncate">{{ cell }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <form id="camp-import-form" method="post" action="/campaigns/import/confirm">
+    <input type="hidden" name="payload_json" value="{{ payload | e }}">
+    <input type="hidden" name="mapping_json" id="camp-import-mapping-json" value="{{ mapping | tojson | e }}">
+    <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+      <p class="text-sm text-gray-500">
+        <span class="font-semibold text-gray-800">{{ total_rows }}개 캠페인</span>을 등록합니다.
+      </p>
+      <button type="submit" class="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        {{ total_rows }}개 등록 확인
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  var currentMapping = {{ mapping | tojson }};
+  var strMapping = {};
+  Object.keys(currentMapping).forEach(function (k) { strMapping[String(k)] = currentMapping[k]; });
+  currentMapping = strMapping;
+
+  function syncMapping() {
+    var el = document.getElementById('camp-import-mapping-json');
+    if (el) el.value = JSON.stringify(currentMapping);
+  }
+  syncMapping();
+
+  window.campImportUpdateMapping = function (idx, val) {
+    currentMapping[String(idx)] = val;
+    syncMapping();
+  };
+}());
+</script>
