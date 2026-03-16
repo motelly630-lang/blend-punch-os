@@ -16,7 +16,7 @@ from app.routers import catalog as catalog_router
 from app.routers import import_products as import_products_router
 from app.routers import import_influencers as import_influencers_router
 from app.routers import import_campaigns as import_campaigns_router
-from app.api import ai_product, ai_proposal, ai_playbook, ai_dm, ai_seller_content, ai_product_image, ai_influencer
+from app.api import ai_product, ai_proposal, ai_playbook, ai_dm, ai_seller_content, ai_product_image, ai_influencer, ai_recommend
 from app.routers import trend_engine as trend_engine_router
 from app.routers import outreach as outreach_router
 from app.routers import crm as crm_router
@@ -79,6 +79,7 @@ app.include_router(ai_dm.router)
 app.include_router(ai_seller_content.router)
 app.include_router(ai_product_image.router)
 app.include_router(ai_influencer.router)
+app.include_router(ai_recommend.router)
 app.include_router(trend_engine_router.router)
 app.include_router(catalog_router.router)
 app.include_router(outreach_router.router)
