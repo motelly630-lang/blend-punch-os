@@ -58,7 +58,22 @@
     document.getElementById(type + '-id-input').value = id;
     document.getElementById(type + '-search').value = label;
     document.getElementById(type + '-list').style.display = 'none';
+    autoFillCampaignName();
   };
+
+  function autoFillCampaignName() {
+    var nameInput = document.querySelector('input[name="name"]');
+    if (!nameInput || nameInput.dataset.userEdited === 'true') return;
+    var productLabel = document.getElementById('product-search').value.trim();
+    var influencerLabel = document.getElementById('influencer-search').value.trim().split(' (')[0];
+    if (productLabel && influencerLabel) {
+      nameInput.value = productLabel + ' x ' + influencerLabel;
+    } else if (productLabel) {
+      nameInput.value = productLabel;
+    } else if (influencerLabel) {
+      nameInput.value = influencerLabel;
+    }
+  }
   window.filterDropdown = function (type, query) {
     var list = document.getElementById(type + '-list');
     list.style.display = '';
@@ -77,6 +92,16 @@
   });
 
   document.addEventListener('DOMContentLoaded', function () {
+    // 사용자가 직접 캠페인명 수정하면 자동입력 비활성화
+    var nameInput = document.querySelector('input[name="name"]');
+    if (nameInput) {
+      nameInput.addEventListener('input', function () {
+        this.dataset.userEdited = 'true';
+      });
+      // 편집 모드에서는 이미 이름이 있으므로 자동입력 비활성화
+      if (nameInput.value.trim()) nameInput.dataset.userEdited = 'true';
+    }
+
     var revenueInput = document.getElementById('revenue-input');
     var sellerInput = document.getElementById('seller-pct-input');
     var vendorInput = document.getElementById('vendor-pct-input');
