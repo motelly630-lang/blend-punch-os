@@ -143,7 +143,6 @@ async def influencer_bulk_import(
             followers=followers,
             profile_url=data.get("profile_url"),
             profile_image=data.get("profile_image") or None,
-            bio=data.get("bio"),
             status="active",
         )
         db.add(inf)
