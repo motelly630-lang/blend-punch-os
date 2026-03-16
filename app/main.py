@@ -60,6 +60,9 @@ async def insufficient_permissions_handler(request: Request, exc: InsufficientPe
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth_router.router)
 app.include_router(dashboard.router)
+app.include_router(import_products_router.router)
+app.include_router(import_influencers_router.router)
+app.include_router(import_campaigns_router.router)
 app.include_router(products.router)
 app.include_router(influencers.router)
 app.include_router(proposals.router)
@@ -77,9 +80,6 @@ app.include_router(ai_product_image.router)
 app.include_router(ai_influencer.router)
 app.include_router(trend_engine_router.router)
 app.include_router(catalog_router.router)
-app.include_router(import_products_router.router)
-app.include_router(import_influencers_router.router)
-app.include_router(import_campaigns_router.router)
 app.include_router(outreach_router.router)
 
 
