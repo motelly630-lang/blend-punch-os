@@ -318,8 +318,13 @@ def update_sales(
     if not campaign:
         return JSONResponse({"error": "not found"}, status_code=404)
     campaign.actual_sales = actual_sales
-    if campaign.unit_price:
-        campaign.actual_revenue = actual_sales * campaign.unit_price
+    price = campaign.unit_price or 0
+    if not price and campaign.product_id:
+        p = db.query(Product).filter_by(id=campaign.product_id).first()
+        if p:
+            price = getattr(p, 'groupbuy_price', 0) or getattr(p, 'consumer_price', 0) or getattr(p, 'price', 0) or 0
+    if price:
+        campaign.actual_revenue = actual_sales * price
     seller_rate = campaign.seller_commission_rate or campaign.commission_rate or 0.0
     vendor_rate = campaign.vendor_commission_rate or 0.0
     rev = campaign.actual_revenue or 0.0
