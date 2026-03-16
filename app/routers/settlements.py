@@ -17,27 +17,27 @@ SELLER_TYPES = ["사업자", "간이사업자", "프리랜서"]
 
 def calc_settlement(sales_amount: float, commission_rate: float, seller_type: str) -> dict:
     """
-    사업자   : 커미션 + 부가세(10%) → 총 지급액 (세금계산서 발행)
-    간이사업자: 커미션만 지급 (부가세·원천징수 없음)
-    프리랜서  : 커미션 - 부가세(10%) = 순수수료 → 순수수료 × 3.3% 원천징수 차감 → 최종
+    사업자    : 커미션만 지급 (부가세·원천징수 없음)
+               final = commission
+    간이사업자 : 커미션 - 부가세(10%)
+               final = commission - vat
+    프리랜서   : 커미션 - 부가세(10%) - 원천징수(3.3% of commission)
+               final = commission - vat - withholding
     """
     commission = sales_amount * commission_rate
     if seller_type == "사업자":
-        vat = round(commission * 0.1)
-        withholding = 0
-        final = round(commission) + vat
-        tax_rate = 0.0
-    elif seller_type == "간이사업자":
         vat = 0
         withholding = 0
-        final = round(commission)
+        tax_rate = 0.0
+    elif seller_type == "간이사업자":
+        vat = round(commission * 0.1)
+        withholding = 0
         tax_rate = 0.0
     else:  # 프리랜서
         vat = round(commission * 0.1)
-        net = commission - vat
-        withholding = round(net * 0.033)
-        final = round(net) - withholding
+        withholding = round(commission * 0.033)
         tax_rate = 0.033
+    final = round(commission) - vat - withholding
     return {
         "commission_amount": round(commission),
         "vat_amount": vat,
