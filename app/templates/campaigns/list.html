@@ -93,10 +93,6 @@
   {% else %}
   <!-- Active: vertical stack — 진행중 → 예정 → 완료 -->
 
-  {% set active_campaigns   = campaigns | selectattr('id', 'in', status_map | selectattr_value('active') | list) | list %}
-  {% set planning_campaigns = campaigns | selectattr('id', 'in', status_map | selectattr_value_in(['planning','negotiating','contracted']) | list) | list %}
-  {% set done_campaigns     = campaigns | selectattr('id', 'in', status_map | selectattr_value_in(['completed','cancelled']) | list) | list %}
-
   <!-- 진행중 -->
   {% set section_campaigns = [] %}
   {% for c in campaigns if status_map[c.id] == 'active' %}{% set _ = section_campaigns.append(c) %}{% endfor %}
