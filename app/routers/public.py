@@ -21,13 +21,33 @@ def _brand_list(db: Session) -> list[dict]:
     return [{"name": r.brand, "count": r.cnt} for r in rows]
 
 
-# ── /public/products — 브랜드 목록 ─────────────────────────────
+FILTER_CATEGORIES = [
+    "건강기능식품", "스킨케어", "뷰티/메이크업", "헤어케어", "바디케어",
+    "다이어트/슬리밍", "식품/음료", "생활용품", "주방용품", "가전제품",
+    "패션/의류", "패션잡화", "홈/인테리어", "유아/육아", "반려동물",
+    "스포츠/레저", "전자기기", "기타",
+]
+
+
+# ── /public/products — 브랜드 목록 + 검색/카테고리 필터 ──────────
 @router.get("/products")
-def public_product_list(request: Request, db: Session = Depends(get_db)):
+def public_product_list(request: Request, db: Session = Depends(get_db),
+                        q: str = "", category: str = ""):
     brands = _brand_list(db)
+    products = []
+    if q or category:
+        query = db.query(Product).filter(Product.status == "active")
+        if q:
+            query = query.filter(
+                Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%")
+            )
+        if category:
+            query = query.filter(Product.category == category)
+        products = query.order_by(Product.created_at.desc()).all()
     return templates.TemplateResponse(
         "public/products.html",
-        {"request": request, "brands": brands},
+        {"request": request, "brands": brands, "products": products,
+         "q": q, "category_filter": category, "filter_categories": FILTER_CATEGORIES},
     )
 
 
