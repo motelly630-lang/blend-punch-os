@@ -1,7 +1,5 @@
 import asyncio
 import json
-import shutil
-import uuid
 from collections import Counter
 from pathlib import Path
 
@@ -14,6 +12,7 @@ from app.database import get_db
 from app.models import Influencer
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.services.image_service import save_influencer_image, cache_external_image
 
 router = APIRouter(prefix="/influencers")
 templates = Jinja2Templates(directory="app/templates")
@@ -25,21 +24,21 @@ PRESET_CATEGORIES = [
     "리빙", "일상", "반려동물", "패션", "여행", "홈카페", "살림",
 ]
 
-UPLOAD_DIR = Path("static/uploads/influencers")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+Path("static/uploads/influencers").mkdir(parents=True, exist_ok=True)
 
 
 def _save_image(file: UploadFile) -> str | None:
-    if not file or not file.filename:
-        return None
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "jpg"
-    if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
-        ext = "jpg"
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    dest = UPLOAD_DIR / filename
-    with dest.open("wb") as out:
-        shutil.copyfileobj(file.file, out)
-    return f"/static/uploads/influencers/{filename}"
+    return save_influencer_image(file)
+
+
+def _resolve_profile_image(uploaded_path: str | None, external_url: str | None) -> str | None:
+    """업로드 이미지 우선, 없으면 외부 URL을 서버에 캐싱해서 반환."""
+    if uploaded_path:
+        return uploaded_path
+    if external_url and external_url.startswith("http"):
+        cached = cache_external_image(external_url)
+        return cached or external_url  # 캐싱 실패 시 원본 URL 그대로
+    return None
 
 
 def _parse_categories(json_str: str, fallback_raw: str = "") -> list | None:
@@ -136,13 +135,15 @@ async def influencer_bulk_import(
             followers = int(float(str(followers_raw).replace(",", ""))) if followers_raw else 0
         except Exception:
             followers = 0
+        ext_img = data.get("profile_image") or None
+        cached_img = _resolve_profile_image(None, ext_img)
         inf = Influencer(
             name=name,
             handle=handle,
             platform=data.get("platform") or "instagram",
             followers=followers,
             profile_url=data.get("profile_url"),
-            profile_image=data.get("profile_image") or None,
+            profile_image=cached_img,
             status="active",
         )
         db.add(inf)
@@ -203,7 +204,8 @@ def influencer_create(
     saved_profile_image_path: str = Form(""),
 ):
     categories = _parse_categories(categories_json)
-    image_path = _save_image(profile_image) or (saved_profile_image_path or None)
+    uploaded = _save_image(profile_image)
+    image_path = _resolve_profile_image(uploaded, saved_profile_image_path or None)
     influencer = Influencer(
         name=name, platform=platform, handle=handle,
         profile_url=profile_url or None,
@@ -307,7 +309,8 @@ def influencer_update(
         return RedirectResponse("/influencers", status_code=302)
 
     categories = _parse_categories(categories_json)
-    new_image = _save_image(profile_image) or (saved_profile_image_path or None)
+    uploaded = _save_image(profile_image)
+    new_image = _resolve_profile_image(uploaded, saved_profile_image_path or None)
 
     influencer.name = name
     influencer.platform = platform
@@ -340,8 +343,6 @@ def influencer_update(
     influencer.resident_registration_number = resident_registration_number or None
     if new_image:
         influencer.profile_image = new_image
-    elif saved_profile_image_path and not influencer.profile_image:
-        influencer.profile_image = saved_profile_image_path
 
     db.commit()
     return RedirectResponse(f"/influencers/{influencer_id}?msg=수정되었습니다", status_code=302)

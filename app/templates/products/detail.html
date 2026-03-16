@@ -19,17 +19,19 @@
     <div class="lg:col-span-2 space-y-4">
 
       <!-- Image -->
-      {% if product.product_image %}
       <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <img src="{{ product.product_image }}" alt="{{ product.name }}" class="w-full object-cover max-h-72">
+        {% if product.product_image %}
+        <img src="{{ product.product_image }}" alt="{{ product.name }}"
+          loading="lazy"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+          class="w-full object-cover max-h-72">
+        {% endif %}
+        <div class="{% if product.product_image %}hidden{% else %}flex{% endif %} p-8 items-center justify-center">
+          <svg class="w-16 h-16 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+          </svg>
+        </div>
       </div>
-      {% else %}
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-8 flex items-center justify-center">
-        <svg class="w-16 h-16 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-        </svg>
-      </div>
-      {% endif %}
 
       <!-- Identity card -->
       <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">

@@ -87,6 +87,29 @@ def migrate():
         # --- crm_pipelines / sample_logs (CRM Pipeline) ---
         # Tables are created by init_db(); no extra columns needed
 
+        # ── SQLite Indexes (성능 최적화) ──────────────────────────────
+        indexes = [
+            ("idx_products_brand",       "products",    "brand"),
+            ("idx_products_category",    "products",    "category"),
+            ("idx_products_status",      "products",    "status"),
+            ("idx_products_visibility",  "products",    "visibility_status"),
+            ("idx_influencers_status",   "influencers", "status"),
+            ("idx_influencers_platform", "influencers", "platform"),
+            ("idx_campaigns_status",     "campaigns",   "status"),
+            ("idx_campaigns_influencer", "campaigns",   "influencer_id"),
+            ("idx_campaigns_product",    "campaigns",   "product_id"),
+            ("idx_settlements_status",   "settlements", "status"),
+            ("idx_settlements_influencer","settlements","influencer_id"),
+        ]
+        for idx_name, table, col in indexes:
+            try:
+                conn.execute(text(
+                    f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({col})"
+                ))
+                print(f"  + index {idx_name}")
+            except Exception:
+                pass
+
         conn.commit()
 
     print("Migration complete.")

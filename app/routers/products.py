@@ -1,6 +1,4 @@
 import json
-import shutil
-import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
@@ -11,6 +9,7 @@ from app.database import get_db
 from app.models import Product, Influencer
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.services.image_service import save_product_image
 
 router = APIRouter(prefix="/products")
 templates = Jinja2Templates(directory="app/templates")
@@ -24,21 +23,11 @@ CATEGORIES = [
 
 CARRIERS = ["CJ대한통운", "한진택배", "로젠택배", "우체국택배", "롯데택배", "기타"]
 
-UPLOAD_DIR = Path("static/uploads/products")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+Path("static/uploads/products").mkdir(parents=True, exist_ok=True)
 
 
 def _save_image(file: UploadFile) -> str | None:
-    if not file or not file.filename:
-        return None
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "jpg"
-    if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
-        ext = "jpg"
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    dest = UPLOAD_DIR / filename
-    with dest.open("wb") as out:
-        shutil.copyfileobj(file.file, out)
-    return f"/static/uploads/products/{filename}"
+    return save_product_image(file)
 
 
 def _parse_set_options(raw: str) -> list | None:

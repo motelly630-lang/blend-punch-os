@@ -17,11 +17,19 @@
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
     <div class="flex gap-0">
       <!-- Profile image -->
-      {% if influencer.profile_image %}
-      <div class="w-44 flex-shrink-0">
-        <img src="{{ influencer.profile_image }}" alt="{{ influencer.name }}" class="w-full h-full object-cover min-h-[11rem]">
+      <div class="w-44 flex-shrink-0 min-h-[11rem] bg-gray-50 flex items-center justify-center overflow-hidden relative">
+        {% if influencer.profile_image %}
+        <img src="{{ influencer.profile_image }}" alt="{{ influencer.name }}"
+          loading="lazy" referrerpolicy="no-referrer"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+          class="w-full h-full object-cover absolute inset-0">
+        {% endif %}
+        <div class="{% if influencer.profile_image %}hidden{% else %}flex{% endif %} items-center justify-center w-full h-full">
+          <svg class="w-16 h-16 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+        </div>
       </div>
-      {% endif %}
       <!-- Info column -->
       <div class="flex-1 p-6">
         <div class="flex items-start justify-between gap-3 mb-3">
