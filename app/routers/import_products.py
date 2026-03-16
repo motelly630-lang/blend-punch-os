@@ -39,6 +39,8 @@ COLUMN_MAP: dict[str, str] = {
     "벤더마진": "vendor_commission_rate",
     "배송비": "shipping_cost",
     "상품링크": "product_link", "링크": "product_link", "제품링크": "product_link",
+    "이미지URL": "product_image", "이미지url": "product_image", "이미지링크": "product_image",
+    "제품이미지": "product_image", "상품이미지": "product_image", "이미지": "product_image",
     # English
     "product_name": "name", "name": "name",
     "brand": "brand",
@@ -76,6 +78,7 @@ ALL_PRODUCT_FIELDS = [
     ("vendor_commission_rate", "벤더 마진율 (%)"),
     ("shipping_cost", "배송비"),
     ("product_link", "상품 링크"),
+    ("product_image", "이미지 URL"),
     ("__skip__", "— 가져오지 않음 —"),
 ]
 
@@ -271,6 +274,7 @@ async def import_confirm(
             vendor_commission_rate=row_data.get("vendor_commission_rate", 0.0),
             shipping_cost=row_data.get("shipping_cost"),
             product_link=row_data.get("product_link"),
+            product_image=row_data.get("product_image"),
             status="draft",
             visibility_status="active",
             # AI-enriched fields
