@@ -36,16 +36,22 @@ def _auto_status(c: Campaign, today: date) -> str:
 
 
 def _run_archiving(db: Session):
-    """Auto-archive campaigns whose end_date month < current KST month."""
+    """Auto-archive campaigns whose end_date month < current KST month,
+    and sync KST-based status to DB for all non-archived campaigns."""
     today = _kst_today()
     first_of_month = today.replace(day=1)
-    to_archive = db.query(Campaign).filter(
-        Campaign.is_archived == False,
-        Campaign.end_date < first_of_month,
-    ).all()
-    if to_archive:
-        for c in to_archive:
+
+    all_active = db.query(Campaign).filter(Campaign.is_archived == False).all()
+    changed = False
+    for c in all_active:
+        new_status = _auto_status(c, today)
+        if c.status != new_status:
+            c.status = new_status
+            changed = True
+        if c.end_date and c.end_date < first_of_month:
             c.is_archived = True
+            changed = True
+    if changed:
         db.commit()
 
 router = APIRouter(prefix="/campaigns")
