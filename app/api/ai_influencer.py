@@ -250,6 +250,66 @@ async def influencer_url_fill(
     return HTMLResponse(_result_html(data, profile_image_path, url))
 
 
+# ── Shared helper: process a single URL → dict (used by bulk import) ──────────
+
+async def process_influencer_url(url: str) -> dict:
+    """
+    Fetch + Claude-extract one influencer URL.
+    Returns a dict with keys matching Influencer model fields.
+    Always returns something (falls back to URL-only data on failure).
+    """
+    url = url.strip()
+    platform = _detect_platform(url)
+    url_handle = _extract_handle_from_url(url, platform)
+
+    html = ""
+    fetch_ok = False
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15, headers=_HEADERS) as client:
+            r = await client.get(url)
+            if r.status_code == 200:
+                html = r.text
+                fetch_ok = True
+    except Exception:
+        pass
+
+    data: dict = {}
+    claude = ClaudeClient()
+    if fetch_ok and html and claude.available:
+        snippet = _meta_slice(html)
+        prompt_file = _PROMPTS / "influencer_url_extract.md"
+        raw_prompt = prompt_file.read_text(encoding="utf-8")
+        system = raw_prompt.split("## User Template")[0].replace("## System\n", "").strip()
+        user_tpl = raw_prompt.split("## User Template\n", 1)[1].strip()
+        user_text = (
+            user_tpl
+            .replace("{{platform}}", platform)
+            .replace("{{url}}", url)
+            .replace("{{html_snippet}}", snippet)
+        )
+        try:
+            data = await asyncio.to_thread(
+                lambda: claude.complete_json(system, user_text, max_tokens=1024)
+            )
+        except Exception:
+            pass
+
+    data.setdefault("handle", url_handle)
+    data.setdefault("platform", platform)
+    data["profile_url"] = url
+
+    profile_image_path = ""
+    img_url = data.get("profile_image_url") or (html and _og_image(html)) or ""
+    if img_url:
+        result = await asyncio.to_thread(_download_image, img_url)
+        if result:
+            img_bytes, ext = result
+            profile_image_path = _save_image_bytes(img_bytes, ext)
+    data["profile_image"] = profile_image_path
+
+    return data
+
+
 # ── Screenshot OCR ────────────────────────────────────────────────────────────
 
 @router.post("/influencer-image-fill", response_class=HTMLResponse)

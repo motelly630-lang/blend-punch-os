@@ -1,3 +1,4 @@
+import asyncio
 import json
 import shutil
 import uuid
@@ -85,6 +86,75 @@ def influencer_list(request: Request, db: Session = Depends(get_db), q: str = ""
         "total": total, "active_count": active_count, "inactive_count": inactive_count, "blacklist_count": blacklist_count,
         "platform_counts": dict(platform_counts), "top_categories": top_categories,
     })
+
+
+@router.get("/bulk-import")
+def influencer_bulk_import_form(request: Request, current_user: User = Depends(get_current_user)):
+    return templates.TemplateResponse("influencers/bulk_import.html", {
+        "request": request, "active_page": "influencers", "current_user": current_user,
+    })
+
+
+@router.post("/bulk-import")
+async def influencer_bulk_import(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    urls_raw: str = Form(...),
+):
+    from app.api.ai_influencer import process_influencer_url
+
+    urls = [u.strip() for u in urls_raw.splitlines() if u.strip().startswith("http")]
+    if not urls:
+        return RedirectResponse("/influencers/bulk-import?err=유효한+URL이+없습니다", status_code=302)
+
+    # Limit concurrency to 3 simultaneous requests
+    semaphore = asyncio.Semaphore(3)
+
+    async def _process(url: str) -> dict | None:
+        async with semaphore:
+            try:
+                return await process_influencer_url(url)
+            except Exception:
+                return None
+
+    results = await asyncio.gather(*[_process(u) for u in urls])
+
+    saved = 0
+    skipped = 0
+    for data in results:
+        if not data:
+            skipped += 1
+            continue
+        handle = data.get("handle") or ""
+        name = data.get("name") or handle or ""
+        if not name:
+            skipped += 1
+            continue
+        try:
+            followers_raw = data.get("followers") or 0
+            followers = int(float(str(followers_raw).replace(",", ""))) if followers_raw else 0
+        except Exception:
+            followers = 0
+        inf = Influencer(
+            name=name,
+            handle=handle,
+            platform=data.get("platform") or "instagram",
+            followers=followers,
+            profile_url=data.get("profile_url"),
+            profile_image=data.get("profile_image") or None,
+            bio=data.get("bio"),
+            status="active",
+        )
+        db.add(inf)
+        saved += 1
+
+    db.commit()
+    from urllib.parse import quote
+    return RedirectResponse(
+        f"/influencers?msg={quote(f'{saved}명 등록 완료' + (f' · {skipped}개 실패' if skipped else ''))}",
+        status_code=302,
+    )
 
 
 @router.get("/new")
