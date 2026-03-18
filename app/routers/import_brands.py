@@ -8,7 +8,7 @@ import io
 import uuid
 import logging
 
-from fastapi import APIRouter, Depends, Form, UploadFile, File
+from fastapi import APIRouter, Depends, Form, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -67,6 +67,7 @@ def _parse_file(file_bytes: bytes, filename: str) -> list[dict]:
 
 @router.post("/upload", response_class=HTMLResponse)
 async def import_upload(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -85,7 +86,7 @@ async def import_upload(
 
     return templates.TemplateResponse(
         "brands/import_preview.html",
-        {"request": None, "rows": rows, "existing_names": existing_names,
+        {"request": request, "rows": rows, "existing_names": existing_names,
          "total": len(rows)},
     )
 
