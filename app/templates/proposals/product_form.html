@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}셀러 제품 제안서 작성 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}셀러 제품 제안서 작성{% endblock %}
+
+{% block header_actions %}
+<a href="/proposals" class="text-sm text-gray-500 hover:text-gray-700">← 제안서 목록</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl" x-data="productProposal()">
+
+  <!-- 제품 선택 -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-4">
+    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">제품 선택</h3>
+    <select x-model="selectedId" @change="onSelect()"
+      class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <option value="">-- 제품을 선택하세요 --</option>
+      {% for p in products %}
+      <option value="{{ p.id }}"
+        data-name="{{ p.name }}"
+        data-brand="{{ p.brand }}"
+        data-consumer="{{ p.consumer_price or 0 }}"
+        data-groupbuy="{{ p.groupbuy_price or 0 }}"
+        data-discount="{{ p.discount_rate or 0 }}"
+        data-seller-rate="{{ p.seller_commission_rate or 0 }}"
+        data-usp="{{ p.unique_selling_point or '' }}"
+        data-positioning="{{ p.positioning or '' }}"
+        data-guideline="{{ p.group_buy_guideline or '' }}"
+        {% if selected_product and selected_product.id == p.id %}selected{% endif %}>
+        {{ p.brand }} · {{ p.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <!-- 제품 정보 카드 (선택 후 표시) -->
+  <template x-if="product.id">
+    <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-5 mb-4">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <div class="text-xs text-blue-400 font-medium mb-0.5" x-text="product.brand"></div>
+          <div class="text-lg font-bold text-gray-900" x-text="product.name"></div>
+        </div>
+        <span class="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded-full font-medium">제품 정보</span>
+      </div>
+
+      <!-- 가격 구조 -->
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="bg-white rounded-lg p-3 text-center">
+          <div class="text-xs text-gray-400 mb-1">소비자가</div>
+          <div class="text-base font-bold text-gray-900" x-text="won(product.consumer_price)"></div>
+        </div>
+        <div class="bg-white rounded-lg p-3 text-center border-2 border-blue-200">
+          <div class="text-xs text-blue-500 font-medium mb-1">공구가</div>
+          <div class="text-base font-bold text-blue-700" x-text="won(product.groupbuy_price)"></div>
+          <div class="text-xs text-blue-400 mt-0.5" x-text="pct(product.discount_rate) + ' 할인'"></div>
+        </div>
+        <div class="bg-emerald-50 rounded-lg p-3 text-center border border-emerald-200">
+          <div class="text-xs text-emerald-500 font-medium mb-1">셀러 커미션</div>
+          <div class="text-base font-bold text-emerald-700" x-text="pct(product.seller_rate)"></div>
+          <div class="text-xs text-emerald-400 mt-0.5" x-text="'≈ ' + won(product.groupbuy_price * product.seller_rate) + ' / 건'"></div>
+        </div>
+      </div>
+
+      <!-- USP / 가이드라인 -->
+      <template x-if="product.usp">
+        <div class="bg-white rounded-lg p-3 mb-3">
+          <div class="text-xs font-semibold text-gray-500 mb-1">핵심 셀링 포인트</div>
+          <p class="text-sm text-gray-700" x-text="product.usp"></p>
+        </div>
+      </template>
+      <template x-if="product.guideline">
+        <div class="bg-white rounded-lg p-3">
+          <div class="text-xs font-semibold text-gray-500 mb-1">공구 가이드라인</div>
+          <p class="text-sm text-gray-700 whitespace-pre-line" x-text="product.guideline"></p>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <!-- 제안서 작성 폼 -->
+  <form method="post" action="/proposals/product/new" class="space-y-4">
+    <input type="hidden" name="product_id" :value="product.id || ''">
+
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">제안서 내용</h3>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">제목</label>
+        <input type="text" name="title"
+          :placeholder="product.name ? product.name + ' · 셀러 제품 제안서' : '제안서 제목'"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-sm font-medium text-gray-700">본문</label>
+          <button type="button" @click="fillTemplate()"
+            class="text-xs text-blue-500 hover:text-blue-700 font-medium"
+            x-show="product.id">
+            템플릿 자동 완성
+          </button>
+        </div>
+        <textarea name="body" x-model="body" rows="14"
+          placeholder="제품 소개, 커미션 구조, 공구 조건 등을 작성하세요"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono resize-y"></textarea>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-3">
+      <a href="/proposals" class="px-5 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">취소</a>
+      <button type="submit" :disabled="!product.id"
+        class="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
+        제안서 저장
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+function productProposal() {
+  const initId = "{{ selected_product.id if selected_product else '' }}";
+  return {
+    selectedId: initId,
+    product: {},
+    body: '',
+
+    init() {
+      if (this.selectedId) this.onSelect();
+    },
+
+    onSelect() {
+      const opt = document.querySelector(`option[value="${this.selectedId}"]`);
+      if (!opt || !this.selectedId) { this.product = {}; return; }
+      this.product = {
+        id:            this.selectedId,
+        name:          opt.dataset.name,
+        brand:         opt.dataset.brand,
+        consumer_price: parseFloat(opt.dataset.consumer) || 0,
+        groupbuy_price: parseFloat(opt.dataset.groupbuy) || 0,
+        discount_rate:  parseFloat(opt.dataset.discount) || 0,
+        seller_rate:    parseFloat(opt.dataset.sellerRate) || 0,
+        usp:            opt.dataset.usp,
+        guideline:      opt.dataset.guideline,
+      };
+    },
+
+    fillTemplate() {
+      const p = this.product;
+      if (!p.id) return;
+      this.body = `[셀러 제품 제안서]
+
+■ 제품명: ${p.name}
+■ 브랜드: ${p.brand}
+
+━━━━━━━━━━━━━━━━━━━━
+💰 수익 구조
+━━━━━━━━━━━━━━━━━━━━
+• 소비자가:  ${this.won(p.consumer_price)}
+• 공구가:    ${this.won(p.groupbuy_price)}  (${this.pct(p.discount_rate)} 할인)
+• 셀러 커미션: ${this.pct(p.seller_rate)}  ≈ ${this.won(p.groupbuy_price * p.seller_rate)} / 건
+
+━━━━━━━━━━━━━━━━━━━━
+✨ 핵심 셀링 포인트
+━━━━━━━━━━━━━━━━━━━━
+${p.usp || '(내용 입력)'}
+
+━━━━━━━━━━━━━━━━━━━━
+📋 공구 가이드라인
+━━━━━━━━━━━━━━━━━━━━
+${p.guideline || '(내용 입력)'}
+`;
+    },
+
+    won(v) {
+      const n = Math.round(v || 0);
+      return '₩' + n.toLocaleString('ko-KR');
+    },
+    pct(v) {
+      return ((v || 0) * 100).toFixed(1) + '%';
+    },
+  };
+}
+</script>
+{% endblock %}

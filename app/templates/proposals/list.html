@@ -3,11 +3,19 @@
 {% block page_title %}제안서{% endblock %}
 
 {% block header_actions %}
-<a href="/proposals/new" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+<a href="/proposals/product/new"
+  class="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors">
+  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+  </svg>
+  셀러 제품 제안서 작성
+</a>
+<a href="/proposals/new"
+  class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
   </svg>
-  제안서 작성
+  셀러 DM용 제안서 작성
 </a>
 {% endblock %}
 
@@ -47,6 +55,7 @@
           {% elif pr.proposal_type == 'dm_first' %}DM 첫연락
           {% elif pr.proposal_type == 'dm_followup' %}DM 팔로업
           {% elif pr.proposal_type == 'dm_confirm' %}DM 확정
+          {% elif pr.proposal_type == 'product_sheet' %}<span class="text-emerald-600 font-medium">셀러 제품 제안서</span>
           {% else %}{{ pr.proposal_type }}{% endif %}
         </td>
         <td class="px-5 py-3.5 text-gray-600">

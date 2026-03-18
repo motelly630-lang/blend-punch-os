@@ -26,6 +26,7 @@ from app.routers import shop as shop_router
 from app.routers import orders as orders_router
 from app.routers import sales_pages as sales_pages_router
 from app.routers import sellers as sellers_router
+from app.routers import applications as applications_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions
 
 
@@ -113,6 +114,7 @@ app.include_router(shop_router.router)
 app.include_router(orders_router.router)
 app.include_router(sales_pages_router.router)
 app.include_router(sellers_router.router)
+app.include_router(applications_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────

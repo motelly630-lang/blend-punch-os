@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Product
 from app.models.brand import Brand as BrandModel
+from app.models.group_buy_application import GroupBuyApplication
 
 router = APIRouter(prefix="/public")
 templates = Jinja2Templates(directory="app/templates")
@@ -84,6 +85,36 @@ def public_product_detail(product_id: str, request: Request, db: Session = Depen
         "public/product_detail.html",
         {"request": request, "product": product},
     )
+
+
+# ── /public/apply — 공구 신청 POST ──────────────────────────────
+@router.post("/apply")
+def submit_application(
+    product_id: str = Form(""),
+    product_name: str = Form(...),
+    brand: str = Form(""),
+    applicant_name: str = Form(...),
+    contact_type: str = Form(...),
+    contact_value: str = Form(...),
+    channel_handle: str = Form(""),
+    followers: str = Form(""),
+    message: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    app = GroupBuyApplication(
+        product_id=product_id or None,
+        product_name=product_name,
+        brand=brand or None,
+        applicant_name=applicant_name,
+        contact_type=contact_type,
+        contact_value=contact_value,
+        channel_handle=channel_handle or None,
+        followers=followers or None,
+        message=message or None,
+    )
+    db.add(app)
+    db.commit()
+    return RedirectResponse(f"/public/products/brand/{brand}?applied=1", status_code=302)
 
 
 # ── 하위 호환 리다이렉트 ────────────────────────────────────────

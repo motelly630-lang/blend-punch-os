@@ -26,6 +26,40 @@ def proposal_list(request: Request, db: Session = Depends(get_db),
     )
 
 
+@router.get("/product/new")
+def proposal_product_new(request: Request, db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user),
+                         product_id: str = ""):
+    products = db.query(Product).filter(Product.status == "active").order_by(Product.name).limit(300).all()
+    selected = db.query(Product).filter(Product.id == product_id).first() if product_id else None
+    return templates.TemplateResponse("proposals/product_form.html", {
+        "request": request, "active_page": "proposals",
+        "current_user": current_user,
+        "products": products, "selected_product": selected,
+    })
+
+
+@router.post("/product/new")
+def proposal_product_create(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    product_id: str = Form(""),
+    title: str = Form(""),
+    body: str = Form(...),
+):
+    proposal = Proposal(
+        product_id=product_id or None,
+        proposal_type="product_sheet",
+        title=title or None,
+        body=body,
+        ai_generated=False,
+    )
+    db.add(proposal)
+    db.commit()
+    db.refresh(proposal)
+    return RedirectResponse(f"/proposals/{proposal.id}?msg=제안서가+저장되었습니다", status_code=302)
+
+
 @router.get("/new")
 def proposal_new(request: Request, db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user),
