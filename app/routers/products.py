@@ -54,7 +54,11 @@ def product_list(request: Request, db: Session = Depends(get_db),
         .all()
     )
     brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.logo.isnot(None)).all()}
-    brand_list = [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand)} for r in brand_rows]
+    from sqlalchemy import func as _func2
+    first_imgs = {r.brand: r.img for r in db.query(Product.brand, _func2.min(Product.product_image).label("img"))
+                  .filter(Product.product_image.isnot(None), Product.product_image != "")
+                  .group_by(Product.brand).all()}
+    brand_list = [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand), "first_image": first_imgs.get(r.brand)} for r in brand_rows]
 
     products = []
     if q or category:

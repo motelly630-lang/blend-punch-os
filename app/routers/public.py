@@ -21,7 +21,10 @@ def _brand_list(db: Session) -> list[dict]:
         .all()
     )
     brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.logo.isnot(None)).all()}
-    return [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand)} for r in rows]
+    first_imgs = {r.brand: r.img for r in db.query(Product.brand, func.min(Product.product_image).label("img"))
+                  .filter(Product.product_image.isnot(None), Product.product_image != "")
+                  .group_by(Product.brand).all()}
+    return [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand), "first_image": first_imgs.get(r.brand)} for r in rows]
 
 
 FILTER_CATEGORIES = [

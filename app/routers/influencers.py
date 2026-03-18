@@ -55,7 +55,7 @@ def _parse_categories(json_str: str, fallback_raw: str = "") -> list | None:
 
 @router.get("")
 def influencer_list(request: Request, db: Session = Depends(get_db), q: str = "", platform: str = "",
-                    current_user: User = Depends(get_current_user)):
+                    view: str = "gallery", current_user: User = Depends(get_current_user)):
     query = db.query(Influencer)
     if q:
         query = query.filter(Influencer.name.ilike(f"%{q}%") | Influencer.handle.ilike(f"%{q}%"))
@@ -83,7 +83,7 @@ def influencer_list(request: Request, db: Session = Depends(get_db), q: str = ""
         "request": request, "active_page": "influencers", "current_user": current_user,
         "influencers": influencers, "q": q, "platform_filter": platform, "platforms": PLATFORMS,
         "total": total, "active_count": active_count, "inactive_count": inactive_count, "blacklist_count": blacklist_count,
-        "platform_counts": dict(platform_counts), "top_categories": top_categories,
+        "platform_counts": dict(platform_counts), "top_categories": top_categories, "view": view,
     })
 
 
