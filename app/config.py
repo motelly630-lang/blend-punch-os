@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     app_secret: str = "dev-secret"
     secret_key: str = "dev-jwt-secret-change-in-production"
     remove_bg_api_key: str = ""
+    # S3 백업 설정
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = "ap-northeast-2"
+    s3_backup_bucket: str = ""
 
 
 settings = Settings()

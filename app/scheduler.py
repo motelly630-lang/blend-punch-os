@@ -21,6 +21,15 @@ def _daily_briefing_job():
         db.close()
 
 
+def _backup_job():
+    from app.backup import run_backup
+    try:
+        result = run_backup()
+        print(f"[Scheduler] Backup complete: {result}")
+    except Exception as e:
+        print(f"[Scheduler] Backup job error: {e}")
+
+
 def start_scheduler():
     _scheduler.add_job(
         _daily_briefing_job,
@@ -29,8 +38,16 @@ def start_scheduler():
         id="daily_trend_briefing",
         replace_existing=True,
     )
+    # 매일 새벽 2시 DB + 이미지 S3 백업
+    _scheduler.add_job(
+        _backup_job,
+        trigger="cron",
+        hour=2, minute=0,
+        id="daily_s3_backup",
+        replace_existing=True,
+    )
     _scheduler.start()
-    print("[Scheduler] Started — daily trend briefing at 09:00 KST")
+    print("[Scheduler] Started — trend briefing 09:00 KST | S3 backup 02:00 KST")
 
 
 def stop_scheduler():

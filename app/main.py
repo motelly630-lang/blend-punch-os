@@ -1,13 +1,10 @@
-import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.database import init_db
-from app.backup import run_backup
 from app.routers import dashboard, products, influencers, proposals
 from app.routers import auth as auth_router
 from app.routers import campaigns, trends, settlements
@@ -30,24 +27,14 @@ from app.routers import applications as applications_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions
 
 
-async def _backup_loop():
-    while True:
-        now = datetime.now()
-        next_run = (now + timedelta(days=1)).replace(hour=2, minute=0, second=0, microsecond=0)
-        await asyncio.sleep((next_run - now).total_seconds())
-        run_backup()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     from app.scheduler import start_scheduler
     start_scheduler()
-    task = asyncio.create_task(_backup_loop())
     yield
     from app.scheduler import stop_scheduler
     stop_scheduler()
-    task.cancel()
 
 
 app = FastAPI(title="BLEND PUNCH OS", lifespan=lifespan)
