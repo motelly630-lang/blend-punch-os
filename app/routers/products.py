@@ -152,6 +152,7 @@ def product_create(
     status: str = Form("draft"),
     visibility_status: str = Form("active"),
     product_image: UploadFile = File(None),
+    product_image_url: str = Form(""),
     shipping_type: str = Form(""),
     shipping_cost: str = Form(""),
     carrier: str = Form(""),
@@ -171,7 +172,7 @@ def product_create(
     product_type: str = Form("A"),
 ):
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
-    image_path = _save_image(product_image)
+    image_path = _save_image(product_image) or (product_image_url.strip() or None)
     set_opts = _parse_set_options(set_options_json)
     try:
         cats = json.loads(categories_json)
@@ -289,6 +290,7 @@ def product_update(
     status: str = Form("draft"),
     visibility_status: str = Form("active"),
     product_image: UploadFile = File(None),
+    product_image_url: str = Form(""),
     shipping_type: str = Form(""),
     shipping_cost: str = Form(""),
     carrier: str = Form(""),
@@ -312,7 +314,7 @@ def product_update(
         return RedirectResponse("/products", status_code=302)
 
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
-    new_image = _save_image(product_image)
+    new_image = _save_image(product_image) or (product_image_url.strip() or None)
     set_opts = _parse_set_options(set_options_json)
     try:
         cats = json.loads(categories_json)
