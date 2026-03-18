@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ product.name }} · 셀러 브리프</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Noto Sans KR', sans-serif; }
+    body { background: #f1f5f9; }
+    .card-wrap { width: 800px; margin: 0 auto; }
+    @media print { body { background: white; } .no-print { display: none !important; } }
+  </style>
+</head>
+<body class="py-8">
+
+<!-- 플로팅 액션 버튼 -->
+<div class="no-print fixed top-6 right-6 z-50 flex flex-col gap-2">
+  <button onclick="downloadCard()"
+    class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-xl shadow-lg hover:bg-blue-700 transition-all text-sm">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+    </svg>
+    이미지 저장
+  </button>
+  <a href="/proposals/{{ proposal.id }}" target="_blank"
+    class="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-600 font-medium rounded-xl shadow border border-gray-200 hover:bg-gray-50 transition-all text-sm">
+    ← 돌아가기
+  </a>
+</div>
+
+<!-- 카드 -->
+<div class="card-wrap">
+<div id="seller-card" style="width:800px; background:white; border-radius:20px; overflow:hidden; box-shadow:0 4px 40px rgba(0,0,0,0.12);">
+
+  <!-- 헤더 -->
+  <div style="background: linear-gradient(135deg, #1e40af 0%, #4338ca 50%, #6d28d9 100%); padding: 28px 36px 24px;">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div>
+        <div style="color:rgba(255,255,255,0.7); font-size:11px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">BLEND PUNCH</div>
+        <div style="color:white; font-size:22px; font-weight:800; letter-spacing:-0.02em;">셀러 제품 브리프</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.15); border-radius:12px; padding:8px 16px; border:1px solid rgba(255,255,255,0.2);">
+        <div style="color:rgba(255,255,255,0.8); font-size:10px; font-weight:600; text-align:center; margin-bottom:2px;">SELLER BRIEF</div>
+        <div style="color:white; font-size:11px; font-weight:700; text-align:center;">{{ proposal.created_at.strftime('%Y.%m.%d') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 제품 상단 영역 -->
+  <div style="display:flex; gap:0; min-height:260px;">
+
+    <!-- 제품 이미지 -->
+    <div style="width:260px; flex-shrink:0; background:#f8fafc; position:relative; overflow:hidden;">
+      {% if product.product_image %}
+      <img src="{{ product.product_image }}" alt="{{ product.name }}"
+        style="width:100%; height:100%; object-fit:cover; min-height:260px;"
+        crossorigin="anonymous">
+      {% else %}
+      <div style="width:100%; min-height:260px; background:linear-gradient(135deg,#dbeafe,#ede9fe); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px;">
+        <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="#93c5fd" stroke-width="1">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
+        <span style="color:#93c5fd; font-size:11px; font-weight:600;">제품 이미지</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 제품 기본 정보 -->
+    <div style="flex:1; padding:28px 30px; display:flex; flex-direction:column; justify-content:center; background:#fafafa; border-left:1px solid #f0f0f0;">
+      <div style="font-size:11px; color:#6366f1; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:8px;">{{ product.brand }}</div>
+      <div style="font-size:21px; font-weight:800; color:#0f172a; line-height:1.25; margin-bottom:16px; letter-spacing:-0.02em;">{{ product.name }}</div>
+
+      {% if product.unique_selling_point %}
+      <div style="font-size:13px; color:#475569; line-height:1.7; background:white; border-radius:10px; padding:12px 14px; border:1px solid #e2e8f0;">
+        {{ product.unique_selling_point }}
+      </div>
+      {% endif %}
+
+      {% if product.categories %}
+      <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;">
+        {% for cat in product.categories[:4] %}
+        <span style="font-size:10px; padding:3px 10px; background:#ede9fe; color:#7c3aed; border-radius:20px; font-weight:600;">{{ cat }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 가격 구조 섹션 -->
+  <div style="padding:28px 36px; background:white; border-top:1px solid #f1f5f9;">
+    <div style="font-size:11px; font-weight:700; color:#94a3b8; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:16px;">가격 구조</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+
+      <!-- 소비자가 -->
+      <div style="background:#f8fafc; border-radius:14px; padding:18px 20px; border:1px solid #e2e8f0; text-align:center;">
+        <div style="font-size:11px; color:#94a3b8; font-weight:600; margin-bottom:8px;">소비자가</div>
+        <div style="font-size:20px; font-weight:800; color:#334155;">
+          {% if product.consumer_price and product.consumer_price > 0 %}
+          ₩{{ "{:,.0f}".format(product.consumer_price) }}
+          {% else %}
+          <span style="color:#cbd5e1; font-size:14px;">미설정</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- 공구가 -->
+      <div style="background:linear-gradient(135deg,#eff6ff,#eef2ff); border-radius:14px; padding:18px 20px; border:2px solid #bfdbfe; text-align:center; position:relative;">
+        <div style="font-size:11px; color:#3b82f6; font-weight:700; margin-bottom:8px;">공구가</div>
+        <div style="font-size:22px; font-weight:900; color:#1d4ed8;">
+          {% if product.groupbuy_price and product.groupbuy_price > 0 %}
+          ₩{{ "{:,.0f}".format(product.groupbuy_price) }}
+          {% else %}
+          <span style="color:#bfdbfe; font-size:14px;">미설정</span>
+          {% endif %}
+        </div>
+        {% if product.discount_rate and product.discount_rate > 0 %}
+        <div style="position:absolute; top:-10px; right:-8px; background:#ef4444; color:white; font-size:10px; font-weight:800; padding:3px 9px; border-radius:20px;">
+          -{{ "{:.0f}".format(product.discount_rate * 100) }}%
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- 셀러 커미션 -->
+      <div style="background:linear-gradient(135deg,#ecfdf5,#d1fae5); border-radius:14px; padding:18px 20px; border:2px solid #6ee7b7; text-align:center;">
+        <div style="font-size:11px; color:#059669; font-weight:700; margin-bottom:8px;">셀러 커미션</div>
+        <div style="font-size:22px; font-weight:900; color:#065f46;">
+          {% if product.seller_commission_rate and product.seller_commission_rate > 0 %}
+          {{ "{:.0f}".format(product.seller_commission_rate * 100) }}%
+          {% else %}
+          <span style="color:#a7f3d0; font-size:14px;">미설정</span>
+          {% endif %}
+        </div>
+        {% if product.groupbuy_price and product.seller_commission_rate %}
+        <div style="font-size:11px; color:#047857; margin-top:4px; font-weight:600;">
+          ≈ ₩{{ "{:,.0f}".format(product.groupbuy_price * product.seller_commission_rate) }} / 건
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 구분선 + 추가 정보 -->
+  {% if product.group_buy_guideline or product.positioning or product.key_benefits %}
+  <div style="padding:0 36px 28px; background:white;">
+    <div style="border-top:1px solid #f1f5f9; padding-top:24px;">
+      <div style="display:grid; grid-template-columns:1fr{% if product.group_buy_guideline %} 1fr{% endif %}; gap:16px;">
+
+        {% if product.key_benefits %}
+        <div style="background:#fafafa; border-radius:12px; padding:16px 18px; border:1px solid #f0f0f0;">
+          <div style="font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px;">핵심 혜택</div>
+          <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px;">
+            {% set benefits = product.key_benefits if product.key_benefits is iterable and product.key_benefits is not string else [] %}
+            {% for b in benefits[:5] %}
+            <li style="display:flex; align-items:flex-start; gap:8px; font-size:12px; color:#334155; line-height:1.5;">
+              <span style="color:#6366f1; font-weight:800; flex-shrink:0; margin-top:1px;">✓</span>
+              <span>{{ b }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if product.group_buy_guideline %}
+        <div style="background:#fff7ed; border-radius:12px; padding:16px 18px; border:1px solid #fed7aa;">
+          <div style="font-size:11px; font-weight:700; color:#ea580c; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px;">공구 가이드라인</div>
+          <div style="font-size:12px; color:#431407; line-height:1.75; white-space:pre-line;">{{ product.group_buy_guideline }}</div>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 푸터 -->
+  <div style="background:#0f172a; padding:18px 36px; display:flex; align-items:center; justify-content:space-between;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div style="width:28px; height:28px; background:linear-gradient(135deg,#3b82f6,#6366f1); border-radius:8px; display:flex; align-items:center; justify-content:center;">
+        <span style="color:white; font-weight:900; font-size:10px;">BP</span>
+      </div>
+      <div>
+        <div style="color:white; font-size:13px; font-weight:700;">BLEND PUNCH</div>
+        <div style="color:#475569; font-size:10px;">셀러 제품 카탈로그</div>
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div style="color:#475569; font-size:10px;">본 자료는 내부 영업용 자료입니다</div>
+      <div style="color:#334155; font-size:10px; margin-top:2px;">© 2026 Blend Punch. All rights reserved.</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+async function downloadCard() {
+  const btn = document.querySelector('.no-print button');
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> 생성 중...';
+  btn.disabled = true;
+
+  try {
+    const card = document.getElementById('seller-card');
+    const canvas = await html2canvas(card, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+    const link = document.createElement('a');
+    link.download = '{{ product.brand }}_{{ product.name }}_셀러브리프.png'.replace(/\s+/g, '_');
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch(e) {
+    alert('이미지 저장 중 오류가 발생했습니다: ' + e.message);
+  }
+
+  btn.innerHTML = origText;
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>

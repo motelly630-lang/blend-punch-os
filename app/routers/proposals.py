@@ -108,6 +108,17 @@ def proposal_create(
     return RedirectResponse(f"/proposals/{proposal.id}?msg=제안서가+저장되었습니다", status_code=302)
 
 
+@router.get("/{proposal_id}/card")
+def proposal_card(proposal_id: str, request: Request, db: Session = Depends(get_db),
+                  current_user: User = Depends(get_current_user)):
+    proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    if not proposal or not proposal.product:
+        return RedirectResponse(f"/proposals/{proposal_id}", status_code=302)
+    return templates.TemplateResponse("proposals/card.html", {
+        "request": request, "proposal": proposal, "product": proposal.product,
+    })
+
+
 @router.get("/{proposal_id}")
 def proposal_detail(proposal_id: str, request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
