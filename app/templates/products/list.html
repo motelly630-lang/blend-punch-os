@@ -116,12 +116,22 @@
 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
   {% for b in brand_list %}
   <a href="/products/brand/{{ b.name | urlencode }}"
-    class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:border-blue-300 hover:shadow-md transition-all text-center group">
-    <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-2 group-hover:bg-blue-100 transition-colors">
-      <span class="text-sm font-bold text-blue-600">{{ b.name[0] }}</span>
+    class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:border-blue-300 hover:shadow-md transition-all group">
+    {% if b.logo %}
+    <div class="w-full h-16 bg-gray-50 flex items-center justify-center overflow-hidden">
+      <img src="{{ b.logo }}" alt="{{ b.name }}" loading="lazy"
+        onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center px-3\'><span class=\'text-sm font-bold text-gray-700 text-center leading-tight line-clamp-2\'>{{ b.name }}</span></div>'"
+        class="max-h-full max-w-full object-contain p-2">
     </div>
-    <div class="text-sm font-semibold text-gray-800 truncate">{{ b.name }}</div>
-    <div class="text-xs text-gray-400 mt-0.5">{{ b.count }}개 제품</div>
+    {% else %}
+    <div class="w-full h-16 bg-gray-50 flex items-center justify-center px-3 group-hover:bg-blue-50 transition-colors">
+      <span class="text-sm font-semibold text-gray-700 text-center leading-tight line-clamp-2">{{ b.name }}</span>
+    </div>
+    {% endif %}
+    <div class="px-3 py-2.5 text-center">
+      <div class="text-xs font-medium text-gray-800 truncate">{{ b.name }}</div>
+      <div class="text-xs text-gray-400 mt-0.5">{{ b.count }}개 제품</div>
+    </div>
   </a>
   {% endfor %}
 </div>

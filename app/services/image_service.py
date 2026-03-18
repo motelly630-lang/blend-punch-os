@@ -19,12 +19,17 @@ MAX_DIMENSION = 1080
 WEBP_QUALITY = 85
 UPLOAD_DIR_PRODUCTS = Path("static/uploads/products")
 UPLOAD_DIR_INFLUENCERS = Path("static/uploads/influencers")
+UPLOAD_DIR_BRANDS = Path("static/brands")
 CACHE_DIR = Path("static/cache")
 
-REMOVE_BG_ENABLED = False  # True로 바꾸면 누끼 제거 활성화
-REMOVE_BG_API_KEY = ""     # .env에서 REMOVE_BG_API_KEY로 설정
+REMOVE_BG_ENABLED = True
+try:
+    from app.config import settings as _settings
+    REMOVE_BG_API_KEY = getattr(_settings, "remove_bg_api_key", "") or ""
+except Exception:
+    REMOVE_BG_API_KEY = ""
 
-for _d in (UPLOAD_DIR_PRODUCTS, UPLOAD_DIR_INFLUENCERS, CACHE_DIR):
+for _d in (UPLOAD_DIR_PRODUCTS, UPLOAD_DIR_INFLUENCERS, UPLOAD_DIR_BRANDS, CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # 인스타그램 이미지 다운로드용 헤더
@@ -135,6 +140,10 @@ def save_product_image(file: UploadFile, remove_bg: bool = False) -> str | None:
 
 def save_influencer_image(file: UploadFile, remove_bg: bool = False) -> str | None:
     return save_upload(file, UPLOAD_DIR_INFLUENCERS, remove_bg=remove_bg)
+
+
+def save_brand_logo(file: UploadFile, remove_bg: bool = False) -> str | None:
+    return save_upload(file, UPLOAD_DIR_BRANDS, remove_bg=remove_bg)
 
 
 def cache_external_image(url: str) -> str | None:

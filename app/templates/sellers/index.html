@@ -1,0 +1,93 @@
+{% extends "shop_base.html" %}
+{% block title %}셀러 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}셀러 관리{% endblock %}
+{% block header_actions %}
+<button onclick="document.getElementById('modal-add').classList.remove('hidden')"
+  class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+  + 셀러 추가
+</button>
+{% endblock %}
+
+{% block content %}
+{% set msg = request.query_params.get('msg') %}
+{% set err = request.query_params.get('err') %}
+{% if msg %}<div class="mb-4 px-4 py-2.5 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg">{{ msg }}</div>{% endif %}
+{% if err %}<div class="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{{ err }}</div>{% endif %}
+
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">셀러명</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">셀러코드</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">주문 수</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">상태</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">등록일</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for s in sellers %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3 font-medium text-gray-800">{{ s.name }}</td>
+        <td class="px-4 py-3">
+          <code class="bg-gray-100 px-2 py-0.5 rounded text-xs font-mono text-gray-700">{{ s.seller_code }}</code>
+        </td>
+        <td class="px-4 py-3 text-gray-600">{{ order_counts.get(s.id, 0) }}건</td>
+        <td class="px-4 py-3">
+          {% if s.is_active %}
+          <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">활성</span>
+          {% else %}
+          <span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">비활성</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-gray-400 text-xs">{{ s.created_at | date }}</td>
+        <td class="px-4 py-3">
+          <form method="post" action="/sellers/{{ s.id }}/delete" class="inline"
+            onsubmit="return confirm('{{ s.name }} 셀러를 삭제할까요?')">
+            <button type="submit" class="text-xs text-red-500 hover:text-red-700">삭제</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400 text-sm">등록된 셀러가 없습니다</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- 셀러 추가 모달 -->
+<div id="modal-add" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-gray-800">셀러 추가</h3>
+      <button onclick="document.getElementById('modal-add').classList.add('hidden')"
+        class="text-gray-400 hover:text-gray-600">✕</button>
+    </div>
+    <form method="post" action="/sellers/new" class="space-y-3">
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">셀러명 *</label>
+        <input name="name" required placeholder="김영수"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">셀러코드 * (URL 파라미터로 사용)</label>
+        <input name="seller_code" required placeholder="kimys01" pattern="[a-z0-9\-_]{2,30}"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <p class="text-xs text-gray-400 mt-1">영문소문자, 숫자, 하이픈만 (2~30자) — /shop/slug?seller=<strong>코드</strong></p>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">메모</label>
+        <input name="notes" placeholder="인스타 @handle 등"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button type="button" onclick="document.getElementById('modal-add').classList.add('hidden')"
+          class="flex-1 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50">취소</button>
+        <button type="submit"
+          class="flex-1 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">추가</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

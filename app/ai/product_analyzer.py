@@ -28,6 +28,8 @@ _TEXT_SYSTEM = """너는 제품 정보 추출 전문가다.
 def analyze_product_text(raw_text: str) -> dict:
     claude = ClaudeClient()
     result = claude.complete_json(_TEXT_SYSTEM, f"다음 텍스트에서 제품 정보를 추출하라:\n\n{raw_text}")
+    if not isinstance(result, dict):
+        result = {}
     # Server-side: calculate discount_rate if missing but both prices available
     cp = result.get("consumer_price")
     gp = result.get("groupbuy_price")

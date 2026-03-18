@@ -43,6 +43,7 @@ def login(
         httponly=True,
         max_age=_COOKIE_MAX_AGE,
         samesite="lax",
+        domain=".blendpunch.com",
     )
     return response
 
@@ -50,7 +51,7 @@ def login(
 @router.get("/logout")
 def logout():
     response = RedirectResponse("/login", status_code=302)
-    response.delete_cookie(_COOKIE_KEY)
+    response.delete_cookie(_COOKIE_KEY, domain=".blendpunch.com")
     return response
 
 
@@ -122,6 +123,17 @@ def user_reset_password(
     user.hashed_password = hash_password(new_password)
     db.commit()
     return RedirectResponse("/users?msg=비밀번호가+초기화되었습니다", status_code=302)
+
+
+@router.get("/users/changelog")
+def changelog(request: Request, current_user: User = Depends(get_current_user)):
+    from app.changelog import CHANGELOG, CATEGORY_COLORS
+    return templates.TemplateResponse("auth/changelog.html", {
+        "request": request, "active_page": "users",
+        "current_user": current_user,
+        "changelog": CHANGELOG,
+        "category_colors": CATEGORY_COLORS,
+    })
 
 
 @router.post("/users/{user_id}/delete")

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}업데이트 내역 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}업데이트 내역{% endblock %}
+
+{% block header_actions %}
+<a href="/users" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">← 사용자 관리</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="max-w-2xl space-y-4">
+  {% for entry in changelog %}
+
+  {% set color = category_colors.get(entry.category, 'gray') %}
+
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+    <!-- Header -->
+    <div class="px-5 py-4 flex items-start gap-4 border-b border-gray-50">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-sm font-bold text-gray-900">{{ entry.title }}</span>
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full
+            {% if color == 'blue' %}bg-blue-100 text-blue-700
+            {% elif color == 'purple' %}bg-purple-100 text-purple-700
+            {% elif color == 'green' %}bg-green-100 text-green-700
+            {% elif color == 'orange' %}bg-orange-100 text-orange-700
+            {% else %}bg-gray-100 text-gray-600{% endif %}">
+            {{ entry.category }}
+          </span>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-gray-400">
+          <span class="font-mono font-medium text-gray-500">{{ entry.version }}</span>
+          <span>·</span>
+          <span>{{ entry.date }}</span>
+        </div>
+      </div>
+    </div>
+    <!-- Items -->
+    <ul class="px-5 py-3.5 space-y-1.5">
+      {% for item in entry.changes %}
+      <li class="flex items-start gap-2 text-sm text-gray-600">
+        <span class="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0
+          {% if color == 'blue' %}bg-blue-400
+          {% elif color == 'purple' %}bg-purple-400
+          {% elif color == 'green' %}bg-green-400
+          {% elif color == 'orange' %}bg-orange-400
+          {% else %}bg-gray-300{% endif %}"></span>
+        {{ item }}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  {% endfor %}
+</div>
+
+{% endblock %}

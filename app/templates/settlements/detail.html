@@ -86,9 +86,11 @@
 
     {% if s.seller_type == '간이사업자' %}
     {{ row("부가세 차감 (10%)", "- " ~ (s.vat_amount | won), color="#fbbf24", value_color="#fbbf24") }}
+    {{ row("원천징수", "해당없음", color="#64748b", value_color="#64748b") }}
     {% elif s.seller_type == '프리랜서' %}
-    {{ row("부가세 차감 (10%)", "- " ~ (s.vat_amount | won), color="#fb923c", value_color="#fb923c") }}
-    {{ row("원천징수 차감 (3.3%)", "- " ~ (s.tax_amount | won), color="#f87171", value_color="#f87171") }}
+    {{ row("공급가액 (부가세 제외)", (s.commission_amount / 1.1) | int | won, color="#94a3b8", value_color="#cbd5e1") }}
+    {{ row("부가세 10% (계산서 별도)", s.vat_amount | won, color="#64748b", value_color="#64748b") }}
+    {{ row("원천징수 차감 (공급가액 × 3.3%)", "- " ~ (s.tax_amount | won), color="#f87171", value_color="#f87171") }}
     {% else %}
     {{ row("부가세", "해당없음", color="#64748b", value_color="#64748b") }}
     {{ row("원천징수", "해당없음", color="#64748b", value_color="#64748b") }}

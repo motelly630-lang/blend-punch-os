@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.title or product.name }} | BLEND PUNCH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak]{display:none!important}
+    .editor-content img { max-width:100%; height:auto; }
+    .editor-content table { width:100%; border-collapse:collapse; }
+    .editor-content td, .editor-content th { border:1px solid #e5e7eb; padding:6px 10px; }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-900 antialiased" style="font-family:'Noto Sans KR',sans-serif">
+
+<!-- Header -->
+<header class="bg-white border-b border-gray-100 sticky top-0 z-10">
+  <div class="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+        <span class="text-white font-bold text-xs">BP</span>
+      </div>
+      <span class="font-bold text-gray-900 text-sm">BLEND PUNCH</span>
+    </div>
+  </div>
+</header>
+
+{% set main_img = page.main_image or product.product_image %}
+{% set all_images = ([main_img] if main_img else []) + (page.extra_images or []) %}
+
+<!-- 메인 Alpine 컴포넌트 — 버튼도 이 안에 포함 -->
+<div x-data="shopPage(
+    {{ page_options | tojson }},
+    {{ page.price | int }},
+    '{{ seller_code }}',
+    {{ addon_products | tojson }},
+    {{ page.shipping_cost | int if page.shipping_type == 'paid' else 0 }}
+  )"
+  class="max-w-lg mx-auto px-4 py-6 pb-36">
+
+  <!-- 이미지 갤러리 -->
+  {% if all_images %}
+  <div class="rounded-2xl overflow-hidden mb-5 bg-gray-100">
+    {% if all_images | length > 1 %}
+    <!-- 여러 장: Alpine 갤러리 -->
+    <div x-data="{ cur: 0 }">
+      <div class="aspect-square overflow-hidden">
+        {% for img in all_images %}
+        <img src="{{ img }}" alt="상품 이미지"
+          x-show="cur === {{ loop.index0 }}"
+          class="w-full h-full object-cover">
+        {% endfor %}
+      </div>
+      <div class="flex gap-1.5 p-2 bg-white overflow-x-auto">
+        {% for img in all_images %}
+        <button type="button" @click="cur = {{ loop.index0 }}"
+          class="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors"
+          :class="cur === {{ loop.index0 }} ? 'border-blue-500' : 'border-transparent'">
+          <img src="{{ img }}" class="w-full h-full object-cover">
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <!-- 한 장: 단순 img -->
+    <div class="aspect-square">
+      <img src="{{ all_images[0] }}" alt="{{ product.name }}"
+        class="w-full h-full object-cover">
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- 상품 기본 정보 -->
+  <div class="mb-5">
+    <div class="text-xs text-blue-600 font-semibold mb-1">{{ product.brand }}</div>
+    <h1 class="text-xl font-bold text-gray-900 leading-snug mb-2">
+      {{ page.title or product.name }}
+    </h1>
+    <div class="flex items-baseline gap-2 flex-wrap">
+      {% if discount_pct > 0 %}
+      <span class="text-2xl font-bold text-blue-600">{{ "{:,}".format(page.price | int) }}원</span>
+      <span class="text-sm text-gray-400 line-through">{{ "{:,}".format(page.original_price | int) }}원</span>
+      <span class="text-sm font-bold text-red-500">{{ discount_pct }}% 할인</span>
+      {% else %}
+      <span class="text-2xl font-bold text-gray-900">{{ "{:,}".format(page.price | int) }}원</span>
+      {% endif %}
+    </div>
+    <!-- 배송 정보 -->
+    <div class="mt-2 text-sm flex items-center gap-1.5">
+      {% if page.shipping_type == 'free' %}
+      <span class="text-green-600 font-medium">무료배송</span>
+      {% else %}
+      <span class="font-medium text-gray-700">배송비 {{ "{:,}".format(page.shipping_cost | int) }}원</span>
+      {% endif %}
+      {% if page.carrier %}
+      <span class="text-gray-300">|</span>
+      <span class="text-gray-500">{{ page.carrier }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 짧은 설명 -->
+  {% if page.description or product.description %}
+  <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-4 text-sm text-gray-600 leading-relaxed whitespace-pre-line">
+    {{ page.description or product.description }}
+  </div>
+  {% endif %}
+
+  <!-- 핵심 혜택 -->
+  {% if product.key_benefits %}
+  {% set benefits = product.key_benefits if product.key_benefits is iterable and product.key_benefits is not string else [] %}
+  {% if benefits %}
+  <div class="bg-blue-50 rounded-2xl p-4 mb-4">
+    <div class="text-xs font-semibold text-blue-700 mb-2">이런 점이 좋아요</div>
+    {% for b in benefits %}
+    <div class="flex items-start gap-2 text-sm text-blue-800 mb-1">
+      <span class="text-blue-400 flex-shrink-0 mt-0.5">✓</span>
+      <span>{{ b }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+
+  <!-- 옵션 선택 -->
+  <template x-if="options.length > 0">
+    <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+      <div class="text-sm font-semibold text-gray-700 mb-3">옵션 선택</div>
+      <div class="space-y-2">
+        <template x-for="(opt, i) in options" :key="i">
+          <label class="flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-colors"
+            :class="selectedOption === i ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-gray-200'">
+            <div class="flex items-center gap-3">
+              <input type="radio" name="option" :value="i" x-model.number="selectedOption" class="hidden">
+              <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                :class="selectedOption === i ? 'border-blue-500' : 'border-gray-300'">
+                <div x-show="selectedOption === i" class="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+              </div>
+              <span class="text-sm font-medium text-gray-800" x-text="opt.name"></span>
+            </div>
+            <span class="text-sm font-bold text-blue-600"
+              x-text="opt.price ? formatWon(opt.price) + '원' : ''"></span>
+          </label>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- 추가 상품 -->
+  <template x-if="addonProducts.length > 0">
+    <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+      <div class="text-sm font-semibold text-gray-700 mb-1">추가 상품</div>
+      <p class="text-xs text-gray-400 mb-3">메인 상품 구매 시 함께 담을 수 있습니다</p>
+      <div class="space-y-2">
+        <template x-for="(ad, i) in addonProducts" :key="i">
+          <div class="p-3 rounded-xl border border-gray-100 bg-gray-50">
+            <div class="flex items-start justify-between mb-2">
+              <div>
+                <div class="text-sm font-medium text-gray-800" x-text="ad.name"></div>
+                <div x-show="ad.desc" class="text-xs text-gray-400 mt-0.5" x-text="ad.desc"></div>
+              </div>
+              <span class="text-sm font-bold text-blue-600 flex-shrink-0 ml-2"
+                x-text="ad.price > 0 ? formatWon(ad.price) + '원' : '무료'"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" @click="setAddonQty(i, addonQty[i] - 1)"
+                class="w-7 h-7 rounded-full border border-gray-300 text-gray-600 flex items-center justify-center hover:bg-gray-100 text-sm font-bold">−</button>
+              <span class="text-sm font-medium w-6 text-center" x-text="addonQty[i]"></span>
+              <button type="button" @click="setAddonQty(i, addonQty[i] + 1)"
+                class="w-7 h-7 rounded-full border border-gray-300 text-gray-600 flex items-center justify-center hover:bg-gray-100 text-sm font-bold">+</button>
+              <span class="text-xs text-gray-400 ml-1" x-text="'최대 ' + (ad.max_qty || 1) + '개'"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- 구매자 정보 -->
+  <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+    <div class="text-sm font-semibold text-gray-700 mb-3">구매자 정보</div>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">이름 *</label>
+        <input type="text" x-model="form.customer_name" placeholder="홍길동"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">연락처 *</label>
+        <input type="tel" x-model="form.customer_phone" placeholder="010-0000-0000"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">이메일 (선택)</label>
+        <input type="email" x-model="form.customer_email" placeholder="example@email.com"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+    </div>
+  </div>
+
+  <!-- 배송 정보 -->
+  <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-sm font-semibold text-gray-700">배송 정보</div>
+      <button type="button" @click="copyFromBuyer()"
+        class="text-xs text-blue-600 hover:text-blue-700 font-medium">
+        구매자 정보와 동일
+      </button>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">받는 분 *</label>
+        <input type="text" x-model="form.shipping_name" placeholder="홍길동"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">연락처 *</label>
+        <input type="tel" x-model="form.shipping_phone" placeholder="010-0000-0000"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">우편번호 *</label>
+        <input type="text" x-model="form.shipping_zipcode" placeholder="12345"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">주소 *</label>
+        <input type="text" x-model="form.shipping_address" placeholder="서울시 강남구 테헤란로 123"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">상세주소</label>
+        <input type="text" x-model="form.shipping_address2" placeholder="101동 202호"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">배송 메모</label>
+        <input type="text" x-model="form.shipping_memo" placeholder="문 앞에 놓아주세요"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+    </div>
+  </div>
+
+  <!-- 상세 내용 -->
+  {% if page.editor_content %}
+  <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+    <div class="text-sm font-semibold text-gray-700 mb-3">상품 상세</div>
+    <div class="editor-content text-sm text-gray-700 leading-relaxed">
+      {{ page.editor_content | safe }}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 에러 메시지 -->
+  <template x-if="errorMsg">
+    <div class="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700"
+      x-text="errorMsg"></div>
+  </template>
+
+  <!-- ─────────────────────────────────────────────── -->
+  <!-- 하단 고정 결제 버튼 — 메인 x-data 범위 안에 있음 -->
+  <!-- ─────────────────────────────────────────────── -->
+  <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4 z-20">
+    <div class="max-w-lg mx-auto">
+      <div class="flex items-center justify-between mb-2 px-1">
+        <span class="text-sm text-gray-500">결제금액</span>
+        <span class="text-lg font-bold text-blue-600"
+          x-text="formatWon(totalPrice) + '원'">{{ "{:,}".format(page.price | int) }}원</span>
+      </div>
+      <button
+        type="button"
+        @click="pay()"
+        :disabled="isLoading"
+        class="w-full py-4 bg-blue-600 text-white font-bold text-base rounded-2xl hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50">
+        <span x-show="!isLoading">지금 결제하기</span>
+        <span x-show="isLoading" x-cloak>처리 중...</span>
+      </button>
+    </div>
+  </div>
+
+</div><!-- /x-data -->
+
+<!-- 토스페이먼츠 SDK -->
+<script src="https://js.tosspayments.com/v1/payment"></script>
+<script>
+function shopPage(optionsRaw, basePrice, sellerCode, addonsRaw, shippingCost) {
+  const options   = Array.isArray(optionsRaw) ? optionsRaw : [];
+  const addons    = Array.isArray(addonsRaw)  ? addonsRaw  : [];
+
+  return {
+    options,
+    addonProducts: addons,
+    basePrice,
+    sellerCode,
+    shippingCost: shippingCost || 0,
+    selectedOption: 0,
+    addonQty: addons.map(() => 0),
+    errorMsg: '',
+    isLoading: false,
+    form: {
+      customer_name: '', customer_phone: '', customer_email: '',
+      shipping_name: '', shipping_phone: '',
+      shipping_address: '', shipping_address2: '',
+      shipping_zipcode: '', shipping_memo: '',
+    },
+
+    get selectedOptionObj() {
+      return this.options[this.selectedOption] || null;
+    },
+    get mainPrice() {
+      const opt = this.selectedOptionObj;
+      return (opt && opt.price) ? parseInt(opt.price) : this.basePrice;
+    },
+    get addonTotal() {
+      return this.addonProducts.reduce((sum, ad, i) => {
+        return sum + ((ad.price || 0) * (this.addonQty[i] || 0));
+      }, 0);
+    },
+    get totalPrice() {
+      return this.mainPrice + this.addonTotal + this.shippingCost;
+    },
+
+    setAddonQty(i, val) {
+      const max = this.addonProducts[i]?.max_qty || 1;
+      this.addonQty[i] = Math.max(0, Math.min(max, val));
+    },
+
+    copyFromBuyer() {
+      this.form.shipping_name  = this.form.customer_name;
+      this.form.shipping_phone = this.form.customer_phone;
+    },
+
+    validate() {
+      if (!this.form.customer_name.trim())    return '이름을 입력해주세요.';
+      if (!this.form.customer_phone.trim())   return '연락처를 입력해주세요.';
+      if (!this.form.shipping_name.trim())    return '받는 분 이름을 입력해주세요.';
+      if (!this.form.shipping_phone.trim())   return '배송 연락처를 입력해주세요.';
+      if (!this.form.shipping_zipcode.trim()) return '우편번호를 입력해주세요.';
+      if (!this.form.shipping_address.trim()) return '주소를 입력해주세요.';
+      return null;
+    },
+
+    async pay() {
+      const err = this.validate();
+      if (err) {
+        this.errorMsg = err;
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        return;
+      }
+      this.errorMsg = '';
+      this.isLoading = true;
+
+      const slug    = location.pathname.split('/shop/')[1];
+      const optObj  = this.selectedOptionObj;
+      const optName = optObj ? optObj.name : '';
+      const optPrice= (optObj && optObj.price) ? parseInt(optObj.price) : 0;
+      const addonItems = this.addonProducts
+        .map((ad, i) => ({ name: ad.name, price: ad.price || 0, qty: this.addonQty[i] || 0 }))
+        .filter(a => a.qty > 0);
+
+      try {
+        const res = await fetch(`/shop/${slug}/prepare`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...this.form,
+            option_name:  optName,
+            option_price: optPrice,
+            quantity:     1,
+            seller_code:  this.sellerCode,
+            addon_items:  addonItems,
+          }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          this.errorMsg = data.error;
+          this.isLoading = false;
+          return;
+        }
+
+        const toss = TossPayments('{{ toss_client_key }}');
+        await toss.requestPayment('카드', {
+          amount:       data.amount,
+          orderId:      data.order_id,
+          orderName:    data.order_name,
+          customerName: this.form.customer_name,
+          successUrl:   `${location.origin}/shop/success`,
+          failUrl:      `${location.origin}/shop/fail`,
+        });
+      } catch (e) {
+        if (e.code !== 'USER_CANCEL') {
+          this.errorMsg = e.message || '결제 중 오류가 발생했습니다.';
+        }
+        this.isLoading = false;
+      }
+    },
+  };
+}
+
+function formatWon(v) {
+  return parseInt(v).toLocaleString('ko-KR');
+}
+</script>
+</body>
+</html>

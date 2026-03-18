@@ -78,6 +78,20 @@ def migrate():
         # --- settlements ---
         _add_column(conn, "settlements", "vat_amount FLOAT DEFAULT 0")
 
+        # --- sales_pages (Commerce Upgrade) ---
+        _add_column(conn, "sales_pages", "editor_content TEXT")
+        _add_column(conn, "sales_pages", "stock_quantity INTEGER")
+        _add_column(conn, "sales_pages", "main_image VARCHAR(500)")
+        _add_column(conn, "sales_pages", "extra_images JSON")
+        _add_column(conn, "sales_pages", "options JSON")
+        _add_column(conn, "sales_pages", "addon_products JSON")
+        _add_column(conn, "sales_pages", "shipping_type VARCHAR(20) DEFAULT 'free'")
+        _add_column(conn, "sales_pages", "shipping_cost FLOAT DEFAULT 0")
+        _add_column(conn, "sales_pages", "carrier VARCHAR(50)")
+
+        # --- orders (Commerce Upgrade) ---
+        _add_column(conn, "orders", "addon_items JSON")
+
         # --- trend_briefings (Trend Engine) ---
         # Table is created by init_db(); no extra columns needed
 
@@ -86,6 +100,9 @@ def migrate():
 
         # --- crm_pipelines / sample_logs (CRM Pipeline) ---
         # Tables are created by init_db(); no extra columns needed
+
+        # --- products (AI Assistant) ---
+        _add_column(conn, "products", "product_type VARCHAR(1) DEFAULT 'A'")
 
         # ── SQLite Indexes (성능 최적화) ──────────────────────────────
         indexes = [

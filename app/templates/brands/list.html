@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}브랜드 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}브랜드 관리{% endblock %}
+
+{% block header_actions %}
+<a href="/brands/new" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+  브랜드 등록
+</a>
+{% endblock %}
+
+{% block content %}
+
+{% if request.query_params.get('msg') %}
+<div class="mb-4 px-4 py-2.5 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+  {{ request.query_params.get('msg') }}
+</div>
+{% endif %}
+
+{% if brands %}
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+  {% for b in brands %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-all group flex flex-col">
+    <!-- Logo -->
+    <div class="flex items-center justify-center mb-3">
+      {% if b.logo %}
+      <img src="{{ b.logo }}" alt="{{ b.name }}" class="w-16 h-16 rounded-xl object-cover" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 items-center justify-center" style="display:none">
+        <span class="text-xl font-bold text-blue-600">{{ b.name[0] }}</span>
+      </div>
+      {% else %}
+      <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <span class="text-xl font-bold text-blue-600">{{ b.name[0] }}</span>
+      </div>
+      {% endif %}
+    </div>
+    <!-- Name & desc -->
+    <div class="text-center flex-1">
+      <div class="font-semibold text-gray-900 text-sm truncate">{{ b.name }}</div>
+      {% if b.description %}
+      <div class="text-xs text-gray-400 mt-0.5 line-clamp-2">{{ b.description }}</div>
+      {% endif %}
+    </div>
+    <!-- Actions -->
+    <div class="flex items-center gap-2 mt-3 pt-3 border-t border-gray-50">
+      <a href="/products/brand/{{ b.name | urlencode }}" class="flex-1 text-center text-xs text-blue-600 hover:text-blue-700 font-medium">제품 보기</a>
+      <a href="/brands/{{ b.id }}/edit" class="flex-1 text-center text-xs text-gray-500 hover:text-gray-700">편집</a>
+      <form method="post" action="/brands/{{ b.id }}/delete" class="flex-1 text-center"
+        onsubmit="return confirm('{{ b.name }} 브랜드를 삭제할까요?')">
+        <button type="submit" class="text-xs text-red-400 hover:text-red-600">삭제</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-xl border border-gray-100 p-16 text-center">
+  <div class="text-gray-400 text-sm mb-3">등록된 브랜드가 없습니다</div>
+  <a href="/brands/new" class="text-sm text-blue-600 hover:text-blue-700 font-medium">+ 첫 브랜드 등록하기</a>
+</div>
+{% endif %}
+
+{% endblock %}

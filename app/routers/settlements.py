@@ -19,25 +19,33 @@ def calc_settlement(sales_amount: float, commission_rate: float, seller_type: st
     """
     사업자    : 커미션만 지급 (부가세·원천징수 없음)
                final = commission
+
     간이사업자 : 커미션 - 부가세(10%)
                final = commission - vat
-    프리랜서   : 커미션 - 부가세(10%) - 원천징수(3.3% of commission)
-               final = commission - vat - withholding
+
+    프리랜서   : 커미션 합계 = 공급가액 + 부가세(10%)
+               공급가액 = commission / 1.1
+               원천징수 = 공급가액 × 3.3%   ← 부가세 제외 금액에 적용
+               부가세는 세금계산서로 별도 처리 → 실지급 차감 안 함
+               final = commission - 원천징수
     """
     commission = sales_amount * commission_rate
     if seller_type == "사업자":
         vat = 0
         withholding = 0
         tax_rate = 0.0
+        final = round(commission)
     elif seller_type == "간이사업자":
         vat = round(commission * 0.1)
         withholding = 0
         tax_rate = 0.0
+        final = round(commission) - vat
     else:  # 프리랜서
-        vat = round(commission * 0.1)
-        withholding = round(commission * 0.033)
+        supply_price = commission / 1.1            # 공급가액 (부가세 제외)
+        vat = round(commission - supply_price)     # 부가세 (표시용)
+        withholding = round(supply_price * 0.033)  # 원천징수 = 공급가액 × 3.3%
         tax_rate = 0.033
-    final = round(commission) - vat - withholding
+        final = round(commission) - withholding    # 부가세는 계산서 처리, 원천징수만 차감
     return {
         "commission_amount": round(commission),
         "vat_amount": vat,

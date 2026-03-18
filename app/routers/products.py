@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Product, Influencer
+from app.models.brand import Brand as BrandModel
 from app.models.user import User
 from app.auth.dependencies import get_current_user
 from app.services.image_service import save_product_image
@@ -18,7 +19,7 @@ CATEGORIES = [
     "건강기능식품", "스킨케어", "뷰티/메이크업", "헤어케어", "바디케어",
     "다이어트/슬리밍", "식품/음료", "생활용품", "주방용품", "가전제품",
     "패션/의류", "패션잡화", "홈/인테리어", "유아/육아", "반려동물",
-    "스포츠/레저", "전자기기", "기타",
+    "스포츠/레저", "전자기기", "욕실용품", "기타",
 ]
 
 CARRIERS = ["CJ대한통운", "한진택배", "로젠택배", "우체국택배", "롯데택배", "기타"]
@@ -27,7 +28,7 @@ Path("static/uploads/products").mkdir(parents=True, exist_ok=True)
 
 
 def _save_image(file: UploadFile) -> str | None:
-    return save_product_image(file)
+    return save_product_image(file, remove_bg=True)
 
 
 def _parse_set_options(raw: str) -> list | None:
@@ -52,7 +53,8 @@ def product_list(request: Request, db: Session = Depends(get_db),
         .order_by(Product.brand)
         .all()
     )
-    brand_list = [{"name": r.brand, "count": r.cnt} for r in brand_rows]
+    brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.logo.isnot(None)).all()}
+    brand_list = [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand)} for r in brand_rows]
 
     products = []
     if q or category:
@@ -89,23 +91,24 @@ def product_brand(brand_name: str, request: Request, db: Session = Depends(get_d
         .order_by(Product.brand)
         .all()
     )
-    brand_list = [{"name": r.brand, "count": r.cnt} for r in brand_rows]
+    brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.logo.isnot(None)).all()}
+    brand_list = [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand)} for r in brand_rows]
+    brand_obj = db.query(BrandModel).filter(BrandModel.name == brand_name).first()
     return templates.TemplateResponse(
         "products/brand.html",
         {"request": request, "active_page": "products", "current_user": current_user,
          "brand_name": brand_name, "products": products, "q": q, "view": view,
-         "brand_list": brand_list, "filter_categories": CATEGORIES},
+         "brand_list": brand_list, "brand_obj": brand_obj, "filter_categories": CATEGORIES},
     )
 
 
 @router.get("/new")
 def product_new(request: Request, db: Session = Depends(get_db),
                 current_user: User = Depends(get_current_user)):
-    from sqlalchemy import func
-    existing_brands = sorted({
-        r.brand for r in db.query(Product.brand)
-        .filter(Product.brand.isnot(None), Product.brand != "").distinct()
-    })
+    from_products = {r.brand for r in db.query(Product.brand)
+                     .filter(Product.brand.isnot(None), Product.brand != "").distinct()}
+    from_brands = {b.name for b in db.query(BrandModel).all()}
+    existing_brands = sorted(from_products | from_brands)
     return templates.TemplateResponse(
         "products/form.html",
         {"request": request, "active_page": "products", "current_user": current_user,
@@ -161,6 +164,7 @@ def product_create(
     seller_commission_rate: str = Form(""),
     vendor_commission_rate: str = Form(""),
     product_link: str = Form(""),
+    product_type: str = Form("A"),
 ):
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
     image_path = _save_image(product_image)
@@ -202,6 +206,7 @@ def product_create(
         seller_commission_rate=float(seller_commission_rate) / 100.0 if seller_commission_rate else 0.0,
         vendor_commission_rate=float(vendor_commission_rate) / 100.0 if vendor_commission_rate else 0.0,
         product_link=product_link or None,
+        product_type=product_type or "A",
     )
     db.add(product)
     db.commit()
@@ -244,10 +249,10 @@ def product_edit(product_id: str, request: Request, db: Session = Depends(get_db
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         return RedirectResponse("/products", status_code=302)
-    existing_brands = sorted({
-        r.brand for r in db.query(Product.brand)
-        .filter(Product.brand.isnot(None), Product.brand != "").distinct()
-    })
+    from_products = {r.brand for r in db.query(Product.brand)
+                     .filter(Product.brand.isnot(None), Product.brand != "").distinct()}
+    from_brands = {b.name for b in db.query(BrandModel).all()}
+    existing_brands = sorted(from_products | from_brands)
     return templates.TemplateResponse(
         "products/form.html",
         {"request": request, "active_page": "products", "current_user": current_user,
@@ -296,6 +301,7 @@ def product_update(
     seller_commission_rate: str = Form(""),
     vendor_commission_rate: str = Form(""),
     product_link: str = Form(""),
+    product_type: str = Form("A"),
 ):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
@@ -343,11 +349,47 @@ def product_update(
     product.seller_commission_rate = float(seller_commission_rate) / 100.0 if seller_commission_rate else 0.0
     product.vendor_commission_rate = float(vendor_commission_rate) / 100.0 if vendor_commission_rate else 0.0
     product.product_link = product_link or None
+    product.product_type = product_type or "A"
     if new_image:
         product.product_image = new_image
 
     db.commit()
     return RedirectResponse(f"/products/{product_id}?msg=수정되었습니다", status_code=302)
+
+
+@router.post("/{product_id}/clone")
+def product_clone(product_id: str, db: Session = Depends(get_db),
+                  current_user: User = Depends(get_current_user)):
+    import uuid as _uuid
+    src = db.query(Product).filter(Product.id == product_id).first()
+    if not src:
+        return RedirectResponse("/products", status_code=302)
+    clone = Product(
+        id=str(_uuid.uuid4()),
+        name=src.name + " (복제)",
+        brand=src.brand, category=src.category,
+        price=src.price, source_url=src.source_url,
+        description=src.description, internal_notes=src.internal_notes,
+        key_benefits=src.key_benefits, unique_selling_point=src.unique_selling_point,
+        recommended_commission_rate=src.recommended_commission_rate,
+        visibility_status="hidden", content_angle=src.content_angle,
+        positioning=src.positioning, set_options=src.set_options,
+        categories=src.categories, group_buy_guideline=src.group_buy_guideline,
+        status="draft", shipping_type=src.shipping_type,
+        shipping_cost=src.shipping_cost, carrier=src.carrier,
+        ship_origin=src.ship_origin, dispatch_days=src.dispatch_days,
+        sample_type=src.sample_type, sample_price=src.sample_price,
+        consumer_price=src.consumer_price, lowest_price=src.lowest_price,
+        supplier_price=src.supplier_price, groupbuy_price=src.groupbuy_price,
+        discount_rate=src.discount_rate,
+        seller_commission_rate=src.seller_commission_rate,
+        vendor_commission_rate=src.vendor_commission_rate,
+        product_link=src.product_link, product_type=src.product_type or "A",
+        product_image=src.product_image,
+    )
+    db.add(clone)
+    db.commit()
+    return RedirectResponse(f"/products/{clone.id}/edit?msg=제품이+복제되었습니다", status_code=302)
 
 
 @router.post("/{product_id}/delete")

@@ -1,0 +1,119 @@
+{% extends "shop_base.html" %}
+{% block title %}주문 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}주문 관리{% endblock %}
+{% block header_actions %}
+<a href="/orders/export{% if cur_status or cur_seller %}?status={{ cur_status }}&seller_code={{ cur_seller }}{% endif %}"
+  class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+  📥 엑셀 다운로드
+</a>
+{% endblock %}
+
+{% block content %}
+{% set msg = request.query_params.get('msg') %}
+{% if msg %}<div class="mb-4 px-4 py-2.5 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg">{{ msg }}</div>{% endif %}
+
+<!-- 탭 -->
+<div class="flex gap-1 mb-4 bg-white rounded-xl border border-gray-100 shadow-sm p-1 overflow-x-auto">
+  {% for key, label, cnt in [
+    ('', '전체', counts.all),
+    ('new', '신규주문', counts.new),
+    ('pending', '결제대기', counts.pending),
+    ('shipping', '배송중', counts.shipping),
+    ('delivered', '배송완료', counts.delivered),
+    ('cancelled', '취소', counts.cancelled),
+  ] %}
+  <a href="/orders?status={{ key }}"
+    class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium flex-shrink-0 transition-colors
+      {% if cur_status == key %}bg-blue-600 text-white{% else %}text-gray-500 hover:bg-gray-50{% endif %}">
+    {{ label }}
+    {% if cnt > 0 %}
+    <span class="text-xs px-1.5 py-0.5 rounded-full
+      {% if cur_status == key %}bg-white/20 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+      {{ cnt }}
+    </span>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+<!-- 필터 -->
+<form method="get" action="/orders" class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-4 flex flex-wrap gap-2">
+  <input type="hidden" name="status" value="{{ cur_status }}">
+  <input name="search" value="{{ search }}" placeholder="주문번호·이름·전화번호"
+    class="flex-1 min-w-32 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+  <select name="seller_code"
+    class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <option value="">전체 셀러</option>
+    {% for s in sellers %}
+    <option value="{{ s.seller_code }}" {% if cur_seller == s.seller_code %}selected{% endif %}>{{ s.name }} ({{ s.seller_code }})</option>
+    {% endfor %}
+  </select>
+  <select name="page_id"
+    class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <option value="">전체 판매페이지</option>
+    {% for pg in pages %}
+    <option value="{{ pg.id }}" {% if cur_page == pg.id %}selected{% endif %}>{{ pg.title or pg.slug }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="px-4 py-1.5 bg-gray-700 text-white text-sm rounded-lg hover:bg-gray-800">검색</button>
+</form>
+
+<!-- 주문 목록 -->
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
+  <table class="w-full text-sm min-w-[800px]">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">주문번호</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">주문일시</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">구매자</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">옵션</th>
+        <th class="text-right px-4 py-3 font-medium text-gray-500">금액</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">결제</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">배송</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">셀러</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for o in orders %}
+      <tr class="hover:bg-gray-50 cursor-pointer" onclick="location.href='/orders/{{ o.id }}'">
+        <td class="px-4 py-3 font-mono text-xs text-gray-600">{{ o.order_number }}</td>
+        <td class="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{{ o.created_at | dt }}</td>
+        <td class="px-4 py-3">
+          <div class="font-medium text-gray-800">{{ o.customer_name }}</div>
+          <div class="text-xs text-gray-400">{{ o.customer_phone }}</div>
+        </td>
+        <td class="px-4 py-3 text-gray-600 text-xs max-w-28 truncate">{{ o.option_name or '-' }}</td>
+        <td class="px-4 py-3 text-right font-semibold text-gray-800">{{ "{:,}".format(o.total_price | int) }}원</td>
+        <td class="px-4 py-3">
+          {% if o.payment_status == 'paid' %}
+          <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">결제완료</span>
+          {% elif o.payment_status == 'pending' %}
+          <span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">대기</span>
+          {% elif o.payment_status == 'cancelled' %}
+          <span class="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs font-medium">취소</span>
+          {% else %}
+          <span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs">{{ o.payment_status }}</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if o.order_status == 'shipping' %}
+          <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">배송중</span>
+          {% elif o.order_status == 'delivered' %}
+          <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">배송완료</span>
+          {% elif o.order_status == 'cancelled' %}
+          <span class="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs font-medium">취소</span>
+          {% elif o.order_status == 'confirmed' %}
+          <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">주문확인</span>
+          {% else %}
+          <span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs">대기</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-xs text-gray-500 font-mono">{{ o.seller_code or '-' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="px-4 py-10 text-center text-gray-400">주문이 없습니다</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -29,4 +29,8 @@ def init_db():
     import app.models.outreach  # noqa
     import app.models.crm  # noqa
     import app.models.automation  # noqa
+    import app.models.brand  # noqa
+    import app.models.seller  # noqa
+    import app.models.sales_page  # noqa
+    import app.models.order  # noqa
     Base.metadata.create_all(bind=engine)

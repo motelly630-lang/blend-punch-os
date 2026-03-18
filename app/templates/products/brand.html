@@ -39,11 +39,23 @@
 
 <!-- 브랜드 히어로 -->
 <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-5 flex items-center gap-4">
+  {% if brand_obj and brand_obj.logo %}
+  <img src="{{ brand_obj.logo }}" alt="{{ brand_name }}" loading="lazy"
+    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+    class="w-12 h-12 rounded-xl object-cover flex-shrink-0">
+  <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 items-center justify-center flex-shrink-0" style="display:none">
+    <span class="text-lg font-bold text-white">{{ brand_name[0] }}</span>
+  </div>
+  {% else %}
   <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
     <span class="text-lg font-bold text-white">{{ brand_name[0] }}</span>
   </div>
+  {% endif %}
   <div class="flex-1 min-w-0">
     <h1 class="text-base font-bold text-gray-900">{{ brand_name }}</h1>
+    {% if brand_obj and brand_obj.description %}
+    <p class="text-xs text-gray-500 mt-0.5 line-clamp-1">{{ brand_obj.description }}</p>
+    {% endif %}
     <p class="text-xs text-gray-400 mt-0.5">제품 {{ products | length }}개</p>
   </div>
   <a href="/products" class="text-xs text-gray-400 hover:text-blue-600 transition-colors">← 전체 브랜드</a>
@@ -63,34 +75,43 @@
 <!-- ── Gallery view ── -->
 <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
   {% for p in products %}
-  <a href="/products/{{ p.id }}" class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all hover:-translate-y-0.5 group">
-    <div class="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden relative">
-      {% if p.product_image %}
-      <img src="{{ p.product_image }}" alt="{{ p.name }}" loading="lazy" onerror="this.style.display='none'" class="w-full h-full object-cover">
-      {% else %}
-      <svg class="w-10 h-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-      </svg>
-      {% endif %}
-      <span class="absolute top-2 right-2 text-xs px-1.5 py-0.5 rounded-full font-medium
-        {% if p.status == 'active' %}bg-green-100 text-green-700
-        {% elif p.status == 'draft' %}bg-yellow-100 text-yellow-700
-        {% else %}bg-gray-100 text-gray-500{% endif %}">
-        {{ p.status | status_label }}
-      </span>
-    </div>
-    <div class="p-3.5">
-      <div class="text-xs text-gray-400 mb-0.5">{{ p.category }}</div>
-      <div class="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 mb-2">{{ p.name }}</div>
-      {% if p.unique_selling_point %}
-      <div class="text-xs text-gray-500 line-clamp-1 mb-2">{{ p.unique_selling_point }}</div>
-      {% endif %}
-      <div class="flex items-center justify-between">
-        <div class="font-bold text-gray-900 text-sm">{{ (p.groupbuy_price or p.price) | won }}</div>
-        <div class="text-xs text-gray-400">{{ (p.seller_commission_rate or p.recommended_commission_rate) | pct }}</div>
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all group flex flex-col">
+    <a href="/products/{{ p.id }}" class="block">
+      <div class="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden relative">
+        {% if p.product_image %}
+        <img src="{{ p.product_image }}" alt="{{ p.name }}" loading="lazy" onerror="this.style.display='none'" class="w-full h-full object-cover">
+        {% else %}
+        <svg class="w-10 h-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
+        {% endif %}
+        <span class="absolute top-2 right-2 text-xs px-1.5 py-0.5 rounded-full font-medium
+          {% if p.status == 'active' %}bg-green-100 text-green-700
+          {% elif p.status == 'draft' %}bg-yellow-100 text-yellow-700
+          {% else %}bg-gray-100 text-gray-500{% endif %}">
+          {{ p.status | status_label }}
+        </span>
       </div>
+      <div class="p-3.5">
+        <div class="text-xs text-gray-400 mb-0.5">{{ p.category }}</div>
+        <div class="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 mb-2">{{ p.name }}</div>
+        {% if p.unique_selling_point %}
+        <div class="text-xs text-gray-500 line-clamp-1 mb-2">{{ p.unique_selling_point }}</div>
+        {% endif %}
+        <div class="flex items-center justify-between">
+          <div class="font-bold text-gray-900 text-sm">{{ (p.groupbuy_price or p.price) | won }}</div>
+          <div class="text-xs text-gray-400">{{ (p.seller_commission_rate or p.recommended_commission_rate) | pct }}</div>
+        </div>
+      </div>
+    </a>
+    <div class="mt-auto flex border-t border-gray-50">
+      <a href="/products/{{ p.id }}/edit" class="flex-1 text-center text-xs text-gray-400 hover:text-gray-700 hover:bg-gray-50 py-2 transition-colors">편집</a>
+      <form method="post" action="/products/{{ p.id }}/delete" class="flex-1"
+        onsubmit="return confirm('{{ p.name }} 을(를) 삭제할까요?')">
+        <button type="submit" class="w-full text-xs text-red-400 hover:text-red-600 hover:bg-red-50 py-2 transition-colors">삭제</button>
+      </form>
     </div>
-  </a>
+  </div>
   {% endfor %}
 </div>
 
@@ -132,7 +153,13 @@
           <span class="text-xs px-2 py-0.5 rounded-full {% if p.status == 'active' %}bg-green-100 text-green-700{% elif p.status == 'draft' %}bg-yellow-100 text-yellow-700{% else %}bg-gray-100 text-gray-500{% endif %}">{{ p.status | status_label }}</span>
         </td>
         <td class="px-5 py-3.5 text-right">
-          <a href="/products/{{ p.id }}/edit" class="text-xs text-gray-400 hover:text-gray-700">편집</a>
+          <div class="flex items-center justify-end gap-3">
+            <a href="/products/{{ p.id }}/edit" class="text-xs text-gray-400 hover:text-gray-700">편집</a>
+            <form method="post" action="/products/{{ p.id }}/delete"
+              onsubmit="return confirm('{{ p.name }} 을(를) 삭제할까요?')">
+              <button type="submit" class="text-xs text-red-400 hover:text-red-600">삭제</button>
+            </form>
+          </div>
         </td>
       </tr>
       {% endfor %}

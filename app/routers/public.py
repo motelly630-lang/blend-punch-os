@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Product
+from app.models.brand import Brand as BrandModel
 
 router = APIRouter(prefix="/public")
 templates = Jinja2Templates(directory="app/templates")
@@ -18,14 +19,15 @@ def _brand_list(db: Session) -> list[dict]:
         .order_by(Product.brand)
         .all()
     )
-    return [{"name": r.brand, "count": r.cnt} for r in rows]
+    brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.logo.isnot(None)).all()}
+    return [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand)} for r in rows]
 
 
 FILTER_CATEGORIES = [
     "건강기능식품", "스킨케어", "뷰티/메이크업", "헤어케어", "바디케어",
     "다이어트/슬리밍", "식품/음료", "생활용품", "주방용품", "가전제품",
     "패션/의류", "패션잡화", "홈/인테리어", "유아/육아", "반려동물",
-    "스포츠/레저", "전자기기", "기타",
+    "스포츠/레저", "전자기기", "욕실용품", "기타",
 ]
 
 
@@ -61,10 +63,12 @@ def public_brand_products(brand_name: str, request: Request, db: Session = Depen
         .all()
     )
     brands = _brand_list(db)
+    brand_obj = db.query(BrandModel).filter(BrandModel.name == brand_name).first()
     return templates.TemplateResponse(
         "public/brand.html",
         {"request": request, "brand_name": brand_name,
-         "products": products, "total": len(products), "brands": brands},
+         "products": products, "total": len(products), "brands": brands,
+         "brand_obj": brand_obj},
     )
 
 

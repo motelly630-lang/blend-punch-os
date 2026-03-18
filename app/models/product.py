@@ -53,5 +53,8 @@ class Product(Base):
     vendor_commission_rate = Column(Float, default=0.0)      # 벤더 마진 (INTERNAL ONLY)
     product_link = Column(Text, nullable=True)               # 상품 링크
 
+    # AI Assistant additions
+    product_type = Column(String(1), default="A")            # A/B/C/D type classifier
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
