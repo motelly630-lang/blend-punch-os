@@ -195,8 +195,9 @@ def _setup_filters():
     import app.routers.orders as ord_
     import app.routers.sales_pages as sp
     import app.routers.sellers as sel
+    import app.routers.applications as appl
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, teng, out, crm, br, ord_, sp, sel]:
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, teng, out, crm, br, ord_, sp, sel, appl]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num
