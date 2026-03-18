@@ -14,6 +14,7 @@ from app.routers import catalog as catalog_router
 from app.routers import import_products as import_products_router
 from app.routers import import_influencers as import_influencers_router
 from app.routers import import_campaigns as import_campaigns_router
+from app.routers import import_brands as import_brands_router
 from app.api import ai_product, ai_proposal, ai_playbook, ai_dm, ai_seller_content, ai_product_image, ai_influencer, ai_recommend, ai_product_chat
 from app.routers import trend_engine as trend_engine_router
 from app.routers import outreach as outreach_router
@@ -75,6 +76,7 @@ app.include_router(dashboard.router)
 app.include_router(import_products_router.router)
 app.include_router(import_influencers_router.router)
 app.include_router(import_campaigns_router.router)
+app.include_router(import_brands_router.router)
 app.include_router(products.router)
 app.include_router(influencers.router)
 app.include_router(proposals.router)
@@ -175,6 +177,7 @@ def _setup_filters():
     import app.routers.import_products as imp
     import app.routers.import_influencers as imp_inf
     import app.routers.import_campaigns as imp_camp
+    import app.routers.import_brands as imp_br
     import app.routers.trend_engine as teng
     import app.routers.outreach as out
     import app.routers.crm as crm
@@ -184,7 +187,7 @@ def _setup_filters():
     import app.routers.sellers as sel
     import app.routers.applications as appl
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, teng, out, crm, br, ord_, sp, sel, appl]:
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num

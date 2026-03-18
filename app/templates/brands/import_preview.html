@@ -1,0 +1,53 @@
+<div class="space-y-4">
+  <div class="flex items-center justify-between">
+    <div class="text-sm font-semibold text-gray-700">총 {{ total }}개 브랜드 파싱 완료</div>
+    <div class="flex gap-2 text-xs">
+      <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded-full">신규 {{ rows | selectattr('name') | list | length }}개</span>
+      {% set dup_count = rows | selectattr('name', 'in', existing_names) | list | length %}
+      {% if dup_count > 0 %}
+      <span class="px-2 py-1 bg-yellow-50 text-yellow-700 rounded-full">중복 {{ dup_count }}개 (건너뜀)</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="border border-gray-100 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 sticky top-0">
+        <tr>
+          <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">브랜드명</th>
+          <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">설명</th>
+          <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">상태</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for row in rows %}
+        <tr class="{% if row.name in existing_names %}bg-yellow-50/50{% endif %}">
+          <td class="px-4 py-2.5 font-medium text-gray-900">{{ row.name }}</td>
+          <td class="px-4 py-2.5 text-gray-500 text-xs">{{ row.description or '-' }}</td>
+          <td class="px-4 py-2.5 text-center">
+            {% if row.name in existing_names %}
+            <span class="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full">중복</span>
+            {% else %}
+            <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">신규</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <form method="post" action="/brands/import/confirm">
+    <input type="hidden" name="rows_json" value="{{ rows | tojson | e }}">
+    <div class="flex gap-3">
+      <button type="submit"
+        class="flex-1 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+        등록 확정
+      </button>
+      <button type="button" onclick="document.getElementById('import-modal').style.display='none'"
+        class="px-4 py-2.5 border border-gray-200 text-sm text-gray-600 rounded-xl hover:bg-gray-50 transition-colors">
+        취소
+      </button>
+    </div>
+  </form>
+</div>

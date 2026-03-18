@@ -3,6 +3,13 @@
 {% block page_title %}브랜드 관리{% endblock %}
 
 {% block header_actions %}
+<button type="button" id="btn-open-import"
+  class="inline-flex items-center gap-1.5 bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
+  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+  </svg>
+  Excel 일괄 등록
+</button>
 <a href="/brands/new" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
   브랜드 등록
@@ -60,4 +67,120 @@
 </div>
 {% endif %}
 
+<!-- ── Excel Import Modal ── -->
+<div id="import-modal" style="display:none"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div>
+        <div class="text-base font-semibold text-gray-900">브랜드 Excel 일괄 등록</div>
+        <div class="text-xs text-gray-400 mt-0.5">.xlsx 또는 .csv — 헤더: 브랜드명, 설명</div>
+      </div>
+      <button id="btn-close-import" class="text-gray-400 hover:text-gray-600 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="p-6">
+      <!-- 샘플 형식 안내 -->
+      <div class="mb-4 p-3 bg-blue-50 rounded-xl border border-blue-100">
+        <div class="text-xs font-semibold text-blue-700 mb-1.5">엑셀 형식 예시</div>
+        <table class="w-full text-xs text-blue-600">
+          <thead><tr class="border-b border-blue-200">
+            <th class="text-left pb-1 font-semibold">브랜드명</th>
+            <th class="text-left pb-1 font-semibold pl-4">설명</th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="py-0.5">데켓</td><td class="pl-4 text-blue-400">프리미엄 주방용품 브랜드</td></tr>
+            <tr><td class="py-0.5">디어커스</td><td class="pl-4 text-blue-400">스킨케어 전문 브랜드</td></tr>
+          </tbody>
+        </table>
+        <div class="mt-2 text-xs text-blue-400">※ 설명 컬럼은 없어도 됩니다 · 이미 등록된 브랜드명은 자동 건너뜀</div>
+      </div>
+      <!-- 드롭존 -->
+      <div id="import-dropzone"
+        class="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors"
+        onclick="document.getElementById('import-file-input').click()">
+        <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+        </svg>
+        <div class="text-sm font-medium text-gray-600 mb-1">파일을 드래그하거나 클릭해서 선택</div>
+        <div class="text-xs text-gray-400">.xlsx, .xls, .csv 지원</div>
+      </div>
+      <!-- 로딩 -->
+      <div id="import-spinner" style="display:none" class="py-8 text-center">
+        <svg class="w-8 h-8 animate-spin text-green-600 mx-auto mb-3" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <div class="text-sm text-gray-500">파일 파싱 중...</div>
+      </div>
+      <!-- 미리보기 결과 -->
+      <div id="import-preview-area" class="mt-4"></div>
+      <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" class="hidden">
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var modal     = document.getElementById('import-modal');
+  var dropzone  = document.getElementById('import-dropzone');
+  var spinner   = document.getElementById('import-spinner');
+  var preview   = document.getElementById('import-preview-area');
+  var fileInput = document.getElementById('import-file-input');
+
+  function openModal() {
+    modal.style.display = 'flex';
+    dropzone.style.display = 'block';
+    spinner.style.display = 'none';
+    preview.innerHTML = '';
+  }
+  function closeModal() { modal.style.display = 'none'; }
+
+  document.getElementById('btn-open-import').addEventListener('click', openModal);
+  document.getElementById('btn-close-import').addEventListener('click', closeModal);
+  modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+
+  dropzone.addEventListener('dragover', function(e) {
+    e.preventDefault(); dropzone.classList.add('border-green-400','bg-green-50');
+  });
+  dropzone.addEventListener('dragleave', function() {
+    dropzone.classList.remove('border-green-400','bg-green-50');
+  });
+  dropzone.addEventListener('drop', function(e) {
+    e.preventDefault(); dropzone.classList.remove('border-green-400','bg-green-50');
+    if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', function() {
+    if (this.files[0]) uploadFile(this.files[0]);
+  });
+
+  function uploadFile(file) {
+    var ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!['.xlsx','.xls','.csv'].includes(ext)) {
+      alert('Excel(.xlsx/.xls) 또는 CSV 파일만 가능합니다.');
+      return;
+    }
+    dropzone.style.display = 'none';
+    spinner.style.display = 'block';
+    var fd = new FormData();
+    fd.append('file', file);
+    fetch('/brands/import/upload', { method: 'POST', body: fd })
+      .then(function(r) { return r.text(); })
+      .then(function(html) {
+        spinner.style.display = 'none';
+        preview.innerHTML = html;
+      })
+      .catch(function(err) {
+        spinner.style.display = 'none';
+        preview.innerHTML = '<p class="text-red-500 text-sm">오류: ' + err.message + '</p>';
+      });
+  }
+});
+</script>
 {% endblock %}
