@@ -1,0 +1,126 @@
+{# Inline edit form — included inside each campCard Alpine x-data container.
+   Expects the parent to have campCard() data bound via x-data="campCard({...})". #}
+<div x-show="editing" x-cloak
+  @keydown.enter.prevent="saveEdit()"
+  @keydown.escape="cancelEdit()"
+  class="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
+
+  {# Row 0: Product dropdown #}
+  <div class="relative" @click.outside="showProdList = false">
+    <label class="text-xs text-gray-400 block mb-1">제품 변경</label>
+    <div class="flex gap-1">
+      <input type="text" x-model="prodSearch"
+        @focus="showProdList = true" @input="showProdList = true"
+        data-edit-focus
+        class="flex-1 px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+        :class="prodId !== (_orig && _orig.prodId || '') ? 'border-blue-300 bg-blue-50' : 'border-gray-200'"
+        placeholder="제품 검색 (이름, 브랜드)...">
+      <button x-show="prodId" @click="clearProd()" type="button"
+        class="px-2 py-1 text-xs text-gray-400 hover:text-red-400 border border-gray-200 rounded-lg flex-shrink-0 transition-colors">×</button>
+    </div>
+    <div x-show="showProdList"
+      class="absolute z-30 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-36 overflow-y-auto">
+      <div @click="clearProd()"
+        class="px-2.5 py-2 text-xs text-gray-400 cursor-pointer hover:bg-gray-50 border-b">
+        선택 안함 (연결 해제)
+      </div>
+      <template x-for="p in filteredProds(prodSearch)" :key="p.id">
+        <div @click="selectProd(p)"
+          class="px-2.5 py-1.5 text-xs cursor-pointer hover:bg-blue-50 flex items-center gap-1"
+          :class="p.id === prodId ? 'bg-blue-50 text-blue-700' : 'text-gray-700'">
+          <span class="font-medium truncate" x-text="p.name"></span>
+          <span x-show="p.brand" class="text-gray-400 flex-shrink-0" x-text="'· ' + p.brand"></span>
+        </div>
+      </template>
+      <div x-show="filteredProds(prodSearch).length === 0" class="px-2.5 py-2 text-xs text-gray-400">결과 없음</div>
+    </div>
+  </div>
+
+  {# Row 1: Status + Dates #}
+  <div class="grid grid-cols-3 gap-2">
+    <div>
+      <label class="text-xs text-gray-400 block mb-1">상태</label>
+      <select x-model="st" class="w-full px-2 py-1.5 border rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+        :class="st !== (_orig && _orig.st || '') ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+        <option value="planning">기획중</option>
+        <option value="negotiating">협의중</option>
+        <option value="contracted">계약완료</option>
+        <option value="active">진행중</option>
+        <option value="completed">완료</option>
+        <option value="cancelled">취소</option>
+      </select>
+    </div>
+    <div>
+      <label class="text-xs text-gray-400 block mb-1">시작일</label>
+      <input type="date" x-model="sd"
+        class="w-full px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+        :class="sd !== (_orig && _orig.sd || '') ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+    </div>
+    <div>
+      <label class="text-xs text-gray-400 block mb-1">종료일</label>
+      <input type="date" x-model="ed"
+        class="w-full px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+        :class="ed !== (_orig && _orig.ed || '') ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+    </div>
+  </div>
+
+  {# Row 2: Sales numbers #}
+  <div class="grid grid-cols-4 gap-2">
+    <div>
+      <label class="text-xs text-gray-400 block mb-1">단가 (원)</label>
+      <input type="number" x-model.number="up" min="0" @input="calcRev()"
+        class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+        :class="up !== (_orig && _orig.up || 0) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+      <div class="text-xs text-gray-400 mt-0.5 text-right truncate" x-show="up > 0" x-text="fmtWon(up)"></div>
+    </div>
+    <div>
+      <label class="text-xs text-gray-400 block mb-1">실판매수량</label>
+      <input type="number" x-model.number="aq" min="0" @input="calcRev()"
+        class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+        :class="aq !== (_orig && _orig.aq || 0) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+    </div>
+    <div>
+      <label class="text-xs text-gray-400 block mb-1">총 매출 (원)</label>
+      <input type="number" x-model.number="rev" min="0"
+        class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+        :class="rev !== (_orig && _orig.rev || 0) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+    </div>
+    <div class="flex items-end pb-0.5">
+      <button @click="calcRev()" type="button"
+        class="w-full py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors">단가×수량</button>
+    </div>
+  </div>
+
+  {# Row 3: Commission rates #}
+  <div class="grid grid-cols-2 gap-3">
+    <div class="bg-blue-50 rounded-lg p-2.5">
+      <label class="text-xs text-blue-500 block mb-1">셀러 수수료율 (%)</label>
+      <input type="number" x-model.number="spct" min="0" max="100" step="0.1"
+        class="w-full px-2 py-1.5 border border-blue-200 rounded-lg text-xs text-right bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+      <div class="flex justify-between items-center mt-1.5">
+        <span class="text-xs text-blue-400">셀러 수익</span>
+        <strong class="text-xs text-blue-700" x-text="fmtWon(sa)"></strong>
+      </div>
+    </div>
+    <div class="bg-orange-50 rounded-lg p-2.5">
+      <label class="text-xs text-orange-500 block mb-1">벤더 마진율 (%) <span class="text-orange-300 text-xs">내부</span></label>
+      <input type="number" x-model.number="vpct" min="0" max="100" step="0.1"
+        class="w-full px-2 py-1.5 border border-orange-200 rounded-lg text-xs text-right bg-white focus:outline-none focus:ring-2 focus:ring-orange-400">
+      <div class="flex justify-between items-center mt-1.5">
+        <span class="text-xs text-orange-400">벤더 수익</span>
+        <strong class="text-xs text-orange-600" x-text="fmtWon(va)"></strong>
+      </div>
+    </div>
+  </div>
+
+  {# Row 4: Live preview bar #}
+  <div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+    <div class="flex gap-4 text-xs">
+      <span>매출 <strong class="text-gray-800" x-text="fmtWon(rev)"></strong></span>
+      <span class="text-blue-600">셀러 <strong x-text="fmtWon(sa)"></strong></span>
+      <span class="text-orange-500">벤더 <strong x-text="fmtWon(va)"></strong></span>
+    </div>
+    <div class="text-xs text-gray-400">Enter 저장 · Esc 취소</div>
+  </div>
+
+</div>

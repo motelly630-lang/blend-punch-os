@@ -122,6 +122,12 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
     total_seller_amt = sum(c.seller_commission_amount or 0 for c in campaigns if status_map.get(c.id) in active_statuses)
     total_vendor_amt = sum(c.vendor_commission_amount or 0 for c in campaigns if status_map.get(c.id) in active_statuses)
 
+    # Product / influencer lists for inline edit & quick-create dropdowns
+    products_list    = db.query(Product).filter(Product.status != "archived").order_by(Product.name).limit(400).all()
+    influencers_list = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).limit(400).all()
+    products_json    = json.dumps([{"id": p.id, "name": p.name, "brand": p.brand or ""} for p in products_list], ensure_ascii=False)
+    influencers_json = json.dumps([{"id": inf.id, "name": inf.name, "platform": inf.platform or ""} for inf in influencers_list], ensure_ascii=False)
+
     return templates.TemplateResponse("campaigns/list.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaigns": campaigns, "status_map": status_map, "today": today, "tab": tab,
@@ -131,6 +137,9 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
         "total_revenue": total_revenue,
         "total_seller_amt": total_seller_amt,
         "total_vendor_amt": total_vendor_amt,
+        "products_json": products_json,
+        "influencers_json": influencers_json,
+        "statuses": STATUSES,
     })
 
 
@@ -197,6 +206,32 @@ def _parse_form_fields(
     seller_amt = round(actual_revenue * seller_rate)
     vendor_amt = round(actual_revenue * vendor_rate)
     return commission_rate_f, seller_rate, vendor_rate, seller_amt, vendor_amt
+
+
+@router.post("/inline-create")
+async def campaign_inline_create(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Quick-create a campaign from the list view (JSON in, JSON out)."""
+    data = await request.json()
+    name = (data.get("name") or "").strip()
+    if not name:
+        return JSONResponse({"error": "name required"}, status_code=400)
+    campaign = Campaign(
+        name=name,
+        product_id=data.get("product_id") or None,
+        influencer_id=data.get("influencer_id") or None,
+        status=data.get("status", "planning"),
+        start_date=_parse_date(data.get("start_date", "")),
+        end_date=_parse_date(data.get("end_date", "")),
+        unit_price=float(data.get("unit_price") or 0),
+    )
+    db.add(campaign)
+    db.commit()
+    db.refresh(campaign)
+    return JSONResponse({"ok": True, "id": campaign.id})
 
 
 @router.post("/new")
@@ -359,6 +394,8 @@ async def campaign_inline_update(
         return JSONResponse({"error": "not found"}, status_code=404)
 
     prev_status = campaign.status
+    if "product_id" in data:
+        campaign.product_id = data["product_id"] or None
     if "start_date" in data:
         campaign.start_date = _parse_date(data["start_date"])
     if "end_date" in data:
