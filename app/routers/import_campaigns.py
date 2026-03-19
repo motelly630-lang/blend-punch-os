@@ -129,6 +129,85 @@ def _convert(field: str, raw: str):
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
+@router.get("/template")
+def download_template(current_user: User = Depends(get_current_user)):
+    """샘플 엑셀 템플릿 다운로드."""
+    import io as _io
+    from fastapi.responses import StreamingResponse
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "캠페인목록"
+
+    headers = [
+        ("캠페인명", "필수"),
+        ("제품명", "등록된 제품 이름과 정확히 일치"),
+        ("인플루언서", "등록된 인플루언서 이름과 정확히 일치"),
+        ("시작일", "YYYY-MM-DD"),
+        ("종료일", "YYYY-MM-DD"),
+        ("예상판매량", "숫자"),
+        ("실판매량", "숫자"),
+        ("실매출", "숫자"),
+        ("단가", "숫자"),
+        ("셀러커미션", "숫자(%) 예: 15"),
+        ("벤더마진", "숫자(%) 예: 10"),
+        ("메모", "내부 메모"),
+    ]
+
+    header_fill = PatternFill("solid", fgColor="1E40AF")
+    hint_fill = PatternFill("solid", fgColor="EFF6FF")
+    req_fill = PatternFill("solid", fgColor="DC2626")
+    header_font = Font(bold=True, color="FFFFFF", size=10)
+    hint_font = Font(color="3B82F6", size=9, italic=True)
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin = Side(style="thin", color="E2E8F0")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    for col_idx, (col_name, hint) in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell.fill = req_fill if hint == "필수" else header_fill
+        cell.font = header_font
+        cell.alignment = center
+        cell.border = border
+        hint_cell = ws.cell(row=2, column=col_idx, value=hint)
+        hint_cell.fill = hint_fill
+        hint_cell.font = hint_font
+        hint_cell.alignment = center
+        hint_cell.border = border
+
+    samples = [
+        ["2025 봄 뷰티 캠페인", "디어커스 수분크림", "김블펀", "2025-03-01", "2025-03-31",
+         500, 430, 12470000, 29000, 15, 10, "봄 시즌 첫 캠페인"],
+        ["주방용품 공구 4월", "데켓 쿡플레이트 세트", "박인플루", "2025-04-01", "2025-04-15",
+         200, 185, 12765000, 69000, 12, 8, ""],
+        ["", "", "", "", "", "", "", "", "", "", "", ""],
+    ]
+    for r_idx, row in enumerate(samples, 3):
+        for c_idx, val in enumerate(row, 1):
+            cell = ws.cell(row=r_idx, column=c_idx, value=val)
+            cell.border = border
+            cell.alignment = Alignment(vertical="center")
+
+    widths = [22, 20, 18, 14, 14, 12, 12, 14, 12, 12, 12, 25]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 20
+    ws.freeze_panes = "A3"
+
+    buf = _io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=blendpunch_campaign_template.xlsx"},
+    )
+
+
 @router.get("")
 def import_page(request: Request, current_user: User = Depends(get_current_user)):
     return templates.TemplateResponse("campaigns/import.html", {
