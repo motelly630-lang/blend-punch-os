@@ -262,94 +262,102 @@ def _result_html(data: dict, profile_image_path: str, original_url: str) -> str:
 
 # ── URL import ────────────────────────────────────────────────────────────────
 
+async def _fill_instagram(url: str, handle: str) -> tuple[dict, str]:
+    """instagrapi로 Instagram 프로필 수집. (data, profile_image_path) 반환."""
+    from app.services.instagram import fetch_instagram_profile
+    try:
+        result = await asyncio.to_thread(fetch_instagram_profile, handle)
+    except Exception as e:
+        raise RuntimeError(str(e))
+
+    data = {
+        "name": result.get("name", ""),
+        "handle": result.get("handle", handle),
+        "platform": "instagram",
+        "followers": result.get("followers", 0),
+        "bio": result.get("bio", ""),
+        "profile_url": url,
+        "recent_posts": result.get("recent_posts", []),
+    }
+    return data, result.get("profile_image_path", "")
+
+
+async def _fill_html_fallback(url: str, platform: str, handle: str) -> tuple[dict, str]:
+    """og 메타 + Claude로 비-Instagram 플랫폼 처리."""
+    html = ""
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15, headers=_HEADERS) as client:
+            r = await client.get(url)
+            if r.status_code == 200:
+                html = r.text
+    except Exception:
+        pass
+
+    direct = _extract_direct(html, platform, handle) if html else {}
+
+    claude = ClaudeClient()
+    data: dict = {}
+    if html and claude.available:
+        snippet = _meta_slice(html)
+        raw_prompt = (_PROMPTS / "influencer_url_extract.md").read_text(encoding="utf-8")
+        system = raw_prompt.split("## User Template")[0].replace("## System\n", "").strip()
+        user_tpl = raw_prompt.split("## User Template\n", 1)[1].strip()
+        user_text = user_tpl.replace("{{platform}}", platform).replace("{{url}}", url).replace("{{html_snippet}}", snippet)
+        try:
+            data = await asyncio.to_thread(lambda: claude.complete_json(system, user_text, max_tokens=1024))
+        except Exception:
+            pass
+
+    if direct.get("name"):
+        data["name"] = direct["name"]
+    if direct.get("followers"):
+        data["followers"] = direct["followers"]
+
+    data.setdefault("handle", handle)
+    data["platform"] = platform
+    data["profile_url"] = url
+
+    profile_image_path = ""
+    img_url = _clean_img_url(direct.get("og_image_url") or data.get("profile_image_url") or "")
+    if img_url:
+        result = await asyncio.to_thread(_download_image, img_url)
+        if result:
+            profile_image_path = _save_image_bytes(result[0], result[1])
+
+    return data, profile_image_path
+
+
 @router.post("/influencer-url-fill", response_class=HTMLResponse)
 async def influencer_url_fill(
     url: str = Form(...),
     current_user: User = Depends(get_current_user),
 ):
     platform = _detect_platform(url)
-    url_handle = _extract_handle_from_url(url, platform)
+    handle = _extract_handle_from_url(url, platform)
 
-    # ── Step 1: fetch page HTML ───────────────────────────────────────────────
-    html = ""
-    fetch_ok = False
-    try:
-        async with httpx.AsyncClient(
-            follow_redirects=True, timeout=15, headers=_HEADERS
-        ) as client:
-            r = await client.get(url)
-            if r.status_code == 200:
-                html = r.text
-                fetch_ok = True
-    except Exception:
-        pass
-
-    # ── Step 2a: 직접 파싱 (HTML decode 후 regex) ────────────────────────────
-    direct: dict = {}
-    if fetch_ok and html:
-        direct = _extract_direct(html, platform, url_handle)
-
-    # ── Step 2b: Claude로 카테고리 등 추가 분석 ──────────────────────────────
-    claude = ClaudeClient()
     data: dict = {}
-
-    if fetch_ok and html and claude.available:
-        snippet = _meta_slice(html)
-        prompt_file = _PROMPTS / "influencer_url_extract.md"
-        raw_prompt = prompt_file.read_text(encoding="utf-8")
-        system = raw_prompt.split("## User Template")[0].replace("## System\n", "").strip()
-        user_tpl = raw_prompt.split("## User Template\n", 1)[1].strip()
-        user_text = (
-            user_tpl
-            .replace("{{platform}}", platform)
-            .replace("{{url}}", url)
-            .replace("{{html_snippet}}", snippet)
-        )
-        try:
-            data = await asyncio.to_thread(
-                lambda: claude.complete_json(system, user_text, max_tokens=1024)
-            )
-        except Exception:
-            pass
-
-    # ── 직접 파싱값이 Claude보다 신뢰도 높음 → 덮어쓰기 ─────────────────────
-    if direct.get("name"):
-        data["name"] = direct["name"]
-    if direct.get("followers"):
-        data["followers"] = direct["followers"]
-
-    # ── Fallback: URL에서 최소값 보정 ────────────────────────────────────────
-    data.setdefault("handle", url_handle)
-    data["platform"] = platform
-    data["profile_url"] = url
-
-    # ── Step 3: 이미지 다운로드 ──────────────────────────────────────────────
     profile_image_path = ""
-    # og_image_url: 직접 파싱값 우선 (이미 HTML-decoded), Claude 값은 추가 디코딩
-    raw_img_url = direct.get("og_image_url") or data.get("profile_image_url") or ""
-    img_url = _clean_img_url(raw_img_url)
-    if img_url:
-        result = await asyncio.to_thread(_download_image, img_url)
-        if result:
-            img_bytes, ext = result
-            profile_image_path = _save_image_bytes(img_bytes, ext)
+    error_msg = ""
 
-    # ── Error: nothing useful extracted ──────────────────────────────────────
-    if not any([data.get("name"), data.get("handle"), profile_image_path]):
-        reason = "페이지 접근 불가 (로그인 필요 또는 비공개 계정일 수 있습니다)" if not fetch_ok else "데이터 추출 실패"
-        if url_handle:
-            # At least partially filled
-            data = {"handle": url_handle, "platform": platform, "profile_url": url}
-            return HTMLResponse(_result_html(data, "", url) + f"""
+    if platform == "instagram":
+        try:
+            data, profile_image_path = await _fill_instagram(url, handle)
+        except Exception as e:
+            error_msg = str(e)
+            # Instagram 실패 시 handle만 fallback
+            data = {"handle": handle, "platform": "instagram", "profile_url": url}
+    else:
+        data, profile_image_path = await _fill_html_fallback(url, platform, handle)
+
+    result_html = _result_html(data, profile_image_path, url)
+
+    if error_msg:
+        result_html += f"""
 <div class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-  {_esc(reason)} — 핸들만 자동 입력되었습니다. 나머지는 직접 입력해주세요.
-</div>""")
-        return HTMLResponse(
-            f'<div id="ai-inf-result" class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">'
-            f"분석 실패: {_esc(reason)}</div>"
-        )
+  Instagram 연동 오류: {_esc(error_msg)} — 핸들만 입력되었습니다.
+</div>"""
 
-    return HTMLResponse(_result_html(data, profile_image_path, url))
+    return HTMLResponse(result_html)
 
 
 # ── Shared helper: process a single URL → dict (used by bulk import) ──────────

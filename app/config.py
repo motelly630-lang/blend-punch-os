@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = ""
     aws_region: str = "ap-northeast-2"
     s3_backup_bucket: str = ""
+    # Instagram 봇 계정
+    instagram_username: str = ""
+    instagram_password: str = ""
 
 
 settings = Settings()
