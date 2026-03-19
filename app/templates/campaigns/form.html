@@ -5,192 +5,52 @@
 <a href="/campaigns{% if campaign %}/{{ campaign.id }}{% endif %}" class="text-sm text-gray-500 hover:text-gray-700">← 돌아가기</a>
 {% endblock %}
 
-{% block scripts %}
-<script>
-(function () {
-  var revenue = {{ campaign.actual_revenue | int if campaign else 0 }};
-  var sellerPct = {{ (campaign.seller_commission_rate * 100) | round(1) if campaign and campaign.seller_commission_rate else 0 }};
-  var vendorPct = {{ (campaign.vendor_commission_rate * 100) | round(1) if campaign and campaign.vendor_commission_rate else 0 }};
-
-  function fmtWon(v) {
-    return '\u20a9' + Math.round(v).toLocaleString('ko-KR');
-  }
-
-  function updatePreview() {
-    var sellerAmt = Math.round(revenue * sellerPct / 100);
-    var vendorAmt = Math.round(revenue * vendorPct / 100);
-
-    var preview = document.getElementById('payout-preview');
-    if (preview) {
-      if (revenue > 0 && (sellerPct > 0 || vendorPct > 0)) {
-        preview.style.display = '';
-      } else {
-        preview.style.display = 'none';
-      }
-      var el;
-      el = document.getElementById('preview-revenue');
-      if (el) el.textContent = fmtWon(revenue);
-      el = document.getElementById('preview-seller-pct');
-      if (el) el.textContent = sellerPct + '%';
-      el = document.getElementById('preview-seller-amt');
-      if (el) el.textContent = fmtWon(sellerAmt);
-      el = document.getElementById('preview-vendor-pct');
-      if (el) el.textContent = vendorPct + '%';
-      el = document.getElementById('preview-vendor-amt');
-      if (el) el.textContent = fmtWon(vendorAmt);
-      el = document.getElementById('preview-remainder');
-      if (el) el.textContent = fmtWon(revenue - sellerAmt - vendorAmt);
-    }
-  }
-
-  function updateWarning(statusVal) {
-    var warning = document.getElementById('completing-warning');
-    if (warning) {
-      warning.style.display = statusVal === 'completed' ? '' : 'none';
-    }
-  }
-
-  // ── Searchable dropdown ──────────────────────────────────────────────
-  window.openDropdown = function (type) {
-    document.getElementById(type + '-list').style.display = '';
-  };
-  window.selectItem = function (type, id, label) {
-    document.getElementById(type + '-id-input').value = id;
-    document.getElementById(type + '-search').value = label;
-    document.getElementById(type + '-list').style.display = 'none';
-    autoFillCampaignName();
-  };
-
-  function autoFillCampaignName() {
-    var nameInput = document.querySelector('input[name="name"]');
-    if (!nameInput || nameInput.dataset.userEdited === 'true') return;
-    var productLabel = document.getElementById('product-search').value.trim();
-    var influencerLabel = document.getElementById('influencer-search').value.trim().split(' (')[0];
-    if (productLabel && influencerLabel) {
-      nameInput.value = productLabel + ' x ' + influencerLabel;
-    } else if (productLabel) {
-      nameInput.value = productLabel;
-    } else if (influencerLabel) {
-      nameInput.value = influencerLabel;
-    }
-  }
-  window.filterDropdown = function (type, query) {
-    var list = document.getElementById(type + '-list');
-    list.style.display = '';
-    var q = query.toLowerCase();
-    list.querySelectorAll('div[onclick*="selectItem"]').forEach(function (el) {
-      el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-  };
-  document.addEventListener('click', function (e) {
-    ['product', 'influencer'].forEach(function (type) {
-      var wrap = document.getElementById(type + '-dropdown');
-      if (wrap && !wrap.contains(e.target)) {
-        document.getElementById(type + '-list').style.display = 'none';
-      }
-    });
-  });
-
-  document.addEventListener('DOMContentLoaded', function () {
-    // 사용자가 직접 캠페인명 수정하면 자동입력 비활성화
-    var nameInput = document.querySelector('input[name="name"]');
-    if (nameInput) {
-      nameInput.addEventListener('input', function () {
-        this.dataset.userEdited = 'true';
-      });
-      // 편집 모드에서는 이미 이름이 있으므로 자동입력 비활성화
-      if (nameInput.value.trim()) nameInput.dataset.userEdited = 'true';
-    }
-
-    var revenueInput = document.getElementById('revenue-input');
-    var sellerInput = document.getElementById('seller-pct-input');
-    var vendorInput = document.getElementById('vendor-pct-input');
-    var statusSelect = document.getElementById('status-select');
-
-    if (revenueInput) {
-      revenueInput.addEventListener('input', function () {
-        revenue = parseFloat(this.value) || 0;
-        updatePreview();
-      });
-    }
-    if (sellerInput) {
-      sellerInput.addEventListener('input', function () {
-        sellerPct = parseFloat(this.value) || 0;
-        updatePreview();
-      });
-    }
-    if (vendorInput) {
-      vendorInput.addEventListener('input', function () {
-        vendorPct = parseFloat(this.value) || 0;
-        updatePreview();
-      });
-    }
-    if (statusSelect) {
-      statusSelect.addEventListener('change', function () {
-        updateWarning(this.value);
-      });
-      updateWarning(statusSelect.value);
-    }
-
-    updatePreview();
-  });
-}());
-</script>
-{% endblock %}
-
 {% block content %}
-<div class="max-w-2xl">
+<div class="max-w-2xl"
+  x-data="{
+    productMode: '{{ 'manual' if campaign and campaign.product_name_manual and not campaign.product_id else 'db' }}',
+    sellerType: '{{ campaign.seller_type or '' if campaign else '' }}',
+    unitPrice: {{ campaign.unit_price | int if campaign else 0 }},
+    expectedQty: {{ campaign.expected_sales if campaign else 0 }},
+    actualQty: {{ campaign.actual_sales if campaign else 0 }},
+    revenue: {{ campaign.actual_revenue | int if campaign else 0 }},
+    sellerPct: {{ (campaign.seller_commission_rate * 100) | round(1) if campaign and campaign.seller_commission_rate else 0 }},
+    vendorPct: {{ (campaign.vendor_commission_rate * 100) | round(1) if campaign and campaign.vendor_commission_rate else 0 }},
+    get sellerProfit() { return Math.round(this.revenue * this.sellerPct / 100); },
+    get vatExcluded() { return Math.round(this.sellerProfit / 1.1); },
+    get withholdingTax() { return Math.round(this.vatExcluded * 0.033); },
+    get finalSettlement() {
+      if (this.sellerType === '프리랜서') return this.vatExcluded - this.withholdingTax;
+      return this.sellerProfit;
+    },
+    get vendorProfit() { return Math.round(this.revenue * this.vendorPct / 100); },
+    get showPreview() { return this.revenue > 0 && (this.sellerPct > 0 || this.vendorPct > 0); },
+    calcRevenue() { if (this.unitPrice > 0 && this.actualQty > 0) this.revenue = this.unitPrice * this.actualQty; },
+    fmtWon(v) { return '₩' + Math.round(v).toLocaleString('ko-KR'); }
+  }">
+
   <form method="post" action="/campaigns/{% if campaign %}{{ campaign.id }}/edit{% else %}new{% endif %}"
-        class="space-y-5">
+        class="space-y-5" @submit="
+          $el.querySelector('[name=actual_revenue]').value = revenue;
+          $el.querySelector('[name=expected_sales]').value = expectedQty;
+          $el.querySelector('[name=actual_sales]').value = actualQty;
+          $el.querySelector('[name=unit_price]').value = unitPrice;
+          $el.querySelector('[name=seller_commission_rate_pct]').value = sellerPct;
+          $el.querySelector('[name=vendor_commission_rate_pct]').value = vendorPct;
+          $el.querySelector('[name=seller_type]').value = sellerType;
+        ">
 
     <!-- 기본 정보 -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
       <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">기본 정보</h3>
-
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">캠페인명 <span class="text-red-500">*</span></label>
         <input type="text" name="name" required value="{{ campaign.name if campaign else '' }}"
-          placeholder="예: 비타민C 4월 캠페인 - @스킨케어제니"
+          id="campaign-name"
+          placeholder="예: 비타민C 4월 캠페인 × @스킨케어제니"
           class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
       </div>
-
       <div class="grid grid-cols-2 gap-4">
-        <!-- 제품 검색 드롭다운 -->
-        <div class="relative" id="product-dropdown">
-          <label class="block text-sm font-medium text-gray-700 mb-1">제품 연결</label>
-          <input type="hidden" name="product_id" id="product-id-input"
-            value="{{ campaign.product_id if campaign else prefill_product_id }}">
-          <input type="text" id="product-search" autocomplete="off" placeholder="제품 검색..."
-            value="{{ campaign.product.name if campaign and campaign.product else (products | selectattr('id', 'equalto', prefill_product_id) | map(attribute='name') | first | default('')) }}"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            onfocus="openDropdown('product')" oninput="filterDropdown('product', this.value)">
-          <div id="product-list" style="display:none"
-            class="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
-            <div class="px-3 py-2 text-xs text-gray-400 cursor-pointer hover:bg-gray-50" onclick="selectItem('product','','')">선택 안함</div>
-            {% for p in products %}
-            <div class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50"
-              onclick="selectItem('product','{{ p.id }}','{{ p.name }}')">{{ p.name }}</div>
-            {% endfor %}
-          </div>
-        </div>
-        <!-- 인플루언서 검색 드롭다운 -->
-        <div class="relative" id="influencer-dropdown">
-          <label class="block text-sm font-medium text-gray-700 mb-1">인플루언서 연결</label>
-          <input type="hidden" name="influencer_id" id="influencer-id-input"
-            value="{{ campaign.influencer_id if campaign else prefill_influencer_id }}">
-          <input type="text" id="influencer-search" autocomplete="off" placeholder="인플루언서 검색..."
-            value="{{ campaign.influencer.name if campaign and campaign.influencer else (influencers | selectattr('id', 'equalto', prefill_influencer_id) | map(attribute='name') | first | default('')) }}"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            onfocus="openDropdown('influencer')" oninput="filterDropdown('influencer', this.value)">
-          <div id="influencer-list" style="display:none"
-            class="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
-            <div class="px-3 py-2 text-xs text-gray-400 cursor-pointer hover:bg-gray-50" onclick="selectItem('influencer','','')">선택 안함</div>
-            {% for inf in influencers %}
-            <div class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50"
-              onclick="selectItem('influencer','{{ inf.id }}','{{ inf.name }} ({{ inf.platform | platform_label }})')">{{ inf.name }} <span class="text-xs text-gray-400">({{ inf.platform | platform_label }})</span></div>
-            {% endfor %}
-          </div>
-        </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">상태</label>
           <select name="status" id="status-select" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -200,9 +60,13 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">단가 (원)</label>
-          <input type="number" name="unit_price" value="{{ campaign.unit_price | int if campaign else 0 }}" min="0" step="100"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <label class="block text-sm font-medium text-gray-700 mb-1">셀러 유형</label>
+          <select x-model="sellerType" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">선택 안함</option>
+            <option value="사업자">사업자</option>
+            <option value="간이사업자">간이사업자</option>
+            <option value="프리랜서">프리랜서</option>
+          </select>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">시작일</label>
@@ -214,78 +78,232 @@
           <input type="date" name="end_date" value="{{ campaign.end_date.isoformat() if campaign and campaign.end_date else '' }}"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
+      </div>
+    </div>
+
+    <!-- 제품 연결 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">제품 연결</h3>
+        <div class="flex gap-0.5 bg-gray-100 p-0.5 rounded-lg">
+          <button type="button" @click="productMode='db'"
+            :class="productMode==='db' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+            class="text-xs font-medium px-3 py-1.5 rounded-md transition-all">제품 선택</button>
+          <button type="button" @click="productMode='manual'"
+            :class="productMode==='manual' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+            class="text-xs font-medium px-3 py-1.5 rounded-md transition-all">직접 입력</button>
+        </div>
+      </div>
+
+      <!-- DB 검색 -->
+      <div x-show="productMode==='db'" class="relative" id="product-dropdown">
+        <input type="hidden" name="product_id" id="product-id-input"
+          value="{{ campaign.product_id if campaign else prefill_product_id }}">
+        <input type="text" id="product-search" autocomplete="off" placeholder="제품 검색..."
+          value="{{ campaign.product.name if campaign and campaign.product else (products | selectattr('id', 'equalto', prefill_product_id) | map(attribute='name') | first | default('')) }}"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onfocus="openDropdown('product')" oninput="filterDropdown('product', this.value)">
+        <div id="product-list" style="display:none"
+          class="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+          <div class="px-3 py-2 text-xs text-gray-400 cursor-pointer hover:bg-gray-50" onclick="selectItem('product','','')">선택 안함</div>
+          {% for p in products %}
+          <div class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50"
+            onclick="selectItem('product','{{ p.id }}','{{ p.name }}')">
+            {{ p.name }}
+            {% if p.brand %}<span class="text-xs text-gray-400 ml-1">{{ p.brand }}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- 직접 입력 -->
+      <div x-show="productMode==='manual'" x-cloak class="space-y-3">
+        <input type="hidden" name="product_id" value="">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">예상 판매수량</label>
-          <input type="number" name="expected_sales" value="{{ campaign.expected_sales if campaign else 0 }}" min="0"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <label class="block text-xs font-medium text-gray-600 mb-1">제품명 <span class="text-red-500">*</span></label>
+          <input type="text" name="product_name_manual"
+            value="{{ campaign.product_name_manual or '' if campaign else '' }}"
+            placeholder="예: 비타민C 세럼 30ml"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            oninput="autoFillFromManual()">
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">실제 판매수량</label>
-          <input type="number" name="actual_sales" value="{{ campaign.actual_sales if campaign else 0 }}" min="0"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div class="col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">실제 매출 (원)</label>
-          <input type="number" name="actual_revenue" id="revenue-input"
-            value="{{ campaign.actual_revenue | int if campaign else 0 }}"
-            min="0" step="1000"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <!-- Legacy commission_rate field (hidden) -->
-        <input type="hidden" name="commission_rate" value="{{ (campaign.commission_rate or 0.15) if campaign else 0.15 }}">
-        <div class="col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">메모</label>
-          <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ campaign.notes or '' if campaign else '' }}</textarea>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">브랜드명</label>
+            <input type="text" name="brand_name_manual"
+              value="{{ campaign.brand_name_manual or '' if campaign else '' }}"
+              placeholder="예: 이니스프리"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">카테고리</label>
+            <select name="category_manual" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">선택</option>
+              {% for cat in ['뷰티','스킨케어','헤어케어','건강','식품','주방','리빙','패션','육아','반려동물','디지털','스포츠','기타'] %}
+              <option value="{{ cat }}" {% if campaign and campaign.category_manual == cat %}selected{% endif %}>{{ cat }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 커미션 분배 -->
+    <!-- 인플루언서 연결 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-3">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">인플루언서 연결</h3>
+      <div class="relative" id="influencer-dropdown">
+        <input type="hidden" name="influencer_id" id="influencer-id-input"
+          value="{{ campaign.influencer_id if campaign else prefill_influencer_id }}">
+        <input type="text" id="influencer-search" autocomplete="off" placeholder="인플루언서 검색..."
+          value="{{ campaign.influencer.name if campaign and campaign.influencer else (influencers | selectattr('id', 'equalto', prefill_influencer_id) | map(attribute='name') | first | default('')) }}"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onfocus="openDropdown('influencer')" oninput="filterDropdown('influencer', this.value)">
+        <div id="influencer-list" style="display:none"
+          class="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+          <div class="px-3 py-2 text-xs text-gray-400 cursor-pointer hover:bg-gray-50" onclick="selectItem('influencer','','')">선택 안함</div>
+          {% for inf in influencers %}
+          <div class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50"
+            onclick="selectItem('influencer','{{ inf.id }}','{{ inf.name }} ({{ inf.platform | platform_label }})')">
+            {{ inf.name }} <span class="text-xs text-gray-400">({{ inf.platform | platform_label }})</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- 판매 정보 -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">커미션 분배</h3>
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">판매 정보</h3>
+
+      <!-- hidden fields that Alpine writes to -->
+      <input type="hidden" name="unit_price">
+      <input type="hidden" name="expected_sales">
+      <input type="hidden" name="actual_sales">
+      <input type="hidden" name="actual_revenue">
+      <input type="hidden" name="seller_commission_rate_pct">
+      <input type="hidden" name="vendor_commission_rate_pct">
+      <input type="hidden" name="seller_type">
+      <input type="hidden" name="commission_rate" value="0">
 
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">셀러 커미션율 (%)</label>
-          <input type="number" name="seller_commission_rate_pct" id="seller-pct-input"
-            value="{{ (campaign.seller_commission_rate * 100) | round(1) if campaign and campaign.seller_commission_rate else 0 }}"
-            step="0.1" min="0" max="100"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <label class="block text-sm font-medium text-gray-700 mb-1">단가 (원)</label>
+          <input type="number" x-model.number="unitPrice" min="0" step="100"
+            @input="calcRevenue()"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="0">
+          <div class="text-xs text-gray-400 mt-1" x-show="unitPrice > 0" x-text="'₩' + unitPrice.toLocaleString('ko-KR')"></div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">예상 판매수량</label>
+          <input type="number" x-model.number="expectedQty" min="0"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="0">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">실제 판매수량</label>
+          <input type="number" x-model.number="actualQty" min="0"
+            @input="calcRevenue()"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="0">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">총 판매금액 (원)</label>
+          <div class="flex gap-1">
+            <input type="number" x-model.number="revenue" min="0" step="1000"
+              class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="0">
+            <button type="button" @click="calcRevenue()"
+              class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors flex-shrink-0"
+              title="단가 × 실제판매수량 자동계산">자동</button>
+          </div>
+          <div class="text-xs text-green-600 mt-1 font-medium" x-show="revenue > 0" x-text="fmtWon(revenue)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 커미션 & 정산 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">커미션 & 정산</h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">셀러 수수료율 (%)</label>
+          <input type="number" x-model.number="sellerPct" step="0.1" min="0" max="100"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="0">
           <p class="text-xs text-gray-400 mt-1">인플루언서에게 지급</p>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
             벤더 마진율 (%)
-            <span class="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded font-normal">🔒 내부</span>
+            <span class="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded">내부</span>
           </label>
-          <input type="number" name="vendor_commission_rate_pct" id="vendor-pct-input"
-            value="{{ (campaign.vendor_commission_rate * 100) | round(1) if campaign and campaign.vendor_commission_rate else 0 }}"
-            step="0.1" min="0" max="100"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg bg-orange-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+          <input type="number" x-model.number="vendorPct" step="0.1" min="0" max="100"
+            class="w-full px-3 py-2 border border-orange-100 bg-orange-50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            placeholder="0">
           <p class="text-xs text-gray-400 mt-1">블렌드펀치 수익</p>
         </div>
       </div>
 
-      <!-- Live payout preview -->
-      <div id="payout-preview" class="bg-gray-50 rounded-xl p-4 space-y-2" style="display:none">
-        <div class="text-xs font-semibold text-gray-500 mb-2">수익 배분 미리보기</div>
-        <div class="flex items-center justify-between text-sm">
-          <span class="text-gray-600">총 매출</span>
-          <span id="preview-revenue" class="font-semibold text-gray-900"></span>
+      <!-- 정산 미리보기 -->
+      <div x-show="showPreview" class="bg-gray-50 rounded-xl p-4 space-y-2">
+        <div class="text-xs font-semibold text-gray-500 mb-3">정산 미리보기</div>
+
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">총 매출</span>
+          <span class="font-semibold text-gray-900" x-text="fmtWon(revenue)"></span>
         </div>
-        <div class="flex items-center justify-between text-sm">
-          <span class="text-gray-600">셀러 지급 (<span id="preview-seller-pct"></span>)</span>
-          <span id="preview-seller-amt" class="font-semibold text-blue-600"></span>
+
+        <!-- 셀러 수익 -->
+        <div class="border-t border-gray-200 pt-2 space-y-1.5">
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-600">셀러 예상 수익 (<span x-text="sellerPct + '%'"></span>)</span>
+            <span class="font-semibold text-blue-600" x-text="fmtWon(sellerProfit)"></span>
+          </div>
+          <!-- 프리랜서 세부 -->
+          <template x-if="sellerType === '프리랜서'">
+            <div class="ml-3 space-y-1 text-xs text-gray-500">
+              <div class="flex justify-between">
+                <span>부가세 제외 (÷1.1)</span>
+                <span x-text="fmtWon(vatExcluded)"></span>
+              </div>
+              <div class="flex justify-between text-red-500">
+                <span>원천징수세 (3.3%)</span>
+                <span x-text="'- ' + fmtWon(withholdingTax)"></span>
+              </div>
+              <div class="flex justify-between font-semibold text-blue-700 text-sm border-t border-gray-200 pt-1">
+                <span>최종 지급액</span>
+                <span x-text="fmtWon(finalSettlement)"></span>
+              </div>
+            </div>
+          </template>
+          <!-- 사업자 -->
+          <template x-if="sellerType !== '프리랜서' && sellerType !== ''">
+            <div class="ml-3 text-xs text-blue-700 font-medium flex justify-between">
+              <span>최종 지급액</span>
+              <span x-text="fmtWon(sellerProfit)"></span>
+            </div>
+          </template>
         </div>
-        <div class="flex items-center justify-between text-sm">
-          <span class="text-gray-600">벤더 수익 (<span id="preview-vendor-pct"></span>)</span>
-          <span id="preview-vendor-amt" class="font-semibold text-orange-600"></span>
+
+        <!-- 벤더 수익 -->
+        <div class="flex justify-between text-sm border-t border-gray-200 pt-2">
+          <span class="text-gray-600">벤더 수익 (<span x-text="vendorPct + '%'"></span>)</span>
+          <span class="font-semibold text-orange-600" x-text="fmtWon(vendorProfit)"></span>
         </div>
-        <div class="border-t border-gray-200 pt-2 flex items-center justify-between text-sm">
-          <span class="text-gray-500">나머지</span>
-          <span id="preview-remainder" class="font-semibold text-gray-700"></span>
+
+        <!-- 나머지 -->
+        <div class="flex justify-between text-sm text-gray-400">
+          <span>나머지</span>
+          <span x-text="fmtWon(revenue - sellerProfit - vendorProfit)"></span>
         </div>
       </div>
+    </div>
+
+    <!-- 메모 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <label class="block text-sm font-medium text-gray-700 mb-2">메모</label>
+      <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ campaign.notes or '' if campaign else '' }}</textarea>
     </div>
 
     <!-- 완료 상태 경고 -->
@@ -308,4 +326,76 @@
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Searchable dropdown ──────────────────────────────────────────────
+window.openDropdown = function (type) {
+  document.getElementById(type + '-list').style.display = '';
+};
+window.selectItem = function (type, id, label) {
+  var idInput = document.getElementById(type + '-id-input');
+  var search  = document.getElementById(type + '-search');
+  if (idInput) idInput.value = id;
+  if (search)  search.value  = label;
+  document.getElementById(type + '-list').style.display = 'none';
+  autoFillCampaignName();
+};
+window.filterDropdown = function (type, query) {
+  var list = document.getElementById(type + '-list');
+  list.style.display = '';
+  var q = query.toLowerCase();
+  list.querySelectorAll('div[onclick*="selectItem"]').forEach(function (el) {
+    el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+};
+document.addEventListener('click', function (e) {
+  ['product', 'influencer'].forEach(function (type) {
+    var wrap = document.getElementById(type + '-dropdown');
+    if (wrap && !wrap.contains(e.target)) {
+      var list = document.getElementById(type + '-list');
+      if (list) list.style.display = 'none';
+    }
+  });
+});
+
+function autoFillCampaignName() {
+  var nameInput = document.getElementById('campaign-name');
+  if (!nameInput || nameInput.dataset.userEdited === 'true') return;
+  var productLabel = (document.getElementById('product-search') || {}).value || '';
+  var manualProduct = (document.querySelector('[name=product_name_manual]') || {}).value || '';
+  var influencerLabel = ((document.getElementById('influencer-search') || {}).value || '').split(' (')[0];
+  var pName = productLabel || manualProduct;
+  if (pName && influencerLabel) {
+    nameInput.value = pName + ' × ' + influencerLabel;
+  } else if (pName) {
+    nameInput.value = pName;
+  } else if (influencerLabel) {
+    nameInput.value = influencerLabel;
+  }
+}
+
+window.autoFillFromManual = function() {
+  autoFillCampaignName();
+};
+
+document.addEventListener('DOMContentLoaded', function () {
+  var nameInput = document.getElementById('campaign-name');
+  if (nameInput) {
+    nameInput.addEventListener('input', function () { this.dataset.userEdited = 'true'; });
+    if (nameInput.value.trim()) nameInput.dataset.userEdited = 'true';
+  }
+
+  var statusSelect = document.getElementById('status-select');
+  function updateWarning(val) {
+    var el = document.getElementById('completing-warning');
+    if (el) el.style.display = val === 'completed' ? '' : 'none';
+  }
+  if (statusSelect) {
+    statusSelect.addEventListener('change', function () { updateWarning(this.value); });
+    updateWarning(statusSelect.value);
+  }
+});
+</script>
 {% endblock %}

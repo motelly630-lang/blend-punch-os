@@ -74,6 +74,10 @@ def migrate():
         _add_column(conn, "campaigns", "seller_commission_amount FLOAT DEFAULT 0")
         _add_column(conn, "campaigns", "vendor_commission_amount FLOAT DEFAULT 0")
         _add_column(conn, "campaigns", "is_archived INTEGER DEFAULT 0")
+        _add_column(conn, "campaigns", "product_name_manual VARCHAR(300)")
+        _add_column(conn, "campaigns", "brand_name_manual VARCHAR(200)")
+        _add_column(conn, "campaigns", "category_manual VARCHAR(100)")
+        _add_column(conn, "campaigns", "seller_type VARCHAR(30)")
 
         # --- settlements ---
         _add_column(conn, "settlements", "vat_amount FLOAT DEFAULT 0")

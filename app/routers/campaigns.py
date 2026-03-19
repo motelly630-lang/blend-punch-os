@@ -174,6 +174,22 @@ def _auto_settle(db: Session, campaign: Campaign):
     db.add(s)
 
 
+def _parse_form_fields(
+    product_id, influencer_id, commission_rate,
+    unit_price, seller_commission_rate_pct, vendor_commission_rate_pct,
+    actual_revenue,
+):
+    try:
+        commission_rate_f = float(commission_rate) if commission_rate and commission_rate != "None" else 0.0
+    except (ValueError, TypeError):
+        commission_rate_f = 0.0
+    seller_rate = seller_commission_rate_pct / 100 if seller_commission_rate_pct else 0.0
+    vendor_rate = vendor_commission_rate_pct / 100 if vendor_commission_rate_pct else 0.0
+    seller_amt = round(actual_revenue * seller_rate)
+    vendor_amt = round(actual_revenue * vendor_rate)
+    return commission_rate_f, seller_rate, vendor_rate, seller_amt, vendor_amt
+
+
 @router.post("/new")
 def campaign_create(
     db: Session = Depends(get_db),
@@ -184,7 +200,7 @@ def campaign_create(
     status: str = Form("planning"),
     start_date: str = Form(""),
     end_date: str = Form(""),
-    commission_rate: str = Form("0.15"),
+    commission_rate: str = Form("0"),
     unit_price: float = Form(0.0),
     seller_commission_rate_pct: float = Form(0.0),
     vendor_commission_rate_pct: float = Form(0.0),
@@ -192,16 +208,15 @@ def campaign_create(
     actual_sales: int = Form(0),
     actual_revenue: float = Form(0.0),
     notes: str = Form(""),
+    product_name_manual: str = Form(""),
+    brand_name_manual: str = Form(""),
+    category_manual: str = Form(""),
+    seller_type: str = Form(""),
 ):
-    try:
-        commission_rate_f = float(commission_rate) if commission_rate and commission_rate != "None" else 0.15
-    except (ValueError, TypeError):
-        commission_rate_f = 0.15
-    seller_rate = seller_commission_rate_pct / 100 if seller_commission_rate_pct else 0.0
-    vendor_rate = vendor_commission_rate_pct / 100 if vendor_commission_rate_pct else 0.0
-    seller_amt = round(actual_revenue * seller_rate)
-    vendor_amt = round(actual_revenue * vendor_rate)
-
+    commission_rate_f, seller_rate, vendor_rate, seller_amt, vendor_amt = _parse_form_fields(
+        product_id, influencer_id, commission_rate,
+        unit_price, seller_commission_rate_pct, vendor_commission_rate_pct, actual_revenue,
+    )
     campaign = Campaign(
         name=name,
         product_id=product_id or None,
@@ -219,6 +234,10 @@ def campaign_create(
         actual_sales=actual_sales,
         actual_revenue=actual_revenue,
         notes=notes or None,
+        product_name_manual=product_name_manual or None,
+        brand_name_manual=brand_name_manual or None,
+        category_manual=category_manual or None,
+        seller_type=seller_type or None,
     )
     db.add(campaign)
     db.commit()
@@ -266,7 +285,7 @@ def campaign_update(
     status: str = Form("planning"),
     start_date: str = Form(""),
     end_date: str = Form(""),
-    commission_rate: str = Form("0.15"),
+    commission_rate: str = Form("0"),
     unit_price: float = Form(0.0),
     seller_commission_rate_pct: float = Form(0.0),
     vendor_commission_rate_pct: float = Form(0.0),
@@ -274,21 +293,20 @@ def campaign_update(
     actual_sales: int = Form(0),
     actual_revenue: float = Form(0.0),
     notes: str = Form(""),
+    product_name_manual: str = Form(""),
+    brand_name_manual: str = Form(""),
+    category_manual: str = Form(""),
+    seller_type: str = Form(""),
 ):
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     if not campaign:
         return RedirectResponse("/campaigns", status_code=302)
 
-    try:
-        commission_rate_f = float(commission_rate) if commission_rate and commission_rate != "None" else 0.15
-    except (ValueError, TypeError):
-        commission_rate_f = 0.15
+    commission_rate_f, seller_rate, vendor_rate, seller_amt, vendor_amt = _parse_form_fields(
+        product_id, influencer_id, commission_rate,
+        unit_price, seller_commission_rate_pct, vendor_commission_rate_pct, actual_revenue,
+    )
     prev_status = campaign.status
-    seller_rate = seller_commission_rate_pct / 100 if seller_commission_rate_pct else 0.0
-    vendor_rate = vendor_commission_rate_pct / 100 if vendor_commission_rate_pct else 0.0
-    seller_amt = round(actual_revenue * seller_rate)
-    vendor_amt = round(actual_revenue * vendor_rate)
-
     campaign.name = name
     campaign.product_id = product_id or None
     campaign.influencer_id = influencer_id or None
@@ -305,6 +323,10 @@ def campaign_update(
     campaign.actual_sales = actual_sales
     campaign.actual_revenue = actual_revenue
     campaign.notes = notes or None
+    campaign.product_name_manual = product_name_manual or None
+    campaign.brand_name_manual = brand_name_manual or None
+    campaign.category_manual = category_manual or None
+    campaign.seller_type = seller_type or None
     db.commit()
 
     if status == "completed" and prev_status != "completed":

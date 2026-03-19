@@ -29,6 +29,12 @@ class Campaign(Base):
     seller_commission_amount = Column(Float, default=0.0)    # 셀러 지급액 (calculated)
     vendor_commission_amount = Column(Float, default=0.0)    # 벤더 수익액 (calculated)
     is_archived = Column(Boolean, default=False)
+    # 직접입력 제품 정보 (DB 연결 없이 캠페인 생성 시)
+    product_name_manual = Column(String(300), nullable=True)
+    brand_name_manual = Column(String(200), nullable=True)
+    category_manual = Column(String(100), nullable=True)
+    # 셀러 유형
+    seller_type = Column(String(30), nullable=True)  # 사업자/간이사업자/프리랜서
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
