@@ -35,9 +35,12 @@ def _resolve_profile_image(uploaded_path: str | None, external_url: str | None) 
     """업로드 이미지 우선, 없으면 외부 URL을 서버에 캐싱해서 반환."""
     if uploaded_path:
         return uploaded_path
-    if external_url and external_url.startswith("http"):
-        cached = cache_external_image(external_url)
-        return cached or external_url  # 캐싱 실패 시 원본 URL 그대로
+    if external_url:
+        if external_url.startswith("/static/"):
+            return external_url  # AI가 이미 로컬에 캐싱한 경로
+        if external_url.startswith("http"):
+            cached = cache_external_image(external_url)
+            return cached or external_url  # 캐싱 실패 시 원본 URL 그대로
     return None
 
 
