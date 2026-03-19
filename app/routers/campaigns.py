@@ -116,12 +116,21 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
                 "status": status_map[c.id],
             })
 
+    # Summary totals for right panel
+    active_statuses = {"active", "completed"}
+    total_revenue    = sum(c.actual_revenue or 0 for c in campaigns if status_map.get(c.id) == "active")
+    total_seller_amt = sum(c.seller_commission_amount or 0 for c in campaigns if status_map.get(c.id) in active_statuses)
+    total_vendor_amt = sum(c.vendor_commission_amount or 0 for c in campaigns if status_map.get(c.id) in active_statuses)
+
     return templates.TemplateResponse("campaigns/list.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaigns": campaigns, "status_map": status_map, "today": today, "tab": tab,
         "active_count": active_count, "planning_count": planning_count,
         "done_count": done_count, "archive_count": archive_count,
         "cal_json": json.dumps(cal_data, ensure_ascii=False),
+        "total_revenue": total_revenue,
+        "total_seller_amt": total_seller_amt,
+        "total_vendor_amt": total_vendor_amt,
     })
 
 
@@ -334,6 +343,61 @@ def campaign_update(
         db.commit()
 
     return RedirectResponse(f"/campaigns/{campaign_id}?msg=수정되었습니다", status_code=302)
+
+
+@router.post("/{campaign_id}/inline-update")
+async def campaign_inline_update(
+    campaign_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Inline edit API — accepts JSON, returns JSON with updated values."""
+    data = await request.json()
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        return JSONResponse({"error": "not found"}, status_code=404)
+
+    prev_status = campaign.status
+    if "start_date" in data:
+        campaign.start_date = _parse_date(data["start_date"])
+    if "end_date" in data:
+        campaign.end_date = _parse_date(data["end_date"])
+    if "unit_price" in data:
+        campaign.unit_price = float(data["unit_price"] or 0)
+    if "actual_sales" in data:
+        campaign.actual_sales = int(float(data["actual_sales"] or 0))
+    if "actual_revenue" in data:
+        campaign.actual_revenue = float(data["actual_revenue"] or 0)
+    if "seller_commission_rate_pct" in data:
+        campaign.seller_commission_rate = float(data["seller_commission_rate_pct"] or 0) / 100
+    if "vendor_commission_rate_pct" in data:
+        campaign.vendor_commission_rate = float(data["vendor_commission_rate_pct"] or 0) / 100
+    if "status" in data:
+        campaign.status = str(data["status"])
+
+    rev = campaign.actual_revenue or 0
+    campaign.seller_commission_amount = round(rev * (campaign.seller_commission_rate or 0))
+    campaign.vendor_commission_amount = round(rev * (campaign.vendor_commission_rate or 0))
+    db.commit()
+
+    if campaign.status == "completed" and prev_status != "completed":
+        _auto_settle(db, campaign)
+        db.commit()
+
+    return JSONResponse({
+        "ok": True,
+        "start_date": campaign.start_date.isoformat() if campaign.start_date else "",
+        "end_date": campaign.end_date.isoformat() if campaign.end_date else "",
+        "unit_price": campaign.unit_price or 0,
+        "actual_sales": campaign.actual_sales or 0,
+        "actual_revenue": campaign.actual_revenue or 0,
+        "seller_commission_rate_pct": round((campaign.seller_commission_rate or 0) * 100, 1),
+        "vendor_commission_rate_pct": round((campaign.vendor_commission_rate or 0) * 100, 1),
+        "seller_commission_amount": campaign.seller_commission_amount or 0,
+        "vendor_commission_amount": campaign.vendor_commission_amount or 0,
+        "status": campaign.status,
+    })
 
 
 @router.post("/{campaign_id}/update-sales")

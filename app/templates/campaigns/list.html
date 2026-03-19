@@ -47,7 +47,6 @@
 
 <!-- Tab + View toggle -->
 <div class="flex items-center justify-between mb-4">
-  <!-- Tabs -->
   <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
     <a href="/campaigns?tab=active"
       class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors {% if tab != 'archive' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
@@ -58,7 +57,6 @@
       보관함 {{ archive_count > 0 and ('(' ~ archive_count ~ ')') or '' }}
     </a>
   </div>
-  <!-- View toggle (only on active tab) -->
   {% if tab != 'archive' %}
   <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
     <button id="btn-list-view" onclick="setView('list')"
@@ -75,29 +73,24 @@
 
 {% if campaigns %}
 
-<!-- ── LIST VIEW ────────────────────────────────────────────────────── -->
-<div id="view-list">
+<!-- ── MAIN LAYOUT: List + Right Panel ────────────────────────────────── -->
+<div class="flex gap-4 items-start">
+
+<!-- ── LIST VIEW ─────────────────────────────────────────────────── -->
+<div id="view-list" class="flex-1 min-w-0">
 
   {% if tab == 'archive' %}
-  <!-- Archive: compact list -->
+  <!-- Archive -->
   <div class="space-y-2">
     {% for c in campaigns %}
-    {% set st = status_map[c.id] %}
     {% set prod_name = c.product.name if c.product else c.product_name_manual %}
     {% set brand_name = c.product.brand if c.product and c.product.brand else c.brand_name_manual %}
     <div class="flex items-center gap-3 bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-all opacity-70 hover:opacity-100">
       <input type="checkbox" class="camp-check w-4 h-4 rounded border-gray-300 flex-shrink-0" value="{{ c.id }}" onchange="updateBulkDelete()">
       <div class="flex-1 min-w-0">
-        <div class="text-xs text-gray-400 truncate">{{ c.name }}</div>
-        {% if prod_name %}
-        <div class="font-semibold text-sm text-gray-700 truncate">{{ prod_name }}</div>
-        {% endif %}
-        <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-          {% if brand_name %}<span class="text-xs text-gray-400">{{ brand_name }}</span>{% endif %}
-          {% if c.influencer %}
-          <span class="text-xs text-purple-500">{{ c.influencer.name }}</span>
-          {% endif %}
-        </div>
+        {% if prod_name %}<div class="font-semibold text-sm text-gray-700 truncate">{{ prod_name }}</div>{% endif %}
+        <div class="text-xs text-gray-400 truncate">{{ c.name }}{% if brand_name %} · {{ brand_name }}{% endif %}</div>
+        {% if c.influencer %}<div class="text-xs text-purple-400 mt-0.5">{{ c.influencer.name }}</div>{% endif %}
       </div>
       <div class="text-right flex-shrink-0">
         {% if c.actual_revenue %}<div class="text-sm font-bold text-gray-700">{{ c.actual_revenue | won }}</div>{% endif %}
@@ -112,91 +105,123 @@
   </div>
 
   {% else %}
-  <!-- Active: grouped sections with dense cards -->
 
-  <!-- ─ 진행중 ─ -->
-  {% set section_active = [] %}
-  {% for c in campaigns if status_map[c.id] == 'active' %}{% set _ = section_active.append(c) %}{% endfor %}
-  {% if section_active %}
+  {# ─ 진행중 ─ #}
+  {% set sect_active = [] %}
+  {% for c in campaigns if status_map[c.id] == 'active' %}{% set _ = sect_active.append(c) %}{% endfor %}
+  {% if sect_active %}
   <div class="mb-6">
     <div class="flex items-center gap-2 mb-3">
       <div class="w-2 h-2 rounded-full bg-green-500"></div>
       <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">진행중</span>
-      <span class="text-xs text-gray-400">{{ section_active | length }}건</span>
+      <span class="text-xs text-gray-400">{{ sect_active | length }}건</span>
     </div>
     <div class="space-y-3">
       {% for c in campaigns if status_map[c.id] == 'active' %}
       {% set prod_name = c.product.name if c.product else c.product_name_manual %}
       {% set brand_name = c.product.brand if c.product and c.product.brand else c.brand_name_manual %}
       {% set cat_name = c.product.category if c.product and c.product.category else c.category_manual %}
-      {% if c.end_date %}
-        {% set dday = (c.end_date - today).days %}
-      {% else %}
-        {% set dday = None %}
-      {% endif %}
-      <div class="bg-white rounded-xl border border-green-100 shadow-sm hover:shadow-md hover:border-green-300 transition-all group">
-        <!-- Card top: campaign name + D-day + status + checkbox -->
+      {% if c.end_date %}{% set dday = (c.end_date - today).days %}{% else %}{% set dday = None %}{% endif %}
+
+      <div
+        x-data="campCard({
+          cid:   '{{ c.id }}',
+          sd:    '{{ c.start_date.isoformat() if c.start_date else '' }}',
+          ed:    '{{ c.end_date.isoformat() if c.end_date else '' }}',
+          up:    {{ c.unit_price or 0 }},
+          aq:    {{ c.actual_sales or 0 }},
+          rev:   {{ c.actual_revenue or 0 }},
+          spct:  {{ ((c.seller_commission_rate or 0) * 100) | round(1) }},
+          vpct:  {{ ((c.vendor_commission_rate or 0) * 100) | round(1) }},
+          st:    '{{ c.status }}'
+        })"
+        @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()"
+        class="bg-white rounded-xl border shadow-sm transition-all"
+        :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200' : 'border-green-100 hover:shadow-md hover:border-green-300'">
+
+        <!-- Card header (always visible) -->
         <div class="flex items-center gap-3 px-4 pt-3 pb-2 border-b border-gray-50">
           <input type="checkbox" class="camp-check w-4 h-4 rounded border-gray-300 flex-shrink-0" value="{{ c.id }}" onchange="updateBulkDelete()">
           <div class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></div>
-          <a href="/campaigns/{{ c.id }}" class="flex-1 min-w-0 font-medium text-sm text-gray-700 group-hover:text-green-700 truncate">{{ c.name }}</a>
-          {% if dday is not none %}
-          <span class="text-xs font-semibold flex-shrink-0
-            {% if dday < 0 %}text-gray-400{% elif dday == 0 %}text-red-600{% elif dday <= 3 %}text-orange-500{% else %}text-green-600{% endif %}">
-            {% if dday < 0 %}D+{{ dday | abs }}{% elif dday == 0 %}D-Day{% else %}D-{{ dday }}{% endif %}
-          </span>
-          {% endif %}
-          <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">진행중</span>
+          <a href="/campaigns/{{ c.id }}" class="flex-1 min-w-0 font-medium text-sm text-gray-700 hover:text-green-700 truncate" x-show="!editing">{{ c.name }}</a>
+          <span class="flex-1 min-w-0 font-medium text-sm text-gray-800 truncate" x-show="editing" x-cloak>{{ c.name }}</span>
+
+          <!-- View mode: D-day + status + edit btn -->
+          <template x-if="!editing">
+            <div class="flex items-center gap-2 flex-shrink-0">
+              {% if dday is not none %}
+              <span class="text-xs font-semibold
+                {% if dday < 0 %}text-gray-400{% elif dday == 0 %}text-red-600{% elif dday <= 3 %}text-orange-500{% else %}text-green-600{% endif %}">
+                {% if dday < 0 %}D+{{ dday | abs }}{% elif dday == 0 %}D-Day{% else %}D-{{ dday }}{% endif %}
+              </span>
+              {% endif %}
+              <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">진행중</span>
+              <button @click="openEdit()" type="button" title="인라인 편집"
+                class="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                </svg>
+              </button>
+              <a href="/campaigns/{{ c.id }}/edit" title="전체 편집"
+                class="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+              </a>
+            </div>
+          </template>
+
+          <!-- Edit mode: save + cancel -->
+          <template x-if="editing">
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="text-xs text-blue-500 font-medium">편집중</span>
+              <button @click="saveEdit()" type="button"
+                :disabled="saving"
+                class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium">
+                <span x-show="!saving">저장</span>
+                <span x-show="saving" x-cloak>저장중...</span>
+              </button>
+              <button @click="cancelEdit()" type="button"
+                class="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">취소</button>
+            </div>
+          </template>
         </div>
 
-        <!-- Card body: 3 columns -->
-        <a href="/campaigns/{{ c.id }}" class="grid grid-cols-3 gap-0 divide-x divide-gray-50">
+        <!-- VIEW MODE body (3-column) -->
+        <a href="/campaigns/{{ c.id }}"
+          x-show="!editing"
+          class="grid grid-cols-3 gap-0 divide-x divide-gray-50">
 
           <!-- Col 1: Product + Influencer -->
           <div class="px-4 py-3 space-y-2">
-            <div>
-              {% if prod_name %}
-              <div class="text-sm font-bold text-gray-900 leading-tight truncate">{{ prod_name }}</div>
-              {% else %}
-              <div class="text-sm text-gray-300 italic">제품 미연결</div>
-              {% endif %}
-              <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                {% if brand_name %}<span class="text-xs text-gray-500">{{ brand_name }}</span>{% endif %}
-                {% if brand_name and cat_name %}<span class="text-gray-300 text-xs">·</span>{% endif %}
-                {% if cat_name %}<span class="text-xs text-gray-400">{{ cat_name }}</span>{% endif %}
-              </div>
+            {% if prod_name %}
+            <div class="text-sm font-bold text-gray-900 leading-tight truncate">{{ prod_name }}</div>
+            {% else %}
+            <div class="text-sm text-gray-300 italic">제품 미연결</div>
+            {% endif %}
+            <div class="flex items-center gap-1.5 flex-wrap">
+              {% if brand_name %}<span class="text-xs text-gray-500">{{ brand_name }}</span>{% endif %}
+              {% if brand_name and cat_name %}<span class="text-gray-300 text-xs">·</span>{% endif %}
+              {% if cat_name %}<span class="text-xs text-gray-400">{{ cat_name }}</span>{% endif %}
             </div>
             {% if c.influencer %}
             <div class="flex items-center gap-2 pt-1 border-t border-gray-50">
               {% set img = c.influencer.profile_image_path or c.influencer.profile_image_url %}
-              {% if img %}
-              <img src="{{ img }}" alt="{{ c.influencer.name }}" class="w-6 h-6 rounded-full object-cover flex-shrink-0">
-              {% else %}
-              <div class="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <span class="text-purple-600 text-xs font-bold">{{ c.influencer.name[0] }}</span>
-              </div>
-              {% endif %}
+              {% if img %}<img src="{{ img }}" alt="" class="w-6 h-6 rounded-full object-cover flex-shrink-0">
+              {% else %}<div class="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0"><span class="text-purple-600 text-xs font-bold">{{ c.influencer.name[0] }}</span></div>{% endif %}
               <span class="text-xs text-purple-600 font-medium truncate">{{ c.influencer.name }}</span>
             </div>
             {% endif %}
           </div>
 
-          <!-- Col 2: Sales stats + inline edit -->
-          <div class="px-4 py-3" onclick="event.stopPropagation()">
+          <!-- Col 2: Revenue -->
+          <div class="px-4 py-3">
             <div class="text-xs text-gray-400 mb-1">매출 현황</div>
-            <div id="rev-{{ c.id }}" class="text-base font-bold text-green-700">
+            <div class="text-base font-bold text-green-700">
               {% if c.actual_revenue %}{{ c.actual_revenue | won }}{% else %}₩0{% endif %}
             </div>
-            <div class="flex items-center gap-1.5 mt-1.5">
-              <span class="text-xs text-gray-400">실판매</span>
-              <input type="number" min="0"
-                id="sales-{{ c.id }}"
-                value="{{ c.actual_sales or 0 }}"
-                class="w-16 text-xs border border-gray-200 rounded px-1.5 py-1 text-right focus:outline-none focus:ring-1 focus:ring-green-400"
-                onchange="updateSales('{{ c.id }}', this.value)"
-                onclick="event.preventDefault()">
-              <span class="text-xs text-gray-300">/</span>
-              <span class="text-xs text-gray-400">예상 {{ c.expected_sales or 0 }}</span>
+            <div class="text-xs text-gray-400 mt-1">
+              실판매 {{ c.actual_sales or 0 }} / 예상 {{ c.expected_sales or 0 }}
             </div>
           </div>
 
@@ -214,7 +239,6 @@
             <div class="flex items-center gap-1 mb-2">
               <span class="text-xs text-gray-400">벤더</span>
               <span class="text-xs font-semibold text-orange-500">{{ c.vendor_commission_amount | won }}</span>
-              {% if c.vendor_commission_rate %}<span class="text-xs text-gray-300">({{ (c.vendor_commission_rate * 100) | round(1) }}%)</span>{% endif %}
             </div>
             {% endif %}
             {% if not c.seller_commission_amount and not c.vendor_commission_amount %}
@@ -226,144 +250,423 @@
             </div>
             {% endif %}
           </div>
-
         </a>
+
+        <!-- EDIT MODE body -->
+        <div x-show="editing" x-cloak
+          @keydown.enter.prevent="saveEdit()"
+          @keydown.escape="cancelEdit()"
+          class="px-4 py-4 space-y-3">
+
+          <!-- Row 1: Status + Dates -->
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">상태</label>
+              <select x-model="st" class="w-full px-2 py-1.5 border rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="st !== '{{ c.status }}' ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+                <option value="planning">기획중</option>
+                <option value="negotiating">협의중</option>
+                <option value="contracted">계약완료</option>
+                <option value="active">진행중</option>
+                <option value="completed">완료</option>
+                <option value="cancelled">취소</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">시작일</label>
+              <input type="date" x-model="sd" data-edit-focus
+                class="w-full px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="sd !== '{{ c.start_date.isoformat() if c.start_date else '' }}' ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">종료일</label>
+              <input type="date" x-model="ed"
+                class="w-full px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="ed !== '{{ c.end_date.isoformat() if c.end_date else '' }}' ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+          </div>
+
+          <!-- Row 2: Sales numbers -->
+          <div class="grid grid-cols-4 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">단가 (원)</label>
+              <input type="number" x-model.number="up" min="0" @input="calcRev()"
+                class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="up !== {{ c.unit_price or 0 }} ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+              <div class="text-xs text-gray-400 mt-0.5 text-right" x-show="up > 0" x-text="fmtWon(up)"></div>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">실판매수량</label>
+              <input type="number" x-model.number="aq" min="0" @input="calcRev()"
+                class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="aq !== {{ c.actual_sales or 0 }} ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">총 매출 (원)</label>
+              <input type="number" x-model.number="rev" min="0"
+                class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="rev !== {{ c.actual_revenue or 0 }} ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div class="flex items-end pb-0.5">
+              <button @click="calcRev()" type="button"
+                class="w-full py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors">단가×수량</button>
+            </div>
+          </div>
+
+          <!-- Row 3: Commission rates -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-blue-50 rounded-lg p-2.5">
+              <label class="text-xs text-blue-500 block mb-1">셀러 수수료율 (%)</label>
+              <input type="number" x-model.number="spct" min="0" max="100" step="0.1"
+                class="w-full px-2 py-1.5 border border-blue-200 rounded-lg text-xs text-right bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <div class="flex justify-between items-center mt-1.5">
+                <span class="text-xs text-blue-400">셀러 수익</span>
+                <span class="text-xs font-bold text-blue-700" x-text="fmtWon(sa)"></span>
+              </div>
+            </div>
+            <div class="bg-orange-50 rounded-lg p-2.5">
+              <label class="text-xs text-orange-500 block mb-1">벤더 마진율 (%) <span class="text-orange-300">내부</span></label>
+              <input type="number" x-model.number="vpct" min="0" max="100" step="0.1"
+                class="w-full px-2 py-1.5 border border-orange-200 rounded-lg text-xs text-right bg-white focus:outline-none focus:ring-2 focus:ring-orange-400">
+              <div class="flex justify-between items-center mt-1.5">
+                <span class="text-xs text-orange-400">벤더 수익</span>
+                <span class="text-xs font-bold text-orange-600" x-text="fmtWon(va)"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 4: Live preview + actions -->
+          <div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+            <div class="flex gap-4 text-xs">
+              <span>매출 <strong class="text-gray-800" x-text="fmtWon(rev)"></strong></span>
+              <span class="text-blue-600">셀러 <strong x-text="fmtWon(sa)"></strong></span>
+              <span class="text-orange-500">벤더 <strong x-text="fmtWon(va)"></strong></span>
+            </div>
+            <div class="text-xs text-gray-400">Enter 저장 · Esc 취소</div>
+          </div>
+        </div>
+
       </div>
       {% endfor %}
     </div>
   </div>
   {% endif %}
 
-  <!-- ─ 예정 ─ -->
-  {% set section_plan = [] %}
-  {% for c in campaigns if status_map[c.id] in ['planning','negotiating','contracted'] %}{% set _ = section_plan.append(c) %}{% endfor %}
-  {% if section_plan %}
+  {# ─ 예정 ─ #}
+  {% set sect_plan = [] %}
+  {% for c in campaigns if status_map[c.id] in ['planning','negotiating','contracted'] %}{% set _ = sect_plan.append(c) %}{% endfor %}
+  {% if sect_plan %}
   <div class="mb-6">
     <div class="flex items-center gap-2 mb-3">
       <div class="w-2 h-2 rounded-full bg-blue-500"></div>
       <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">예정</span>
-      <span class="text-xs text-gray-400">{{ section_plan | length }}건</span>
+      <span class="text-xs text-gray-400">{{ sect_plan | length }}건</span>
     </div>
     <div class="space-y-2">
       {% for c in campaigns if status_map[c.id] in ['planning','negotiating','contracted'] %}
       {% set prod_name = c.product.name if c.product else c.product_name_manual %}
       {% set brand_name = c.product.brand if c.product and c.product.brand else c.brand_name_manual %}
-      {% set cat_name = c.product.category if c.product and c.product.category else c.category_manual %}
-      {% if c.start_date %}
-        {% set dday_start = (c.start_date - today).days %}
-      {% else %}
-        {% set dday_start = None %}
-      {% endif %}
-      {% set STATUS_COLOR = {'planning': 'bg-gray-100 text-gray-600', 'negotiating': 'bg-blue-100 text-blue-700', 'contracted': 'bg-indigo-100 text-indigo-700'} %}
-      {% set STATUS_LABEL = {'planning': '기획중', 'negotiating': '협의중', 'contracted': '계약완료'} %}
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-blue-200 transition-all group">
+      {% if c.start_date %}{% set dday_s = (c.start_date - today).days %}{% else %}{% set dday_s = None %}{% endif %}
+      {% set ST_COLOR = {'planning': 'bg-gray-100 text-gray-600', 'negotiating': 'bg-blue-100 text-blue-700', 'contracted': 'bg-indigo-100 text-indigo-700'} %}
+      {% set ST_LABEL = {'planning': '기획중', 'negotiating': '협의중', 'contracted': '계약완료'} %}
+
+      <div
+        x-data="campCard({
+          cid:  '{{ c.id }}',
+          sd:   '{{ c.start_date.isoformat() if c.start_date else '' }}',
+          ed:   '{{ c.end_date.isoformat() if c.end_date else '' }}',
+          up:   {{ c.unit_price or 0 }},
+          aq:   {{ c.actual_sales or 0 }},
+          rev:  {{ c.actual_revenue or 0 }},
+          spct: {{ ((c.seller_commission_rate or 0) * 100) | round(1) }},
+          vpct: {{ ((c.vendor_commission_rate or 0) * 100) | round(1) }},
+          st:   '{{ c.status }}'
+        })"
+        @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()"
+        class="bg-white rounded-xl border shadow-sm transition-all"
+        :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200' : 'border-gray-100 hover:shadow-md hover:border-blue-200'">
+
+        <!-- Header -->
         <div class="flex items-center gap-3 px-4 py-3">
           <input type="checkbox" class="camp-check w-4 h-4 rounded border-gray-300 flex-shrink-0" value="{{ c.id }}" onchange="updateBulkDelete()">
           <div class="w-1 h-10 rounded-full bg-blue-300 flex-shrink-0"></div>
 
-          <!-- Product + influencer -->
-          <div class="flex-1 min-w-0">
-            {% if prod_name %}
-            <div class="text-sm font-bold text-gray-800 truncate group-hover:text-blue-700">{{ prod_name }}</div>
-            {% endif %}
-            <div class="text-xs text-gray-400 truncate">{{ c.name }}</div>
+          <div class="flex-1 min-w-0" x-show="!editing">
+            {% if prod_name %}<div class="text-sm font-bold text-gray-800 truncate">{{ prod_name }}</div>{% endif %}
             <div class="flex items-center gap-2 mt-0.5">
-              {% if brand_name %}<span class="text-xs text-gray-400">{{ brand_name }}</span>{% endif %}
+              <span class="text-xs text-gray-400 truncate">{{ c.name }}</span>
+              {% if brand_name %}<span class="text-xs text-gray-300">·</span><span class="text-xs text-gray-400">{{ brand_name }}</span>{% endif %}
               {% if c.influencer %}
               <span class="text-xs text-gray-300">·</span>
               {% set img = c.influencer.profile_image_path or c.influencer.profile_image_url %}
-              {% if img %}
-              <img src="{{ img }}" alt="" class="w-4 h-4 rounded-full object-cover">
-              {% endif %}
+              {% if img %}<img src="{{ img }}" alt="" class="w-4 h-4 rounded-full object-cover">{% endif %}
               <span class="text-xs text-purple-500">{{ c.influencer.name }}</span>
               {% endif %}
             </div>
           </div>
-
-          <!-- Date + D-day -->
-          <div class="text-right flex-shrink-0">
-            {% if c.start_date %}
-            <div class="text-xs text-gray-500">{{ c.start_date | date }} 시작</div>
-            {% if dday_start is not none %}
-            <div class="text-xs font-semibold mt-0.5
-              {% if dday_start <= 0 %}text-green-600{% elif dday_start <= 7 %}text-orange-500{% else %}text-blue-500{% endif %}">
-              {% if dday_start <= 0 %}시작됨{% elif dday_start == 1 %}내일 시작{% else %}{{ dday_start }}일 후 시작{% endif %}
-            </div>
-            {% endif %}
-            {% endif %}
-          </div>
-
-          <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 {{ STATUS_COLOR.get(status_map[c.id], 'bg-gray-100 text-gray-600') }}">
-            {{ STATUS_LABEL.get(status_map[c.id], status_map[c.id]) }}
+          <span class="flex-1 min-w-0 text-sm font-semibold text-gray-700 truncate" x-show="editing" x-cloak>
+            {{ prod_name or c.name }}
           </span>
-          <a href="/campaigns/{{ c.id }}" class="text-gray-300 hover:text-blue-500 flex-shrink-0">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-          </a>
+
+          <template x-if="!editing">
+            <div class="flex items-center gap-2 flex-shrink-0">
+              {% if c.start_date %}
+              <div class="text-right">
+                <div class="text-xs text-gray-500">{{ c.start_date | date }}</div>
+                {% if dday_s is not none %}
+                <div class="text-xs font-semibold {% if dday_s <= 0 %}text-green-600{% elif dday_s <= 7 %}text-orange-500{% else %}text-blue-500{% endif %}">
+                  {% if dday_s <= 0 %}시작됨{% elif dday_s == 1 %}내일{% else %}{{ dday_s }}일 후{% endif %}
+                </div>
+                {% endif %}
+              </div>
+              {% endif %}
+              <span class="text-xs px-2 py-0.5 rounded-full {{ ST_COLOR.get(status_map[c.id], 'bg-gray-100 text-gray-600') }}">
+                {{ ST_LABEL.get(status_map[c.id], status_map[c.id]) }}
+              </span>
+              <button @click="openEdit()" type="button"
+                class="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+              </button>
+              <a href="/campaigns/{{ c.id }}" class="text-gray-300 hover:text-blue-500 flex-shrink-0">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+              </a>
+            </div>
+          </template>
+
+          <template x-if="editing">
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="text-xs text-blue-500 font-medium">편집중</span>
+              <button @click="saveEdit()" type="button" :disabled="saving"
+                class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">
+                <span x-show="!saving">저장</span><span x-show="saving" x-cloak>저장중...</span>
+              </button>
+              <button @click="cancelEdit()" type="button"
+                class="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">취소</button>
+            </div>
+          </template>
         </div>
+
+        <!-- Edit form -->
+        <div x-show="editing" x-cloak
+          @keydown.enter.prevent="saveEdit()" @keydown.escape="cancelEdit()"
+          class="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">상태</label>
+              <select x-model="st" class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="st !== '{{ c.status }}' ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+                <option value="planning">기획중</option>
+                <option value="negotiating">협의중</option>
+                <option value="contracted">계약완료</option>
+                <option value="active">진행중</option>
+                <option value="completed">완료</option>
+                <option value="cancelled">취소</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">시작일</label>
+              <input type="date" x-model="sd" data-edit-focus class="w-full px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="sd !== '{{ c.start_date.isoformat() if c.start_date else '' }}' ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">종료일</label>
+              <input type="date" x-model="ed" class="w-full px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="ed !== '{{ c.end_date.isoformat() if c.end_date else '' }}' ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+          </div>
+          <div class="grid grid-cols-4 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">단가</label>
+              <input type="number" x-model.number="up" min="0" @input="calcRev()" class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="up !== {{ c.unit_price or 0 }} ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">실판매수량</label>
+              <input type="number" x-model.number="aq" min="0" @input="calcRev()" class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="aq !== {{ c.actual_sales or 0 }} ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">총 매출</label>
+              <input type="number" x-model.number="rev" min="0" class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="rev !== {{ c.actual_revenue or 0 }} ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div class="flex items-end pb-0.5">
+              <button @click="calcRev()" type="button" class="w-full py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600">자동계산</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-blue-50 rounded-lg p-2.5">
+              <label class="text-xs text-blue-500 block mb-1">셀러 수수료율 (%)</label>
+              <input type="number" x-model.number="spct" min="0" max="100" step="0.1" class="w-full px-2 py-1.5 border border-blue-200 rounded-lg text-xs text-right bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <div class="flex justify-between mt-1.5 text-xs"><span class="text-blue-400">셀러 수익</span><strong class="text-blue-700" x-text="fmtWon(sa)"></strong></div>
+            </div>
+            <div class="bg-orange-50 rounded-lg p-2.5">
+              <label class="text-xs text-orange-500 block mb-1">벤더 마진율 (%)</label>
+              <input type="number" x-model.number="vpct" min="0" max="100" step="0.1" class="w-full px-2 py-1.5 border border-orange-200 rounded-lg text-xs text-right bg-white focus:outline-none focus:ring-2 focus:ring-orange-400">
+              <div class="flex justify-between mt-1.5 text-xs"><span class="text-orange-400">벤더 수익</span><strong class="text-orange-600" x-text="fmtWon(va)"></strong></div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+            <div class="flex gap-4 text-xs">
+              <span>매출 <strong class="text-gray-800" x-text="fmtWon(rev)"></strong></span>
+              <span class="text-blue-600">셀러 <strong x-text="fmtWon(sa)"></strong></span>
+              <span class="text-orange-500">벤더 <strong x-text="fmtWon(va)"></strong></span>
+            </div>
+            <div class="text-xs text-gray-400">Enter 저장 · Esc 취소</div>
+          </div>
+        </div>
+
       </div>
       {% endfor %}
     </div>
   </div>
   {% endif %}
 
-  <!-- ─ 완료/취소 ─ -->
-  {% set section_done = [] %}
-  {% for c in campaigns if status_map[c.id] in ['completed','cancelled'] %}{% set _ = section_done.append(c) %}{% endfor %}
-  {% if section_done %}
+  {# ─ 완료/취소 ─ #}
+  {% set sect_done = [] %}
+  {% for c in campaigns if status_map[c.id] in ['completed','cancelled'] %}{% set _ = sect_done.append(c) %}{% endfor %}
+  {% if sect_done %}
   <div class="mb-5">
     <div class="flex items-center gap-2 mb-3">
       <div class="w-2 h-2 rounded-full bg-gray-400"></div>
       <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">완료</span>
-      <span class="text-xs text-gray-400">{{ section_done | length }}건</span>
+      <span class="text-xs text-gray-400">{{ sect_done | length }}건</span>
     </div>
     <div class="space-y-2">
       {% for c in campaigns if status_map[c.id] in ['completed','cancelled'] %}
       {% set prod_name = c.product.name if c.product else c.product_name_manual %}
       {% set brand_name = c.product.brand if c.product and c.product.brand else c.brand_name_manual %}
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all opacity-75 hover:opacity-100 group">
+
+      <div
+        x-data="campCard({
+          cid:  '{{ c.id }}',
+          sd:   '{{ c.start_date.isoformat() if c.start_date else '' }}',
+          ed:   '{{ c.end_date.isoformat() if c.end_date else '' }}',
+          up:   {{ c.unit_price or 0 }},
+          aq:   {{ c.actual_sales or 0 }},
+          rev:  {{ c.actual_revenue or 0 }},
+          spct: {{ ((c.seller_commission_rate or 0) * 100) | round(1) }},
+          vpct: {{ ((c.vendor_commission_rate or 0) * 100) | round(1) }},
+          st:   '{{ c.status }}'
+        })"
+        @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()"
+        class="bg-white rounded-xl border shadow-sm transition-all opacity-75 hover:opacity-100"
+        :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200 opacity-100' : 'border-gray-100 hover:shadow-md'">
+
         <div class="flex items-center gap-3 px-4 py-3">
           <input type="checkbox" class="camp-check w-4 h-4 rounded border-gray-300 flex-shrink-0" value="{{ c.id }}" onchange="updateBulkDelete()">
           <div class="w-1 h-10 rounded-full {% if status_map[c.id] == 'cancelled' %}bg-red-300{% else %}bg-gray-300{% endif %} flex-shrink-0"></div>
 
-          <!-- Product + influencer -->
-          <div class="flex-1 min-w-0">
-            {% if prod_name %}
-            <div class="text-sm font-semibold text-gray-700 truncate group-hover:text-gray-900">{{ prod_name }}</div>
-            {% endif %}
-            <div class="text-xs text-gray-400 truncate">{{ c.name }}</div>
+          <div class="flex-1 min-w-0" x-show="!editing">
+            {% if prod_name %}<div class="text-sm font-semibold text-gray-700 truncate">{{ prod_name }}</div>{% endif %}
             <div class="flex items-center gap-2 mt-0.5">
-              {% if brand_name %}<span class="text-xs text-gray-400">{{ brand_name }}</span>{% endif %}
-              {% if c.influencer %}
-              <span class="text-xs text-gray-300">·</span>
-              <span class="text-xs text-gray-500">{{ c.influencer.name }}</span>
-              {% endif %}
+              <span class="text-xs text-gray-400 truncate">{{ c.name }}</span>
+              {% if brand_name %}<span class="text-xs text-gray-300">·</span><span class="text-xs text-gray-400">{{ brand_name }}</span>{% endif %}
+              {% if c.influencer %}<span class="text-xs text-gray-300">·</span><span class="text-xs text-gray-500">{{ c.influencer.name }}</span>{% endif %}
             </div>
           </div>
+          <span class="flex-1 min-w-0 text-sm font-semibold text-gray-700 truncate" x-show="editing" x-cloak>{{ prod_name or c.name }}</span>
 
-          <!-- Revenue -->
-          <div class="text-right flex-shrink-0 min-w-0">
-            {% if c.actual_revenue %}
-            <div class="text-sm font-bold text-gray-600">{{ c.actual_revenue | won }}</div>
-            {% if c.actual_sales %}<div class="text-xs text-gray-400">{{ c.actual_sales }}건 판매</div>{% endif %}
-            {% endif %}
-            {% if c.seller_commission_amount %}
-            <div class="text-xs text-blue-500">셀러 {{ c.seller_commission_amount | won }}</div>
-            {% endif %}
-          </div>
+          <template x-if="!editing">
+            <div class="flex items-center gap-3 flex-shrink-0">
+              <div class="text-right">
+                {% if c.actual_revenue %}<div class="text-sm font-bold text-gray-600">{{ c.actual_revenue | won }}</div>{% endif %}
+                {% if c.seller_commission_amount %}<div class="text-xs text-blue-500">셀러 {{ c.seller_commission_amount | won }}</div>{% endif %}
+                {% if c.end_date %}<div class="text-xs text-gray-400">{{ c.end_date | date }}</div>{% endif %}
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0
+                {% if status_map[c.id] == 'completed' %}bg-gray-100 text-gray-600{% else %}bg-red-100 text-red-600{% endif %}">
+                {{ status_map[c.id] | status_label }}
+              </span>
+              <button @click="openEdit()" type="button"
+                class="p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+              </button>
+              <a href="/campaigns/{{ c.id }}" class="text-gray-300 hover:text-gray-500">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+              </a>
+            </div>
+          </template>
 
-          <!-- Date -->
-          <div class="text-right flex-shrink-0">
-            {% if c.end_date %}<div class="text-xs text-gray-400">{{ c.end_date | date }} 종료</div>{% endif %}
-          </div>
-
-          <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0
-            {% if status_map[c.id] == 'completed' %}bg-gray-100 text-gray-600{% else %}bg-red-100 text-red-600{% endif %}">
-            {{ status_map[c.id] | status_label }}
-          </span>
-          <a href="/campaigns/{{ c.id }}" class="text-gray-300 hover:text-gray-500 flex-shrink-0">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-          </a>
+          <template x-if="editing">
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="text-xs text-blue-500 font-medium">편집중</span>
+              <button @click="saveEdit()" type="button" :disabled="saving"
+                class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">
+                <span x-show="!saving">저장</span><span x-show="saving" x-cloak>저장중...</span>
+              </button>
+              <button @click="cancelEdit()" type="button"
+                class="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">취소</button>
+            </div>
+          </template>
         </div>
+
+        <!-- Edit form (same compact structure) -->
+        <div x-show="editing" x-cloak
+          @keydown.enter.prevent="saveEdit()" @keydown.escape="cancelEdit()"
+          class="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">상태</label>
+              <select x-model="st" class="w-full px-2 py-1.5 border rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="st !== '{{ c.status }}' ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+                <option value="planning">기획중</option><option value="negotiating">협의중</option><option value="contracted">계약완료</option>
+                <option value="active">진행중</option><option value="completed">완료</option><option value="cancelled">취소</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">시작일</label>
+              <input type="date" x-model="sd" data-edit-focus class="w-full px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="sd !== '{{ c.start_date.isoformat() if c.start_date else '' }}' ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">종료일</label>
+              <input type="date" x-model="ed" class="w-full px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="ed !== '{{ c.end_date.isoformat() if c.end_date else '' }}' ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+          </div>
+          <div class="grid grid-cols-4 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">단가</label>
+              <input type="number" x-model.number="up" min="0" @input="calcRev()" class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="up !== {{ c.unit_price or 0 }} ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">실판매수량</label>
+              <input type="number" x-model.number="aq" min="0" @input="calcRev()" class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="aq !== {{ c.actual_sales or 0 }} ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">총 매출</label>
+              <input type="number" x-model.number="rev" min="0" class="w-full px-2 py-1.5 border rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+                :class="rev !== {{ c.actual_revenue or 0 }} ? 'border-blue-300 bg-blue-50' : 'border-gray-200'">
+            </div>
+            <div class="flex items-end pb-0.5">
+              <button @click="calcRev()" type="button" class="w-full py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600">자동계산</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-blue-50 rounded-lg p-2.5">
+              <label class="text-xs text-blue-500 block mb-1">셀러 수수료율 (%)</label>
+              <input type="number" x-model.number="spct" min="0" max="100" step="0.1" class="w-full px-2 py-1.5 border border-blue-200 rounded-lg text-xs text-right bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <div class="flex justify-between mt-1.5 text-xs"><span class="text-blue-400">셀러</span><strong class="text-blue-700" x-text="fmtWon(sa)"></strong></div>
+            </div>
+            <div class="bg-orange-50 rounded-lg p-2.5">
+              <label class="text-xs text-orange-500 block mb-1">벤더 마진율 (%)</label>
+              <input type="number" x-model.number="vpct" min="0" max="100" step="0.1" class="w-full px-2 py-1.5 border border-orange-200 rounded-lg text-xs text-right bg-white focus:outline-none focus:ring-2 focus:ring-orange-400">
+              <div class="flex justify-between mt-1.5 text-xs"><span class="text-orange-400">벤더</span><strong class="text-orange-600" x-text="fmtWon(va)"></strong></div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+            <div class="flex gap-4 text-xs">
+              <span>매출 <strong class="text-gray-800" x-text="fmtWon(rev)"></strong></span>
+              <span class="text-blue-600">셀러 <strong x-text="fmtWon(sa)"></strong></span>
+              <span class="text-orange-500">벤더 <strong x-text="fmtWon(va)"></strong></span>
+            </div>
+            <div class="text-xs text-gray-400">Enter 저장 · Esc 취소</div>
+          </div>
+        </div>
+
       </div>
       {% endfor %}
     </div>
@@ -371,12 +674,79 @@
   {% endif %}
 
   {% endif %}{# end active/archive #}
+</div>{# end view-list #}
+
+<!-- ── RIGHT PANEL ─────────────────────────────────────────────────── -->
+{% if tab != 'archive' %}
+<div class="w-56 flex-shrink-0 sticky top-4 space-y-3">
+
+  <!-- 진행중 총 매출 -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">현황 요약</div>
+    <div class="space-y-3">
+      <div>
+        <div class="text-xs text-gray-400 mb-0.5">진행중 총 매출</div>
+        <div class="text-lg font-bold text-green-700">{{ total_revenue | won }}</div>
+      </div>
+      <div class="border-t border-gray-50 pt-2">
+        <div class="text-xs text-gray-400 mb-0.5">셀러 정산 예정</div>
+        <div class="text-base font-bold text-blue-600">{{ total_seller_amt | won }}</div>
+      </div>
+      <div class="border-t border-gray-50 pt-2">
+        <div class="text-xs text-gray-400 mb-0.5">벤더 예상 수익</div>
+        <div class="text-base font-bold text-orange-500">{{ total_vendor_amt | won }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 빠른 편집 안내 -->
+  <div class="bg-blue-50 rounded-xl border border-blue-100 p-4">
+    <div class="text-xs font-semibold text-blue-600 mb-2">인라인 편집</div>
+    <ul class="space-y-1.5 text-xs text-blue-500">
+      <li class="flex items-start gap-1.5">
+        <span class="mt-0.5">✏️</span>
+        <span>연필 아이콘 클릭으로 바로 수정</span>
+      </li>
+      <li class="flex items-start gap-1.5">
+        <span class="mt-0.5">⌨️</span>
+        <span>Enter 저장 / Esc 취소</span>
+      </li>
+      <li class="flex items-start gap-1.5">
+        <span class="mt-0.5">🔵</span>
+        <span>변경된 필드는 파란색 하이라이트</span>
+      </li>
+      <li class="flex items-start gap-1.5">
+        <span class="mt-0.5">🔗</span>
+        <span>외부 링크 아이콘: 전체 편집 페이지</span>
+      </li>
+    </ul>
+  </div>
+
+  <!-- 캠페인 수 요약 -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">캠페인 현황</div>
+    <div class="space-y-2">
+      <div class="flex justify-between items-center">
+        <span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>진행중</span>
+        <span class="text-sm font-bold text-green-700">{{ active_count }}</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>예정</span>
+        <span class="text-sm font-bold text-blue-600">{{ planning_count }}</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-300 inline-block"></span>완료</span>
+        <span class="text-sm font-bold text-gray-500">{{ done_count }}</span>
+      </div>
+    </div>
+  </div>
+
 </div>
+{% endif %}
 
 <!-- ── CALENDAR VIEW ─────────────────────────────────────────────────── -->
-<div id="view-calendar" style="display:none">
+<div id="view-calendar" style="display:none" class="flex-1">
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-    <!-- Header -->
     <div class="flex items-center justify-between mb-4">
       <button id="cal-prev" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
@@ -386,15 +756,12 @@
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
       </button>
     </div>
-    <!-- Day headers -->
     <div class="grid grid-cols-7 mb-1">
       {% for d in ['일','월','화','수','목','금','토'] %}
       <div class="text-center text-xs text-gray-400 font-medium py-1">{{ d }}</div>
       {% endfor %}
     </div>
-    <!-- Calendar grid -->
     <div id="cal-grid" class="grid grid-cols-7 gap-px bg-gray-100 rounded-lg overflow-hidden"></div>
-    <!-- Legend -->
     <div class="flex items-center gap-4 mt-4 text-xs text-gray-500">
       <span class="flex items-center gap-1"><span class="w-3 h-2 rounded bg-green-400 inline-block"></span>진행중</span>
       <span class="flex items-center gap-1"><span class="w-3 h-2 rounded bg-blue-400 inline-block"></span>예정</span>
@@ -402,6 +769,8 @@
     </div>
   </div>
 </div>
+
+</div>{# end flex container #}
 
 {% else %}
 <div class="bg-white rounded-xl border border-gray-100 p-16 text-center">
@@ -418,6 +787,81 @@
 
 {% block scripts %}
 <script>
+// ── campCard factory (Alpine.js x-data) ─────────────────────────────────
+function campCard(opts) {
+  return {
+    cid:    opts.cid,
+    editing: false,
+    saving:  false,
+    sd:    opts.sd  || '',
+    ed:    opts.ed  || '',
+    up:    opts.up  || 0,
+    aq:    opts.aq  || 0,
+    rev:   opts.rev || 0,
+    spct:  opts.spct || 0,
+    vpct:  opts.vpct || 0,
+    st:    opts.st  || 'planning',
+    _orig: null,
+
+    get sa() { return Math.round(this.rev * this.spct / 100); },
+    get va() { return Math.round(this.rev * this.vpct / 100); },
+
+    calcRev() {
+      if (this.up > 0 && this.aq > 0) this.rev = this.up * this.aq;
+    },
+
+    openEdit() {
+      this._orig = { sd: this.sd, ed: this.ed, up: this.up, aq: this.aq,
+                     rev: this.rev, spct: this.spct, vpct: this.vpct, st: this.st };
+      this.editing = true;
+      this.$dispatch('camp-edit-opened', { id: this.cid });
+      this.$nextTick(() => {
+        var f = this.$el.querySelector('[data-edit-focus]');
+        if (f) f.focus();
+      });
+    },
+
+    cancelEdit() {
+      if (this._orig) Object.assign(this, this._orig);
+      this.editing = false;
+    },
+
+    async saveEdit() {
+      if (this.saving) return;
+      this.saving = true;
+      try {
+        var r = await fetch('/campaigns/' + this.cid + '/inline-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            start_date: this.sd,
+            end_date:   this.ed,
+            unit_price: this.up,
+            actual_sales: this.aq,
+            actual_revenue: this.rev,
+            seller_commission_rate_pct: this.spct,
+            vendor_commission_rate_pct: this.vpct,
+            status: this.st,
+          })
+        });
+        var d = await r.json();
+        if (d.ok) {
+          this.editing = false;
+          window.location.reload();
+        } else {
+          alert('저장 실패: ' + (d.error || '알 수 없는 오류'));
+        }
+      } catch(e) {
+        alert('오류: ' + e.message);
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    fmtWon(v) { return '₩' + Math.round(v).toLocaleString('ko-KR'); },
+  };
+}
+
 (function () {
 
   // ── Bulk delete ───────────────────────────────────────────────────────
@@ -442,28 +886,14 @@
     return true;
   };
 
-  // ── Inline sales update ───────────────────────────────────────────────
-  window.updateSales = function (campaignId, val) {
-    var fd = new FormData();
-    fd.append('actual_sales', val);
-    fetch('/campaigns/' + campaignId + '/update-sales', { method: 'POST', body: fd })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var el = document.getElementById('rev-' + campaignId);
-        if (el && data.actual_revenue !== undefined) {
-          el.textContent = '₩' + Math.round(data.actual_revenue).toLocaleString('ko-KR');
-        }
-      });
-  };
-
-  var CAL_DATA = {{ cal_json | safe }};
+  var CAL_DATA  = {{ cal_json | safe }};
   var TODAY_STR = '{{ today }}';
   var todayDate = new Date(TODAY_STR + 'T00:00:00');
 
   // ── View toggle ──────────────────────────────────────────────────────
   var currentView = localStorage.getItem('campaign_view') || 'list';
-  var btnList = document.getElementById('btn-list-view');
-  var btnCal  = document.getElementById('btn-cal-view');
+  var btnList  = document.getElementById('btn-list-view');
+  var btnCal   = document.getElementById('btn-cal-view');
   var viewList = document.getElementById('view-list');
   var viewCal  = document.getElementById('view-calendar');
 
@@ -472,14 +902,14 @@
     localStorage.setItem('campaign_view', v);
     if (v === 'list') {
       viewList && (viewList.style.display = '');
-      viewCal  && (viewCal.style.display = 'none');
+      viewCal  && (viewCal.style.display  = 'none');
       btnList && btnList.classList.add('bg-white', 'text-gray-900', 'shadow-sm');
       btnList && btnList.classList.remove('text-gray-500');
       btnCal  && btnCal.classList.remove('bg-white', 'text-gray-900', 'shadow-sm');
       btnCal  && btnCal.classList.add('text-gray-500');
     } else {
       viewList && (viewList.style.display = 'none');
-      viewCal  && (viewCal.style.display = '');
+      viewCal  && (viewCal.style.display  = '');
       btnCal  && btnCal.classList.add('bg-white', 'text-gray-900', 'shadow-sm');
       btnCal  && btnCal.classList.remove('text-gray-500');
       btnList && btnList.classList.remove('bg-white', 'text-gray-900', 'shadow-sm');
@@ -492,7 +922,7 @@
 
   // ── Calendar ─────────────────────────────────────────────────────────
   var calYear  = todayDate.getFullYear();
-  var calMonth = todayDate.getMonth(); // 0-indexed
+  var calMonth = todayDate.getMonth();
 
   var STATUS_COLOR = { active: 'bg-green-400', planning: 'bg-blue-400', negotiating: 'bg-blue-400', contracted: 'bg-blue-400', completed: 'bg-gray-300', cancelled: 'bg-red-300' };
 
@@ -500,18 +930,13 @@
     var grid  = document.getElementById('cal-grid');
     var title = document.getElementById('cal-title');
     if (!grid) return;
-
     title.textContent = calYear + '년 ' + (calMonth + 1) + '월';
-
-    var firstDay = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
-    var daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-
-    grid.innerHTML = '';
-
-    var monthStart = new Date(calYear, calMonth, 1);
-    var monthEnd   = new Date(calYear, calMonth, daysInMonth);
-
-    var dayMap = {};
+    var firstDay     = new Date(calYear, calMonth, 1).getDay();
+    var daysInMonth  = new Date(calYear, calMonth + 1, 0).getDate();
+    grid.innerHTML   = '';
+    var monthStart   = new Date(calYear, calMonth, 1);
+    var monthEnd     = new Date(calYear, calMonth, daysInMonth);
+    var dayMap       = {};
     CAL_DATA.forEach(function (c) {
       var s = new Date(c.start + 'T00:00:00');
       var e = new Date(c.end   + 'T00:00:00');
@@ -521,35 +946,31 @@
         dayMap[key].push(c);
       }
     });
-
     for (var i = 0; i < firstDay; i++) {
       var empty = document.createElement('div');
       empty.className = 'bg-white min-h-[70px]';
       grid.appendChild(empty);
     }
-
     for (var day = 1; day <= daysInMonth; day++) {
-      var cell = document.createElement('div');
+      var cell    = document.createElement('div');
       var isToday = (calYear === todayDate.getFullYear() && calMonth === todayDate.getMonth() && day === todayDate.getDate());
       cell.className = 'bg-white min-h-[70px] p-1 ' + (isToday ? 'ring-2 ring-blue-500 ring-inset' : '');
-
-      var dayNum = document.createElement('div');
+      var dayNum  = document.createElement('div');
       dayNum.className = 'text-xs font-medium mb-1 ' + (isToday ? 'text-blue-600' : 'text-gray-500');
       dayNum.textContent = day;
       cell.appendChild(dayNum);
-
       var dayCampaigns = dayMap[day] || [];
       dayCampaigns.slice(0, 3).forEach(function (c) {
         var bar = document.createElement('a');
-        bar.href = '/campaigns/' + c.id;
+        bar.href      = '/campaigns/' + c.id;
         bar.className = 'block text-white text-xs px-1 rounded truncate mb-0.5 ' + (STATUS_COLOR[c.status] || 'bg-gray-300');
-        bar.title = c.name;
+        bar.title     = c.name;
         bar.textContent = c.name;
         cell.appendChild(bar);
       });
       if (dayCampaigns.length > 3) {
         var more = document.createElement('div');
-        more.className = 'text-xs text-gray-400 px-1';
+        more.className   = 'text-xs text-gray-400 px-1';
         more.textContent = '+' + (dayCampaigns.length - 3);
         cell.appendChild(more);
       }
@@ -567,6 +988,7 @@
     calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
     renderCalendar();
   });
+
 }());
 </script>
 {% endblock %}
