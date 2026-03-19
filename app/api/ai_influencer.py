@@ -1,4 +1,5 @@
 import asyncio
+import html as _html
 import re
 import uuid
 import json as _json
@@ -88,7 +89,7 @@ def _meta_slice(html: str) -> str:
 
 
 def _og_image(html: str) -> str:
-    """Extract og:image content value."""
+    """Extract og:image content value (HTML-decoded)."""
     for pat in (
         r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
         r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
@@ -96,16 +97,41 @@ def _og_image(html: str) -> str:
     ):
         m = re.search(pat, html, re.I)
         if m:
-            return m.group(1).strip()
+            return _html.unescape(m.group(1).strip())
+    return ""
+
+
+def _clean_img_url(url: str) -> str:
+    """HTML-decode URL and upgrade Instagram thumbnail to larger size."""
+    if not url:
+        return url
+    url = _html.unescape(url)
+    # Instagram CDN: s100x100 → s320x320 for better quality
+    url = re.sub(r's\d+x\d+', 's320x320', url)
+    return url
+
+
+def _referer_for(url: str) -> str:
+    if "instagram.com" in url or "cdninstagram.com" in url:
+        return "https://www.instagram.com/"
+    if "ytimg.com" in url or "youtube.com" in url:
+        return "https://www.youtube.com/"
+    if "tiktok.com" in url:
+        return "https://www.tiktok.com/"
     return ""
 
 
 def _download_image(url: str) -> tuple[bytes, str] | None:
     """Download image bytes; return (bytes, extension) or None."""
+    url = _clean_img_url(url)
     if not url or not url.startswith("http"):
         return None
     try:
-        with httpx.Client(follow_redirects=True, timeout=15, headers=_HEADERS) as c:
+        headers = dict(_HEADERS)
+        referer = _referer_for(url)
+        if referer:
+            headers["Referer"] = referer
+        with httpx.Client(follow_redirects=True, timeout=15, headers=headers) as c:
             r = c.get(url)
             if r.status_code != 200 or not r.content:
                 return None
@@ -225,7 +251,8 @@ async def influencer_url_fill(
 
     # ── Step 3: download profile image ───────────────────────────────────────
     profile_image_path = ""
-    img_url = data.get("profile_image_url") or (html and _og_image(html)) or ""
+    raw_img_url = data.get("profile_image_url") or (html and _og_image(html)) or ""
+    img_url = _clean_img_url(raw_img_url)
     if img_url:
         result = await asyncio.to_thread(_download_image, img_url)
         if result:
@@ -299,7 +326,8 @@ async def process_influencer_url(url: str) -> dict:
     data["profile_url"] = url
 
     profile_image_path = ""
-    img_url = data.get("profile_image_url") or (html and _og_image(html)) or ""
+    raw_img_url = data.get("profile_image_url") or (html and _og_image(html)) or ""
+    img_url = _clean_img_url(raw_img_url)
     if img_url:
         result = await asyncio.to_thread(_download_image, img_url)
         if result:
