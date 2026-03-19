@@ -64,17 +64,86 @@ def _extract_handle_from_url(url: str, platform: str) -> str:
     return ""
 
 
+def _get_meta(html: str, prop: str) -> str:
+    """og: 또는 name= 메타 태그 content 추출 후 HTML 디코딩."""
+    p = re.escape(prop)
+    patterns = [
+        fr'property="{p}"\s+content="([^"]*)"',
+        fr"property='{p}'\s+content='([^']*)'",
+        fr'content="([^"]*)"\s+[^>]*property="{p}"',
+        fr"content='([^']*)'\s+[^>]*property='{p}'",
+        fr'name="{p}"\s+content="([^"]*)"',
+        fr"name='{p}'\s+content='([^']*)'",
+    ]
+    for pat in patterns:
+        m = re.search(pat, html, re.I)
+        if m:
+            return _html.unescape(m.group(1).strip())
+    return ""
+
+
+def _parse_followers(text: str) -> int:
+    """'팔로워 672M명' 또는 '1.5M Followers' 등에서 정수 추출."""
+    if not text:
+        return 0
+    # 한국어: 팔로워 672M명
+    m = re.search(r'팔로워\s*([\d.,]+)\s*([KMBkmb만억]?)\s*명', text)
+    if not m:
+        # 영어: 1.5M Followers / Subscribers
+        m = re.search(r'([\d.,]+)\s*([KMBkmb]?)\s*(?:Followers?|Subscribers?)', text, re.I)
+    if not m:
+        return 0
+    num = float(m.group(1).replace(',', ''))
+    unit = m.group(2).upper() if m.group(2) else ''
+    mul = {'K': 1_000, 'M': 1_000_000, 'B': 1_000_000_000,
+           '만': 10_000, '억': 100_000_000}.get(unit, 1)
+    return int(num * mul)
+
+
+def _extract_direct(html: str, platform: str, handle: str) -> dict:
+    """HTML에서 직접 파싱할 수 있는 값 추출 (Claude 불필요한 부분)."""
+    og_title = _get_meta(html, 'og:title')
+    og_desc  = _get_meta(html, 'og:description')
+    og_image = _get_meta(html, 'og:image')
+
+    # 이름 추출: Instagram "Name(@handle) • ..." / YouTube "Name - YouTube"
+    name = ""
+    if og_title:
+        # Instagram: "Name(@handle) • Instagram 사진..."
+        m = re.match(r'^(.+?)\s*\(@?[\w.]+\)\s*[•·]', og_title)
+        if m:
+            name = m.group(1).strip()
+        # YouTube: "Name - YouTube"
+        elif ' - YouTube' in og_title:
+            name = og_title.replace(' - YouTube', '').strip()
+        # TikTok: "@handle (@handle)"
+        elif og_title and not name:
+            name = og_title.split('(')[0].strip().lstrip('@') or ""
+
+    followers = _parse_followers(og_desc)
+
+    return {
+        "name": name,
+        "followers": followers,
+        "og_image_url": og_image,   # 빈 문자열이면 Instagram이 이미지 미제공
+        "_og_title": og_title,
+        "_og_desc": og_desc,
+    }
+
+
 def _meta_slice(html: str) -> str:
-    """Extract meta tags + JSON-LD + title for Claude — keep small."""
+    """Extract meta tags (HTML-decoded) + JSON-LD for Claude — keep small."""
     parts = []
 
     title = re.search(r"<title[^>]*>(.*?)</title>", html[:20000], re.I | re.S)
     if title:
-        parts.append(f"<title>{title.group(1).strip()}</title>")
+        parts.append(f"title: {_html.unescape(title.group(1).strip())}")
 
-    metas = re.findall(r"<meta[^>]+>", html[:60000], re.I)
-    parts.append("=== META ===")
-    parts.extend(metas[:60])
+    # og: 핵심 값만 디코딩해서 전달
+    for tag in ['og:title', 'og:description', 'og:image']:
+        val = _get_meta(html, tag)
+        if val:
+            parts.append(f"{tag}: {val}")
 
     lds = re.findall(
         r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
@@ -85,7 +154,7 @@ def _meta_slice(html: str) -> str:
         for s in lds[:3]:
             parts.append(s.strip()[:3000])
 
-    return "\n".join(parts)[:10000]
+    return "\n".join(parts)[:8000]
 
 
 def _og_image(html: str) -> str:
@@ -102,13 +171,10 @@ def _og_image(html: str) -> str:
 
 
 def _clean_img_url(url: str) -> str:
-    """HTML-decode URL and upgrade Instagram thumbnail to larger size."""
+    """HTML-decode URL (Instagram CDN은 서명된 URL이므로 쿼리파라미터 수정 금지)."""
     if not url:
         return url
-    url = _html.unescape(url)
-    # Instagram CDN: s100x100 → s320x320 for better quality
-    url = re.sub(r's\d+x\d+', 's320x320', url)
-    return url
+    return _html.unescape(url)
 
 
 def _referer_for(url: str) -> str:
@@ -218,7 +284,12 @@ async def influencer_url_fill(
     except Exception:
         pass
 
-    # ── Step 2: Claude extraction or URL fallback ─────────────────────────────
+    # ── Step 2a: 직접 파싱 (HTML decode 후 regex) ────────────────────────────
+    direct: dict = {}
+    if fetch_ok and html:
+        direct = _extract_direct(html, platform, url_handle)
+
+    # ── Step 2b: Claude로 카테고리 등 추가 분석 ──────────────────────────────
     claude = ClaudeClient()
     data: dict = {}
 
@@ -241,17 +312,21 @@ async def influencer_url_fill(
         except Exception:
             pass
 
-    # ── Fallback: fill what we can from the URL itself ────────────────────────
-    if not data.get("handle") and url_handle:
-        data.setdefault("handle", url_handle)
-    if not data.get("platform"):
-        data["platform"] = platform
-    if not data.get("profile_url"):
-        data["profile_url"] = url
+    # ── 직접 파싱값이 Claude보다 신뢰도 높음 → 덮어쓰기 ─────────────────────
+    if direct.get("name"):
+        data["name"] = direct["name"]
+    if direct.get("followers"):
+        data["followers"] = direct["followers"]
 
-    # ── Step 3: download profile image ───────────────────────────────────────
+    # ── Fallback: URL에서 최소값 보정 ────────────────────────────────────────
+    data.setdefault("handle", url_handle)
+    data["platform"] = platform
+    data["profile_url"] = url
+
+    # ── Step 3: 이미지 다운로드 ──────────────────────────────────────────────
     profile_image_path = ""
-    raw_img_url = data.get("profile_image_url") or (html and _og_image(html)) or ""
+    # og_image_url: 직접 파싱값 우선 (이미 HTML-decoded), Claude 값은 추가 디코딩
+    raw_img_url = direct.get("og_image_url") or data.get("profile_image_url") or ""
     img_url = _clean_img_url(raw_img_url)
     if img_url:
         result = await asyncio.to_thread(_download_image, img_url)
