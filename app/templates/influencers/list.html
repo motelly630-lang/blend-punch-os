@@ -7,12 +7,14 @@
   <!-- View toggle -->
   <div class="flex items-center bg-gray-100 rounded-lg p-0.5">
     <a href="/influencers?view=gallery{% if platform_filter %}&platform={{ platform_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+      onclick="localStorage.setItem('inf_view','gallery')"
       class="p-1.5 rounded-md transition-colors {% if view == 'gallery' %}bg-white shadow-sm text-gray-900{% else %}text-gray-400 hover:text-gray-600{% endif %}">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
       </svg>
     </a>
     <a href="/influencers?view=list{% if platform_filter %}&platform={{ platform_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+      onclick="localStorage.setItem('inf_view','list')"
       class="p-1.5 rounded-md transition-colors {% if view == 'list' %}bg-white shadow-sm text-gray-900{% else %}text-gray-400 hover:text-gray-600{% endif %}">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
@@ -280,4 +282,20 @@
   <a href="/influencers/new" class="text-sm text-blue-600 hover:text-blue-700 font-medium">+ 첫 인플루언서 등록하기</a>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ?view 파라미터 없이 진입하면 localStorage 저장 뷰로 자동 이동
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  if (!params.has('view')) {
+    var saved = localStorage.getItem('inf_view');
+    if (saved && saved !== 'gallery') {
+      params.set('view', saved);
+      window.location.replace('/influencers?' + params.toString());
+    }
+  }
+})();
+</script>
 {% endblock %}
