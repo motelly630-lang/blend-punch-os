@@ -215,23 +215,30 @@ async def campaign_inline_create(
     current_user: User = Depends(get_current_user),
 ):
     """Quick-create a campaign from the list view (JSON in, JSON out)."""
-    data = await request.json()
-    name = (data.get("name") or "").strip()
-    if not name:
-        return JSONResponse({"error": "name required"}, status_code=400)
-    campaign = Campaign(
-        name=name,
-        product_id=data.get("product_id") or None,
-        influencer_id=data.get("influencer_id") or None,
-        status=data.get("status", "planning"),
-        start_date=_parse_date(data.get("start_date", "")),
-        end_date=_parse_date(data.get("end_date", "")),
-        unit_price=float(data.get("unit_price") or 0),
-    )
-    db.add(campaign)
-    db.commit()
-    db.refresh(campaign)
-    return JSONResponse({"ok": True, "id": campaign.id})
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "잘못된 요청입니다"}, status_code=400)
+    try:
+        name = (data.get("name") or "").strip()
+        if not name:
+            return JSONResponse({"error": "name required"}, status_code=400)
+        campaign = Campaign(
+            name=name,
+            product_id=data.get("product_id") or None,
+            influencer_id=data.get("influencer_id") or None,
+            status=data.get("status", "planning"),
+            start_date=_parse_date(data.get("start_date", "")),
+            end_date=_parse_date(data.get("end_date", "")),
+            unit_price=float(data.get("unit_price") or 0),
+        )
+        db.add(campaign)
+        db.commit()
+        db.refresh(campaign)
+        return JSONResponse({"ok": True, "id": campaign.id})
+    except Exception as e:
+        db.rollback()
+        return JSONResponse({"error": f"저장 실패: {type(e).__name__}"}, status_code=500)
 
 
 @router.post("/new")
@@ -388,7 +395,10 @@ async def campaign_inline_update(
     current_user: User = Depends(get_current_user),
 ):
     """Inline edit API — accepts JSON, returns JSON with updated values."""
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "잘못된 요청입니다"}, status_code=400)
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     if not campaign:
         return JSONResponse({"error": "not found"}, status_code=404)
@@ -413,14 +423,18 @@ async def campaign_inline_update(
     if "status" in data:
         campaign.status = str(data["status"])
 
-    rev = campaign.actual_revenue or 0
-    campaign.seller_commission_amount = round(rev * (campaign.seller_commission_rate or 0))
-    campaign.vendor_commission_amount = round(rev * (campaign.vendor_commission_rate or 0))
-    db.commit()
-
-    if campaign.status == "completed" and prev_status != "completed":
-        _auto_settle(db, campaign)
+    try:
+        rev = campaign.actual_revenue or 0
+        campaign.seller_commission_amount = round(rev * (campaign.seller_commission_rate or 0))
+        campaign.vendor_commission_amount = round(rev * (campaign.vendor_commission_rate or 0))
         db.commit()
+
+        if campaign.status == "completed" and prev_status != "completed":
+            _auto_settle(db, campaign)
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        return JSONResponse({"error": f"저장 실패: {type(e).__name__}"}, status_code=500)
 
     return JSONResponse({
         "ok": True,

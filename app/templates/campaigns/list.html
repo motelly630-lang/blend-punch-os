@@ -239,19 +239,7 @@
       {% if c.end_date %}{% set dday = (c.end_date - today).days %}{% else %}{% set dday = None %}{% endif %}
 
       <div
-        x-data="campCard({
-          cid:       '{{ c.id }}',
-          sd:        '{{ c.start_date.isoformat() if c.start_date else '' }}',
-          ed:        '{{ c.end_date.isoformat() if c.end_date else '' }}',
-          up:        {{ c.unit_price or 0 }},
-          aq:        {{ c.actual_sales or 0 }},
-          rev:       {{ c.actual_revenue or 0 }},
-          spct:      {{ ((c.seller_commission_rate or 0) * 100) | round(1) }},
-          vpct:      {{ ((c.vendor_commission_rate or 0) * 100) | round(1) }},
-          st:        '{{ c.status }}',
-          prodId:    {{ (c.product_id or '') | tojson }},
-          prodName:  {{ (c.product.name if c.product else (c.product_name_manual or '')) | tojson }}
-        })"
+        x-data="campCard(CAMP_DATA['{{ c.id }}'])"
         @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()"
         class="bg-white rounded-xl border shadow-sm transition-all"
         :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200' : 'border-green-100 hover:shadow-md hover:border-green-300'">
@@ -358,19 +346,7 @@
       {% set ST_LABEL = {'planning': '기획중', 'negotiating': '협의중', 'contracted': '계약완료'} %}
 
       <div
-        x-data="campCard({
-          cid:       '{{ c.id }}',
-          sd:        '{{ c.start_date.isoformat() if c.start_date else '' }}',
-          ed:        '{{ c.end_date.isoformat() if c.end_date else '' }}',
-          up:        {{ c.unit_price or 0 }},
-          aq:        {{ c.actual_sales or 0 }},
-          rev:       {{ c.actual_revenue or 0 }},
-          spct:      {{ ((c.seller_commission_rate or 0) * 100) | round(1) }},
-          vpct:      {{ ((c.vendor_commission_rate or 0) * 100) | round(1) }},
-          st:        '{{ c.status }}',
-          prodId:    {{ (c.product_id or '') | tojson }},
-          prodName:  {{ (c.product.name if c.product else (c.product_name_manual or '')) | tojson }}
-        })"
+        x-data="campCard(CAMP_DATA['{{ c.id }}'])"
         @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()"
         class="bg-white rounded-xl border shadow-sm transition-all"
         :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200' : 'border-gray-100 hover:shadow-md hover:border-blue-200'">
@@ -448,19 +424,7 @@
       {% set brand_name = c.product.brand if c.product and c.product.brand else c.brand_name_manual %}
 
       <div
-        x-data="campCard({
-          cid:       '{{ c.id }}',
-          sd:        '{{ c.start_date.isoformat() if c.start_date else '' }}',
-          ed:        '{{ c.end_date.isoformat() if c.end_date else '' }}',
-          up:        {{ c.unit_price or 0 }},
-          aq:        {{ c.actual_sales or 0 }},
-          rev:       {{ c.actual_revenue or 0 }},
-          spct:      {{ ((c.seller_commission_rate or 0) * 100) | round(1) }},
-          vpct:      {{ ((c.vendor_commission_rate or 0) * 100) | round(1) }},
-          st:        '{{ c.status }}',
-          prodId:    {{ (c.product_id or '') | tojson }},
-          prodName:  {{ (c.product.name if c.product else (c.product_name_manual or '')) | tojson }}
-        })"
+        x-data="campCard(CAMP_DATA['{{ c.id }}'])"
         @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()"
         class="bg-white rounded-xl border shadow-sm transition-all opacity-75 hover:opacity-100"
         :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200 opacity-100' : 'border-gray-100 hover:shadow-md'">
@@ -613,6 +577,26 @@
 var PRODUCTS_DATA    = {{ products_json | safe }};
 var INFLUENCERS_DATA = {{ influencers_json | safe }};
 
+// ── Campaign data lookup (avoids double-quote issues in HTML attributes) ──
+var CAMP_DATA = {
+  {% for c in campaigns %}
+  {{ c.id | tojson }}: {
+    cid:      {{ c.id | tojson }},
+    sd:       {{ (c.start_date.isoformat() if c.start_date else '') | tojson }},
+    ed:       {{ (c.end_date.isoformat() if c.end_date else '') | tojson }},
+    up:       {{ c.unit_price or 0 }},
+    aq:       {{ c.actual_sales or 0 }},
+    rev:      {{ c.actual_revenue or 0 }},
+    spct:     {{ ((c.seller_commission_rate or 0) * 100) | round(1) }},
+    vpct:     {{ ((c.vendor_commission_rate or 0) * 100) | round(1) }},
+    st:       {{ c.status | tojson }},
+    prodId:   {{ (c.product_id if c.product_id else '') | tojson }},
+    prodName: {{ (c.product.name if c.product else (c.product_name_manual or '')) | tojson }}
+  }{% if not loop.last %},{% endif %}
+
+  {% endfor %}
+};
+
 // ── Shared filter helpers ─────────────────────────────────────────────
 function filteredProds(q) {
   var s = (q || '').trim().toLowerCase();
@@ -704,6 +688,7 @@ function campCard(opts) {
             status: this.st,
           })
         });
+        if (r.status === 401) { window.location.href = '/login'; return; }
         var d = await r.json();
         if (d.ok) { this.editing = false; window.location.reload(); }
         else { alert('저장 실패: ' + (d.error || '오류')); }
@@ -768,6 +753,7 @@ function createPanel() {
             unit_price:    this.unitPrice,
           })
         });
+        if (r.status === 401) { window.location.href = '/login'; return; }
         var d = await r.json();
         if (d.ok) { window.location.reload(); }
         else { alert('생성 실패: ' + (d.error || '오류')); }
@@ -800,10 +786,10 @@ function createPanel() {
   var todayDate = new Date(TODAY_STR + 'T00:00:00');
 
   // ── View toggle ──────────────────────────────────────────────────────
-  var currentView = localStorage.getItem('campaign_view') || 'list';
+  // Always start with list view on page load (never restore calendar from localStorage)
+  var currentView = 'list';
   function setView(v) {
     currentView = v;
-    localStorage.setItem('campaign_view', v);
     var vl = document.getElementById('view-list');
     var vc = document.getElementById('view-calendar');
     var bl = document.getElementById('btn-list-view');

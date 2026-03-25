@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -60,14 +60,36 @@ def robots_txt():
 
 
 # ── Exception handlers ────────────────────────────────────────────────────────
+def _is_api_request(request: Request) -> bool:
+    """fetch/XHR 등 JSON 응답을 기대하는 요청인지 판별."""
+    accept = request.headers.get("accept", "")
+    content_type = request.headers.get("content-type", "")
+    return (
+        "application/json" in accept
+        or "application/json" in content_type
+        or request.headers.get("x-requested-with") == "XMLHttpRequest"
+    )
+
+
 @app.exception_handler(RequiresLogin)
 async def requires_login_handler(request: Request, exc: RequiresLogin):
+    if _is_api_request(request):
+        return JSONResponse({"error": "로그인이 필요합니다", "redirect": "/login"}, status_code=401)
     return RedirectResponse(url="/login", status_code=302)
 
 
 @app.exception_handler(InsufficientPermissions)
 async def insufficient_permissions_handler(request: Request, exc: InsufficientPermissions):
+    if _is_api_request(request):
+        return JSONResponse({"error": "권한이 없습니다"}, status_code=403)
     return RedirectResponse(url="/?err=권한이+없습니다", status_code=302)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    if _is_api_request(request):
+        return JSONResponse({"error": f"서버 오류: {type(exc).__name__}"}, status_code=500)
+    raise exc
 
 
 # ── Routers ───────────────────────────────────────────────────────────────────
