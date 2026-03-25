@@ -156,10 +156,18 @@
 
 <!-- Add modal -->
 <div id="add-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" x-data="{
-  sales: 0, rate: 0.15, taxRate: 0.033,
+  sales: 0, rate: 0.15, sellerType: '사업자', manualFinal: '',
   get commission() { return Math.round(this.sales * this.rate); },
-  get tax() { return Math.round(this.commission * this.taxRate); },
-  get final() { return this.commission - this.tax; }
+  get calcFinal() {
+    var c = this.commission;
+    if (this.sellerType === '간이사업자') return c - Math.round(c * 0.1);
+    if (this.sellerType === '프리랜서') { var sp = c / 1.1; return c - Math.round(sp * 0.033); }
+    return c;
+  },
+  get isDiff() {
+    return this.manualFinal !== '' && this.manualFinal !== null &&
+           parseInt(this.manualFinal) !== this.calcFinal;
+  }
 }">
   <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
     <div class="flex items-center justify-between mb-5">
@@ -170,7 +178,7 @@
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">사업자 유형</label>
-          <select name="seller_type" x-model="sellerType" @change="taxRate = 0.033" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <select name="seller_type" x-model="sellerType" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
             {% for t in seller_types %}<option>{{ t }}</option>{% endfor %}
           </select>
         </div>
@@ -187,12 +195,44 @@
           <input type="number" name="commission_rate" x-model.number="rate" min="0" max="1" step="0.01" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
       </div>
-      <!-- Live preview -->
+
+      <!-- 자동 계산 미리보기 -->
       <div class="bg-gray-50 rounded-lg p-3 space-y-1 text-sm">
-        <div class="flex justify-between"><span class="text-gray-500">커미션</span><span class="font-medium" x-text="'₩' + commission.toLocaleString()"></span></div>
-        <div class="flex justify-between"><span class="text-gray-500">원천세 (3.3%)</span><span class="text-red-500" x-text="'-₩' + tax.toLocaleString()"></span></div>
-        <div class="flex justify-between border-t border-gray-200 pt-1 mt-1"><span class="font-semibold">최종 지급액</span><span class="font-bold text-green-700" x-text="'₩' + final.toLocaleString()"></span></div>
+        <div class="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">자동 계산 결과</div>
+        <div class="flex justify-between"><span class="text-gray-500">커미션 금액</span><span class="font-medium" x-text="'₩' + commission.toLocaleString()"></span></div>
+        <template x-if="sellerType === '간이사업자'">
+          <div class="flex justify-between"><span class="text-gray-500">부가세 차감 (10%)</span><span class="text-amber-600" x-text="'-₩' + Math.round(commission * 0.1).toLocaleString()"></span></div>
+        </template>
+        <template x-if="sellerType === '프리랜서'">
+          <div class="flex justify-between"><span class="text-gray-500">원천징수 차감 (공급가×3.3%)</span><span class="text-red-500" x-text="'-₩' + Math.round((commission/1.1)*0.033).toLocaleString()"></span></div>
+        </template>
+        <div class="flex justify-between border-t border-gray-200 pt-1 mt-1">
+          <span class="font-semibold text-gray-700">추천 지급액</span>
+          <span class="font-bold text-blue-600" x-text="'₩' + calcFinal.toLocaleString()"></span>
+        </div>
       </div>
+
+      <!-- 최종 지급액 직접 입력 -->
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs font-medium text-gray-600">최종 지급액 (직접 입력)</label>
+          <button type="button" @click="manualFinal = ''" x-show="manualFinal !== ''"
+            class="text-xs text-gray-400 hover:text-gray-600">초기화 (자동계산)</button>
+        </div>
+        <input type="number" name="final_payment_manual" x-model="manualFinal" min="0" step="100"
+          :placeholder="'자동계산: ₩' + calcFinal.toLocaleString()"
+          class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-colors"
+          :class="isDiff ? 'border-amber-400 focus:ring-amber-400' : 'border-gray-200 focus:ring-blue-500'">
+        <!-- 추천값과 다를 때 경고 -->
+        <div x-show="isDiff" class="mt-1.5 flex items-center gap-1.5 text-xs text-amber-600">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+          <span>추천 지급액(<span x-text="'₩' + calcFinal.toLocaleString()"></span>)과 다릅니다. 저장은 가능합니다.</span>
+        </div>
+        <p x-show="!manualFinal" class="mt-1 text-xs text-gray-400">비워두면 자동 계산값으로 저장됩니다.</p>
+      </div>
+
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">메모</label>
         <input type="text" name="notes" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="참고 사항">

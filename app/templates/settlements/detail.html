@@ -6,15 +6,43 @@
 <div class="flex items-center gap-2">
   <a href="/settlements" class="text-sm text-gray-500 hover:text-gray-700">← 목록으로</a>
   <!-- 유형 변경 + 재계산 -->
-  <form method="post" action="/settlements/{{ s.id }}/recalc" class="inline-flex items-center gap-2">
-    <select name="seller_type" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
+  <form method="post" action="/settlements/{{ s.id }}/recalc"
+    class="inline-flex items-center gap-2"
+    x-data="{
+      sellerType: '{{ s.seller_type }}',
+      manualFinal: {{ s.final_payment | int }},
+      get calcFinal() {
+        var sales = {{ s.sales_amount or 0 }};
+        var rate = {{ s.commission_rate or 0 }};
+        var c = Math.round(sales * rate);
+        if (this.sellerType === '간이사업자') return c - Math.round(c * 0.1);
+        if (this.sellerType === '프리랜서') { var sp = c / 1.1; return c - Math.round(sp * 0.033); }
+        return c;
+      },
+      get isDiff() { return this.manualFinal !== this.calcFinal; }
+    }">
+    <select name="seller_type" x-model="sellerType"
+      class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
       {% for t in ['사업자', '간이사업자', '프리랜서'] %}
       <option value="{{ t }}" {% if s.seller_type == t %}selected{% endif %}>{{ t }}</option>
       {% endfor %}
     </select>
-    <button type="submit" class="inline-flex items-center gap-1.5 bg-amber-500 text-white text-sm font-medium px-3 py-2 rounded-lg hover:bg-amber-600 transition-colors">
-      재계산
-    </button>
+    <div class="flex flex-col gap-0.5">
+      <div class="flex items-center gap-1.5">
+        <input type="number" name="final_payment_manual" x-model.number="manualFinal" min="0" step="100"
+          class="w-36 text-sm border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 transition-colors"
+          :class="isDiff ? 'border-amber-400 focus:ring-amber-400 bg-amber-50' : 'border-gray-200 focus:ring-indigo-400'">
+        <button type="submit" class="inline-flex items-center gap-1.5 bg-amber-500 text-white text-sm font-medium px-3 py-2 rounded-lg hover:bg-amber-600 transition-colors whitespace-nowrap">
+          저장
+        </button>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs text-gray-400">추천: ₩<span x-text="calcFinal.toLocaleString()"></span></span>
+        <template x-if="isDiff">
+          <span class="text-xs text-amber-600">⚠ 수동 입력값</span>
+        </template>
+      </div>
+    </div>
   </form>
   <button onclick="saveAsImage()"
     class="inline-flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">

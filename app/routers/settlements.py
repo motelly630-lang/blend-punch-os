@@ -212,9 +212,12 @@ def settlement_create(
     seller_type: str = Form("사업자"),
     sales_amount: float = Form(0.0),
     commission_rate: float = Form(0.15),
+    final_payment_manual: float = Form(0.0),
     notes: str = Form(""),
 ):
     calc = calc_settlement(sales_amount, commission_rate, seller_type)
+    if final_payment_manual and final_payment_manual != calc["final_payment"]:
+        calc["final_payment"] = round(final_payment_manual)
     s = Settlement(
         influencer_id=influencer_id or None,
         campaign_id=campaign_id or None,
@@ -236,8 +239,9 @@ def settlement_recalc(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     seller_type: str = Form("사업자"),
+    final_payment_manual: float = Form(0.0),
 ):
-    """유형 변경 후 금액 재계산."""
+    """유형 변경 후 금액 재계산. final_payment_manual이 있으면 자동계산 대신 해당 값 사용."""
     s = db.query(Settlement).filter(Settlement.id == settlement_id).first()
     if not s:
         return RedirectResponse("/settlements", status_code=302)
@@ -247,9 +251,9 @@ def settlement_recalc(
     s.tax_rate = calc["tax_rate"]
     s.tax_amount = calc["tax_amount"]
     s.commission_amount = calc["commission_amount"]
-    s.final_payment = calc["final_payment"]
+    s.final_payment = round(final_payment_manual) if final_payment_manual else calc["final_payment"]
     db.commit()
-    return RedirectResponse(f"/settlements/{settlement_id}?msg=재계산+완료", status_code=302)
+    return RedirectResponse(f"/settlements/{settlement_id}?msg=저장+완료", status_code=302)
 
 
 @router.post("/{settlement_id}/confirm")
