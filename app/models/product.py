@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Text, DateTime, JSON
+from sqlalchemy import Column, String, Float, Text, DateTime, JSON, Boolean
 from app.models.base import Base
 
 
@@ -55,6 +55,10 @@ class Product(Base):
 
     # AI Assistant additions
     product_type = Column(String(1), default="A")            # A/B/C/D type classifier
+
+    # Data completeness
+    is_complete = Column(Boolean, default=False)             # 필수 필드 모두 채워진 경우 True
+    missing_fields = Column(JSON, nullable=True)             # list[str] 미입력 필드 레이블 목록
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

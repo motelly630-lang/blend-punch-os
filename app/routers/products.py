@@ -11,6 +11,7 @@ from app.models.brand import Brand as BrandModel
 from app.models.user import User
 from app.auth.dependencies import get_current_user
 from app.services.image_service import save_product_image
+from app.services.product_service import validate_product_completeness
 
 router = APIRouter(prefix="/products")
 templates = Jinja2Templates(directory="app/templates")
@@ -43,7 +44,7 @@ def _parse_set_options(raw: str) -> list | None:
 
 @router.get("")
 def product_list(request: Request, db: Session = Depends(get_db),
-                 q: str = "", category: str = "",
+                 q: str = "", category: str = "", completeness: str = "",
                  current_user: User = Depends(get_current_user)):
     from sqlalchemy import func
     brand_rows = (
@@ -61,7 +62,7 @@ def product_list(request: Request, db: Session = Depends(get_db),
     brand_list = [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand), "first_image": first_imgs.get(r.brand)} for r in brand_rows]
 
     products = []
-    if q or category:
+    if q or category or completeness:
         query = db.query(Product)
         if q:
             query = query.filter(
@@ -69,13 +70,18 @@ def product_list(request: Request, db: Session = Depends(get_db),
             )
         if category:
             query = query.filter(Product.category == category)
+        if completeness == "complete":
+            query = query.filter(Product.is_complete == True)
+        elif completeness == "incomplete":
+            query = query.filter(Product.is_complete == False)
         products = query.order_by(Product.created_at.desc()).limit(300).all()
 
     return templates.TemplateResponse(
         "products/list.html",
         {"request": request, "active_page": "products", "current_user": current_user,
          "brand_list": brand_list, "products": products,
-         "q": q, "category_filter": category, "filter_categories": CATEGORIES},
+         "q": q, "category_filter": category, "completeness": completeness,
+         "filter_categories": CATEGORIES},
     )
 
 
@@ -213,6 +219,9 @@ def product_create(
         product_link=product_link or None,
         product_type=product_type or "A",
     )
+    completeness = validate_product_completeness(product)
+    product.is_complete = completeness["is_complete"]
+    product.missing_fields = completeness["missing_fields"] or None
     db.add(product)
     db.commit()
     db.refresh(product)
@@ -358,6 +367,10 @@ def product_update(
     product.product_type = product_type or "A"
     if new_image:
         product.product_image = new_image
+
+    completeness = validate_product_completeness(product)
+    product.is_complete = completeness["is_complete"]
+    product.missing_fields = completeness["missing_fields"] or None
 
     db.commit()
     return RedirectResponse(f"/products/{product_id}?msg=수정되었습니다", status_code=302)

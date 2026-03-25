@@ -108,6 +108,10 @@ def migrate():
         # --- products (AI Assistant) ---
         _add_column(conn, "products", "product_type VARCHAR(1) DEFAULT 'A'")
 
+        # --- products (Data Completeness) ---
+        _add_column(conn, "products", "is_complete INTEGER DEFAULT 0")
+        _add_column(conn, "products", "missing_fields JSON")
+
         # ── SQLite Indexes (성능 최적화) ──────────────────────────────
         indexes = [
             ("idx_products_brand",       "products",    "brand"),

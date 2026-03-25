@@ -52,11 +52,31 @@
     </svg>
   </div>
   {% if category_filter %}<input type="hidden" name="category" value="{{ category_filter }}">{% endif %}
+  {% if completeness %}<input type="hidden" name="completeness" value="{{ completeness }}">{% endif %}
   <button type="submit" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors">검색</button>
-  {% if q or category_filter %}
+  {% if q or category_filter or completeness %}
   <a href="/products" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 flex items-center">초기화</a>
   {% endif %}
 </form>
+
+<!-- 완성도 필터 탭 -->
+<div class="flex gap-1.5 mb-4">
+  <a href="/products{% if q %}?q={{ q }}{% endif %}{% if category_filter %}{% if q %}&{% else %}?{% endif %}category={{ category_filter | urlencode }}{% endif %}"
+    class="text-xs px-3 py-1.5 rounded-full border font-medium transition-colors
+      {% if not completeness %}bg-gray-900 text-white border-gray-900{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-400{% endif %}">전체</a>
+  <a href="/products?completeness=complete{% if q %}&q={{ q }}{% endif %}{% if category_filter %}&category={{ category_filter | urlencode }}{% endif %}"
+    class="text-xs px-3 py-1.5 rounded-full border font-medium transition-colors flex items-center gap-1
+      {% if completeness == 'complete' %}bg-green-600 text-white border-green-600{% else %}bg-white text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-600{% endif %}">
+    <span class="w-1.5 h-1.5 rounded-full {% if completeness == 'complete' %}bg-white{% else %}bg-green-500{% endif %}"></span>
+    완료
+  </a>
+  <a href="/products?completeness=incomplete{% if q %}&q={{ q }}{% endif %}{% if category_filter %}&category={{ category_filter | urlencode }}{% endif %}"
+    class="text-xs px-3 py-1.5 rounded-full border font-medium transition-colors flex items-center gap-1
+      {% if completeness == 'incomplete' %}bg-red-500 text-white border-red-500{% else %}bg-white text-gray-600 border-gray-200 hover:border-red-300 hover:text-red-500{% endif %}">
+    <span class="w-1.5 h-1.5 rounded-full {% if completeness == 'incomplete' %}bg-white{% else %}bg-red-400{% endif %}"></span>
+    미완료
+  </a>
+</div>
 
 <!-- 카테고리 탭 -->
 <div class="flex flex-wrap gap-1.5 mb-5">
@@ -70,11 +90,13 @@
   {% endfor %}
 </div>
 
-{% if q or category_filter %}
-<!-- ── 검색/카테고리 결과 ── -->
+{% if q or category_filter or completeness %}
+<!-- ── 검색/카테고리/완성도 결과 ── -->
 <div class="mb-3 flex items-center justify-between">
   <span class="text-xs text-gray-400">
     {% if q %}"{{ q }}"{% endif %}{% if q and category_filter %} · {% endif %}{% if category_filter %}{{ category_filter }}{% endif %}
+    {% if (q or category_filter) and completeness %} · {% endif %}
+    {% if completeness == 'complete' %}완료 제품{% elif completeness == 'incomplete' %}미완료 제품{% endif %}
     — {{ products | length }}개 제품
   </span>
   <a href="/products" class="text-xs text-blue-500 hover:text-blue-700">← 브랜드 목록으로</a>
@@ -98,6 +120,9 @@
         {% else %}bg-gray-100 text-gray-500{% endif %}">
         {{ p.status | status_label }}
       </span>
+      <span class="absolute top-2 left-2 w-2 h-2 rounded-full
+        {% if p.is_complete %}bg-green-400{% else %}bg-red-400{% endif %}"
+        title="{% if p.is_complete %}데이터 완성{% else %}데이터 미완성{% endif %}"></span>
     </div>
     <div class="p-3.5">
       <div class="text-xs text-gray-400 mb-0.5">{{ p.brand }}</div>
@@ -114,7 +139,7 @@
 {% endif %}
 
 {% else %}
-<!-- ── 브랜드 카드 그리드 (기본) ── -->
+<!-- ── 브랜드 카드 그리드 (기본, 필터 없을 때) ── -->
 {% if brand_list %}
 <div class="mb-3 flex items-center justify-between">
   <h2 class="text-sm font-semibold text-gray-700">브랜드 목록</h2>
