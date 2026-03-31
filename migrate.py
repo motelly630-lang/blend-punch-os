@@ -142,6 +142,7 @@ def migrate():
             "brands", "sellers", "outreach_logs", "crm_pipelines",
             "sample_logs", "group_buy_applications", "playbooks",
             "orders", "sales_pages",
+            "settlements", "trend_items", "trend_briefings",
         ]:
             _add_column(conn, tbl, "company_id INTEGER DEFAULT 1 REFERENCES companies(id)")
 
@@ -151,6 +152,7 @@ def migrate():
             "brands", "sellers", "outreach_logs", "crm_pipelines",
             "sample_logs", "group_buy_applications", "playbooks",
             "orders", "sales_pages",
+            "settlements", "trend_items", "trend_briefings",
         ]:
             try:
                 conn.execute(text(f"UPDATE {tbl} SET company_id = 1 WHERE company_id IS NULL"))

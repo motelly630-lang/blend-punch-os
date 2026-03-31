@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models.trend import TrendItem
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 
 router = APIRouter(prefix="/trends")
 templates = Jinja2Templates(directory="app/templates")
@@ -29,7 +30,8 @@ SAMPLE_TRENDS = [
 def trend_list(request: Request, db: Session = Depends(get_db),
                current_user: User = Depends(get_current_user),
                category: str = ""):
-    query = db.query(TrendItem).order_by(TrendItem.is_pinned.desc(), TrendItem.trend_score.desc())
+    cid = get_company_id(current_user)
+    query = db.query(TrendItem).filter(TrendItem.company_id == cid).order_by(TrendItem.is_pinned.desc(), TrendItem.trend_score.desc())
     if category:
         query = query.filter(TrendItem.category == category)
     items = query.all()
@@ -54,8 +56,10 @@ def trend_save(
     trend_score: float = Form(5.0),
     tags_raw: str = Form(""),
 ):
+    cid = get_company_id(current_user)
     tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
     item = TrendItem(
+        company_id=cid,
         category=category, title=title, summary=summary or None,
         source_url=source_url or None, trend_score=trend_score,
         tags=tags or None,
@@ -68,7 +72,8 @@ def trend_save(
 @router.post("/{item_id}/delete")
 def trend_delete(item_id: str, db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
-    item = db.query(TrendItem).filter(TrendItem.id == item_id).first()
+    cid = get_company_id(current_user)
+    item = db.query(TrendItem).filter(TrendItem.id == item_id, TrendItem.company_id == cid).first()
     if item:
         db.delete(item)
         db.commit()

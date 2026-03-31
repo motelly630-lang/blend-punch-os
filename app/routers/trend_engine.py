@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.trend_engine import TrendBriefing
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.services.season_matrix import SEASON_MATRIX, SEASON_LABELS
 from app.services.trend_matcher import (
     get_upcoming_events,
@@ -34,9 +35,11 @@ def engine_dashboard(
         matches = match_products_to_event(db, event)
         engine_events.append({**event, "matched_products": matches})
 
+    cid = get_company_id(current_user)
     # Latest briefings archive (last 10)
     briefings = (
         db.query(TrendBriefing)
+        .filter(TrendBriefing.company_id == cid)
         .order_by(TrendBriefing.created_at.desc())
         .limit(10)
         .all()
@@ -91,8 +94,10 @@ def briefings_archive(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    cid = get_company_id(current_user)
     briefings = (
         db.query(TrendBriefing)
+        .filter(TrendBriefing.company_id == cid)
         .order_by(TrendBriefing.created_at.desc())
         .all()
     )

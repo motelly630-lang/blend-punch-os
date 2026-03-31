@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import Settlement, Campaign, Influencer
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 
 router = APIRouter(prefix="/settlements")
 templates = Jinja2Templates(directory="app/templates")
@@ -62,22 +63,25 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
     if tab not in ("pending", "confirmed", "paid"):
         tab = "pending"
 
+    cid = get_company_id(current_user)
+
     # Aggregate counts/amounts via SQL — no full table load
     total_paid = db.query(func.sum(Settlement.final_payment)).filter(
-        Settlement.status == "paid"
+        Settlement.company_id == cid, Settlement.status == "paid"
     ).scalar() or 0
     pending_count = db.query(func.count(Settlement.id)).filter(
-        Settlement.status == "pending"
+        Settlement.company_id == cid, Settlement.status == "pending"
     ).scalar() or 0
     confirmed_count = db.query(func.count(Settlement.id)).filter(
-        Settlement.status == "confirmed"
+        Settlement.company_id == cid, Settlement.status == "confirmed"
     ).scalar() or 0
     paid_count = db.query(func.count(Settlement.id)).filter(
-        Settlement.status == "paid"
+        Settlement.company_id == cid, Settlement.status == "paid"
     ).scalar() or 0
 
     # Sync seller_type from influencer.business_type if mismatched
     pending_settlements = db.query(Settlement).filter(
+        Settlement.company_id == cid,
         Settlement.status.in_(["pending", "confirmed"]),
         Settlement.influencer_id.isnot(None),
     ).all()
@@ -99,7 +103,7 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
     # Load only the active tab's rows
     settlements = (
         db.query(Settlement)
-        .filter(Settlement.status == tab)
+        .filter(Settlement.company_id == cid, Settlement.status == tab)
         .order_by(Settlement.created_at.desc())
         .limit(200)
         .all()
@@ -108,7 +112,7 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
     # Unique periods for export filter (distinct query, no full load)
     periods = sorted(
         {r[0] for r in db.query(Settlement.period_label)
-         .filter(Settlement.period_label.isnot(None)).distinct().all()},
+         .filter(Settlement.company_id == cid, Settlement.period_label.isnot(None)).distinct().all()},
         reverse=True,
     )
 
@@ -130,7 +134,8 @@ def settlement_export(
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
 
-    query = db.query(Settlement)
+    cid = get_company_id(current_user)
+    query = db.query(Settlement).filter(Settlement.company_id == cid)
     if period:
         query = query.filter(Settlement.period_label == period)
     rows = query.order_by(Settlement.created_at.desc()).all()
@@ -193,7 +198,8 @@ def settlement_export(
 def settlement_detail(settlement_id: str, request: Request,
                       db: Session = Depends(get_db),
                       current_user: User = Depends(get_current_user)):
-    s = db.query(Settlement).filter(Settlement.id == settlement_id).first()
+    cid = get_company_id(current_user)
+    s = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
     if not s:
         return RedirectResponse("/settlements", status_code=302)
     return templates.TemplateResponse("settlements/detail.html", {
@@ -218,7 +224,9 @@ def settlement_create(
     calc = calc_settlement(sales_amount, commission_rate, seller_type)
     if final_payment_manual and final_payment_manual != calc["final_payment"]:
         calc["final_payment"] = round(final_payment_manual)
+    cid = get_company_id(current_user)
     s = Settlement(
+        company_id=cid,
         influencer_id=influencer_id or None,
         campaign_id=campaign_id or None,
         period_label=period_label or None,
@@ -242,7 +250,8 @@ def settlement_recalc(
     final_payment_manual: float = Form(0.0),
 ):
     """유형 변경 후 금액 재계산. final_payment_manual이 있으면 자동계산 대신 해당 값 사용."""
-    s = db.query(Settlement).filter(Settlement.id == settlement_id).first()
+    cid = get_company_id(current_user)
+    s = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
     if not s:
         return RedirectResponse("/settlements", status_code=302)
     calc = calc_settlement(s.sales_amount or 0, s.commission_rate or 0, seller_type)
@@ -259,7 +268,8 @@ def settlement_recalc(
 @router.post("/{settlement_id}/confirm")
 def settlement_confirm(settlement_id: str, db: Session = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
-    s = db.query(Settlement).filter(Settlement.id == settlement_id).first()
+    cid = get_company_id(current_user)
+    s = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
     if s:
         s.status = "confirmed"
         db.commit()
@@ -269,7 +279,8 @@ def settlement_confirm(settlement_id: str, db: Session = Depends(get_db),
 @router.post("/{settlement_id}/paid")
 def settlement_paid(settlement_id: str, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
-    s = db.query(Settlement).filter(Settlement.id == settlement_id).first()
+    cid = get_company_id(current_user)
+    s = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
     if s:
         s.status = "paid"
         db.commit()
@@ -279,7 +290,8 @@ def settlement_paid(settlement_id: str, db: Session = Depends(get_db),
 @router.post("/{settlement_id}/delete")
 def settlement_delete(settlement_id: str, db: Session = Depends(get_db),
                       current_user: User = Depends(get_current_user)):
-    s = db.query(Settlement).filter(Settlement.id == settlement_id).first()
+    cid = get_company_id(current_user)
+    s = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
     if s:
         db.delete(s)
         db.commit()

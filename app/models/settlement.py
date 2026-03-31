@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -9,6 +9,7 @@ class Settlement(Base):
     __tablename__ = "settlements"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     influencer_id = Column(String(36), ForeignKey("influencers.id"), nullable=True)
     campaign_id = Column(String(36), ForeignKey("campaigns.id"), nullable=True)
     period_label = Column(String(50), nullable=True)       # 예: "2024년 3월"
