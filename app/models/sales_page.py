@@ -8,6 +8,7 @@ class SalesPage(Base):
     __tablename__ = "sales_pages"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     slug = Column(String(100), unique=True, nullable=False)          # /shop/{slug}
     product_id = Column(String(36), ForeignKey("products.id"), nullable=False)
     title = Column(String(300), nullable=True)                       # 판매 페이지 전용 타이틀

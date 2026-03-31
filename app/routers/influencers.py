@@ -12,6 +12,7 @@ from app.database import get_db
 from app.models import Influencer
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.services.image_service import save_influencer_image, cache_external_image
 
 router = APIRouter(prefix="/influencers")
@@ -59,7 +60,8 @@ def _parse_categories(json_str: str, fallback_raw: str = "") -> list | None:
 @router.get("")
 def influencer_list(request: Request, db: Session = Depends(get_db), q: str = "", platform: str = "",
                     view: str = "gallery", current_user: User = Depends(get_current_user)):
-    query = db.query(Influencer)
+    cid = get_company_id(current_user)
+    query = db.query(Influencer).filter(Influencer.company_id == cid)
     if q:
         query = query.filter(Influencer.name.ilike(f"%{q}%") | Influencer.handle.ilike(f"%{q}%"))
     if platform:
@@ -67,17 +69,17 @@ def influencer_list(request: Request, db: Session = Depends(get_db), q: str = ""
     influencers = query.order_by(Influencer.followers.desc()).limit(300).all()
 
     # Stats — SQL aggregates instead of loading all rows into Python
-    total = db.query(func.count(Influencer.id)).scalar()
-    active_count = db.query(func.count(Influencer.id)).filter(Influencer.status == "active").scalar()
-    inactive_count = db.query(func.count(Influencer.id)).filter(Influencer.status == "inactive").scalar()
-    blacklist_count = db.query(func.count(Influencer.id)).filter(Influencer.status == "blacklist").scalar()
+    total = db.query(func.count(Influencer.id)).filter(Influencer.company_id == cid).scalar()
+    active_count = db.query(func.count(Influencer.id)).filter(Influencer.company_id == cid, Influencer.status == "active").scalar()
+    inactive_count = db.query(func.count(Influencer.id)).filter(Influencer.company_id == cid, Influencer.status == "inactive").scalar()
+    blacklist_count = db.query(func.count(Influencer.id)).filter(Influencer.company_id == cid, Influencer.status == "blacklist").scalar()
 
-    platform_rows = db.query(Influencer.platform, func.count(Influencer.id)).group_by(Influencer.platform).all()
+    platform_rows = db.query(Influencer.platform, func.count(Influencer.id)).filter(Influencer.company_id == cid).group_by(Influencer.platform).all()
     platform_counts = {row[0]: row[1] for row in platform_rows}
 
     # Category stats — fetch only the JSON column (no full row load)
     cat_counts: Counter = Counter()
-    for (cats,) in db.query(Influencer.categories).filter(Influencer.categories.isnot(None)).all():
+    for (cats,) in db.query(Influencer.categories).filter(Influencer.company_id == cid, Influencer.categories.isnot(None)).all():
         for cat in (cats or []):
             cat_counts[cat] += 1
     top_categories = cat_counts.most_common(6)
@@ -120,6 +122,7 @@ async def influencer_bulk_import(
             except Exception:
                 return None
 
+    cid = get_company_id(current_user)
     results = await asyncio.gather(*[_process(u) for u in urls])
 
     saved = 0
@@ -141,6 +144,7 @@ async def influencer_bulk_import(
         ext_img = data.get("profile_image") or None
         cached_img = _resolve_profile_image(None, ext_img)
         inf = Influencer(
+            company_id=cid,
             name=name,
             handle=handle,
             platform=data.get("platform") or "instagram",
@@ -206,10 +210,12 @@ def influencer_create(
     resident_registration_number: str = Form(""),
     saved_profile_image_path: str = Form(""),
 ):
+    cid = get_company_id(current_user)
     categories = _parse_categories(categories_json)
     uploaded = _save_image(profile_image)
     image_path = _resolve_profile_image(uploaded, saved_profile_image_path or None)
     influencer = Influencer(
+        company_id=cid,
         name=name, platform=platform, handle=handle,
         profile_url=profile_url or None,
         followers=followers,
@@ -248,7 +254,8 @@ def influencer_create(
 @router.get("/{influencer_id}")
 def influencer_detail(influencer_id: str, request: Request, db: Session = Depends(get_db),
                       current_user: User = Depends(get_current_user)):
-    influencer = db.query(Influencer).filter(Influencer.id == influencer_id).first()
+    cid = get_company_id(current_user)
+    influencer = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.id == influencer_id).first()
     if not influencer:
         return RedirectResponse("/influencers?err=인플루언서를+찾을+수+없습니다", status_code=302)
     return templates.TemplateResponse("influencers/detail.html", {
@@ -260,7 +267,8 @@ def influencer_detail(influencer_id: str, request: Request, db: Session = Depend
 @router.get("/{influencer_id}/edit")
 def influencer_edit(influencer_id: str, request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
-    influencer = db.query(Influencer).filter(Influencer.id == influencer_id).first()
+    cid = get_company_id(current_user)
+    influencer = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.id == influencer_id).first()
     if not influencer:
         return RedirectResponse("/influencers", status_code=302)
     return templates.TemplateResponse("influencers/form.html", {
@@ -307,7 +315,8 @@ def influencer_update(
     resident_registration_number: str = Form(""),
     saved_profile_image_path: str = Form(""),
 ):
-    influencer = db.query(Influencer).filter(Influencer.id == influencer_id).first()
+    cid = get_company_id(current_user)
+    influencer = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.id == influencer_id).first()
     if not influencer:
         return RedirectResponse("/influencers", status_code=302)
 
@@ -354,7 +363,8 @@ def influencer_update(
 @router.post("/{influencer_id}/delete")
 def influencer_delete(influencer_id: str, db: Session = Depends(get_db),
                       current_user: User = Depends(get_current_user)):
-    influencer = db.query(Influencer).filter(Influencer.id == influencer_id).first()
+    cid = get_company_id(current_user)
+    influencer = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.id == influencer_id).first()
     if influencer:
         db.delete(influencer)
         db.commit()

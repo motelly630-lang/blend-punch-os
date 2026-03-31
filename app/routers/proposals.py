@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models import Proposal, Product, Influencer
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 
 router = APIRouter(prefix="/proposals")
 templates = Jinja2Templates(directory="app/templates")
@@ -14,8 +15,10 @@ templates = Jinja2Templates(directory="app/templates")
 @router.get("")
 def proposal_list(request: Request, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user)):
+    cid = get_company_id(current_user)
     proposals = (
         db.query(Proposal)
+        .filter(Proposal.company_id == cid)
         .order_by(Proposal.created_at.desc())
         .limit(200)
         .all()
@@ -30,8 +33,9 @@ def proposal_list(request: Request, db: Session = Depends(get_db),
 def proposal_product_new(request: Request, db: Session = Depends(get_db),
                          current_user: User = Depends(get_current_user),
                          product_id: str = ""):
-    products = db.query(Product).filter(Product.status == "active").order_by(Product.name).limit(300).all()
-    selected = db.query(Product).filter(Product.id == product_id).first() if product_id else None
+    cid = get_company_id(current_user)
+    products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).limit(300).all()
+    selected = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first() if product_id else None
     return templates.TemplateResponse("proposals/product_form.html", {
         "request": request, "active_page": "proposals",
         "current_user": current_user,
@@ -47,7 +51,9 @@ def proposal_product_create(
     title: str = Form(""),
     body: str = Form(...),
 ):
+    cid = get_company_id(current_user)
     proposal = Proposal(
+        company_id=cid,
         product_id=product_id or None,
         proposal_type="product_sheet",
         title=title or None,
@@ -64,8 +70,9 @@ def proposal_product_create(
 def proposal_new(request: Request, db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user),
                  product_id: str = "", influencer_id: str = ""):
-    products = db.query(Product).filter(Product.status != "archived").order_by(Product.name).limit(300).all()
-    influencers = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).limit(300).all()
+    cid = get_company_id(current_user)
+    products = db.query(Product).filter(Product.company_id == cid, Product.status != "archived").order_by(Product.name).limit(300).all()
+    influencers = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.status == "active").order_by(Influencer.name).limit(300).all()
     return templates.TemplateResponse(
         "proposals/form.html",
         {
@@ -92,7 +99,9 @@ def proposal_create(
     is_template: str = Form("false"),
     template_name: str = Form(""),
 ):
+    cid = get_company_id(current_user)
     proposal = Proposal(
+        company_id=cid,
         product_id=product_id or None,
         influencer_id=influencer_id or None,
         proposal_type=proposal_type,
@@ -111,7 +120,8 @@ def proposal_create(
 @router.get("/{proposal_id}/card")
 def proposal_card(proposal_id: str, request: Request, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user)):
-    proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    cid = get_company_id(current_user)
+    proposal = db.query(Proposal).filter(Proposal.company_id == cid, Proposal.id == proposal_id).first()
     if not proposal or not proposal.product:
         return RedirectResponse(f"/proposals/{proposal_id}", status_code=302)
     return templates.TemplateResponse("proposals/card.html", {
@@ -122,7 +132,8 @@ def proposal_card(proposal_id: str, request: Request, db: Session = Depends(get_
 @router.get("/{proposal_id}")
 def proposal_detail(proposal_id: str, request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
-    proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    cid = get_company_id(current_user)
+    proposal = db.query(Proposal).filter(Proposal.company_id == cid, Proposal.id == proposal_id).first()
     if not proposal:
         return RedirectResponse("/proposals?err=제안서를+찾을+수+없습니다", status_code=302)
     return templates.TemplateResponse(
@@ -134,7 +145,8 @@ def proposal_detail(proposal_id: str, request: Request, db: Session = Depends(ge
 @router.post("/{proposal_id}/delete")
 def proposal_delete(proposal_id: str, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
-    proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    cid = get_company_id(current_user)
+    proposal = db.query(Proposal).filter(Proposal.company_id == cid, Proposal.id == proposal_id).first()
     if proposal:
         db.delete(proposal)
         db.commit()

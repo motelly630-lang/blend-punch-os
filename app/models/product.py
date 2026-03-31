@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Text, DateTime, JSON, Boolean
+from sqlalchemy import Column, String, Float, Text, DateTime, JSON, Boolean, Integer, ForeignKey
 from app.models.base import Base
 
 
@@ -8,6 +8,7 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     name = Column(String(200), nullable=False)
     brand = Column(String(200), nullable=False)
     category = Column(String(100), nullable=False)

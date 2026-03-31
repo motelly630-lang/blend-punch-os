@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Product
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.models.user import User
 
 router = APIRouter(prefix="/products/import")
@@ -291,6 +292,7 @@ async def import_confirm(
         logger.exception("mapping_json 파싱 실패")
         return RedirectResponse(f"/products/import?err={quote(f'mapping JSON 오류: {e}')}", status_code=302)
 
+    cid = get_company_id(current_user)
     headers = payload.get("headers", [])
     rows = payload.get("rows", [])
     run_ai = use_ai == "1"
@@ -330,6 +332,7 @@ async def import_confirm(
 
         try:
             product = Product(
+                company_id=cid,
                 name=row_data.get("name", ""),
                 brand=row_data.get("brand", ""),
                 category=row_data.get("category", "기타"),

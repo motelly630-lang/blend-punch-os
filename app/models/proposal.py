@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Boolean, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -9,6 +9,7 @@ class Proposal(Base):
     __tablename__ = "proposals"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     product_id = Column(String(36), ForeignKey("products.id"), nullable=True)
     influencer_id = Column(String(36), ForeignKey("influencers.id"), nullable=True)
     campaign_id = Column(String(36), ForeignKey("campaigns.id"), nullable=True)

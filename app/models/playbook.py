@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy import Column, String, Text, DateTime, Boolean, ForeignKey, JSON, Integer
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -9,6 +9,7 @@ class Playbook(Base):
     __tablename__ = "playbooks"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     product_id = Column(String(36), ForeignKey("products.id"), nullable=True)
     product_name = Column(String(200), nullable=False)   # snapshot at generation time
     product_brand = Column(String(200), nullable=True)

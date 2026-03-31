@@ -20,6 +20,7 @@ from app.models.product import Product
 from app.models.user import User
 from app.models.crm import CrmPipeline
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 
 router = APIRouter(prefix="/outreach")
 templates = Jinja2Templates(directory="app/templates")
@@ -69,7 +70,8 @@ def outreach_list(
     status: str = "",
     product_id: str = "",
 ):
-    q = db.query(OutreachLog)
+    cid = get_company_id(current_user)
+    q = db.query(OutreachLog).filter(OutreachLog.company_id == cid)
     if operator:
         q = q.filter(OutreachLog.operator == operator)
     if status:
@@ -82,16 +84,17 @@ def outreach_list(
     product_ids = {log.product_id for log in logs if log.product_id}
     influencer_ids = {log.influencer_id for log in logs if log.influencer_id}
     product_map = (
-        {p.id: p for p in db.query(Product).filter(Product.id.in_(product_ids)).all()}
+        {p.id: p for p in db.query(Product).filter(Product.company_id == cid, Product.id.in_(product_ids)).all()}
         if product_ids else {}
     )
     influencer_map = (
-        {i.id: i for i in db.query(Influencer).filter(Influencer.id.in_(influencer_ids)).all()}
+        {i.id: i for i in db.query(Influencer).filter(Influencer.company_id == cid, Influencer.id.in_(influencer_ids)).all()}
         if influencer_ids else {}
     )
 
     # CRM pipeline lookup: (influencer_id, product_id) → pipeline_id
     crm_pipelines = db.query(CrmPipeline).filter(
+        CrmPipeline.company_id == cid,
         CrmPipeline.influencer_id.in_(influencer_ids)
     ).all() if influencer_ids else []
     crm_map: dict[tuple, str] = {
@@ -115,9 +118,9 @@ def outreach_list(
             status_counts[log.sample_status] += 1
 
     # All active products for form dropdowns
-    products = db.query(Product).filter(Product.status == "active").order_by(Product.name).all()
+    products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
     # Distinct operators for filter
-    operators = sorted({r.operator for r in db.query(OutreachLog.operator).distinct()})
+    operators = sorted({r.operator for r in db.query(OutreachLog.operator).filter(OutreachLog.company_id == cid).distinct()})
 
     today_count = sum(1 for log in logs if log.outreach_date == date.today().isoformat())
 
@@ -146,7 +149,8 @@ def outreach_new_form(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    products = db.query(Product).filter(Product.status == "active").order_by(Product.name).all()
+    cid = get_company_id(current_user)
+    products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
     return templates.TemplateResponse("outreach/form.html", {
         "request": request,
         "active_page": "outreach",
@@ -170,9 +174,11 @@ def outreach_create(
     sample_status: str = Form("제안발송"),
     notes: str = Form(""),
 ):
+    cid = get_company_id(current_user)
     influencer_id = _get_or_create_influencer(db, influencer_handle)
 
     log = OutreachLog(
+        company_id=cid,
         operator=operator.strip(),
         influencer_handle=influencer_handle.lstrip("@").strip(),
         influencer_id=influencer_id,
@@ -194,7 +200,8 @@ def outreach_update_status(
     current_user: User = Depends(get_current_user),
     sample_status: str = Form(...),
 ):
-    log = db.query(OutreachLog).filter(OutreachLog.id == log_id).first()
+    cid = get_company_id(current_user)
+    log = db.query(OutreachLog).filter(OutreachLog.company_id == cid, OutreachLog.id == log_id).first()
     if not log:
         return HTMLResponse('<span class="text-red-500 text-xs">Not found</span>')
     log.sample_status = sample_status
@@ -242,12 +249,14 @@ def outreach_to_crm(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    log = db.query(OutreachLog).filter(OutreachLog.id == log_id).first()
+    cid = get_company_id(current_user)
+    log = db.query(OutreachLog).filter(OutreachLog.company_id == cid, OutreachLog.id == log_id).first()
     if not log or not log.influencer_id:
         return RedirectResponse("/outreach?err=인플루언서+DB+등록이+필요합니다", status_code=302)
 
     # 이미 동일 (인플루언서 + 제품) 파이프라인 존재 여부 확인
     existing = db.query(CrmPipeline).filter(
+        CrmPipeline.company_id == cid,
         CrmPipeline.influencer_id == log.influencer_id,
         CrmPipeline.product_id == log.product_id,
     ).first()
@@ -256,6 +265,7 @@ def outreach_to_crm(
 
     crm_status = OUTREACH_TO_CRM_STATUS.get(log.sample_status, "dm_sent")
     pipeline = CrmPipeline(
+        company_id=cid,
         influencer_id=log.influencer_id,
         product_id=log.product_id,
         status=crm_status,

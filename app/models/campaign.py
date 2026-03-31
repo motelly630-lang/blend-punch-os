@@ -9,6 +9,7 @@ class Campaign(Base):
     __tablename__ = "campaigns"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     name = Column(String(300), nullable=False)
     product_id = Column(String(36), ForeignKey("products.id"), nullable=True)
     influencer_id = Column(String(36), ForeignKey("influencers.id"), nullable=True)

@@ -4,6 +4,7 @@ from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Date, For
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
+
 CRM_STATUSES = [
     "new",              # 신규 발굴
     "dm_sent",          # DM 발송
@@ -40,6 +41,7 @@ class CrmPipeline(Base):
     __tablename__ = "crm_pipelines"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     influencer_id = Column(String(36), ForeignKey("influencers.id"), nullable=False)
     product_id = Column(String(36), ForeignKey("products.id"), nullable=True)
     status = Column(String(30), default="new")
@@ -58,6 +60,7 @@ class SampleLog(Base):
     __tablename__ = "sample_logs"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     pipeline_id = Column(String(36), ForeignKey("crm_pipelines.id"), nullable=False)
     product_id = Column(String(36), ForeignKey("products.id"), nullable=True)
     influencer_id = Column(String(36), ForeignKey("influencers.id"), nullable=True)

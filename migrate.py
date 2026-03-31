@@ -136,6 +136,28 @@ def migrate():
         _add_column(conn, "business_infos", "return_policy TEXT")
         _add_column(conn, "business_infos", "payment_guide TEXT")
 
+        # ── 멀티테넌트: company_id 컬럼 추가 ────────────────────────────────────────
+        for tbl in [
+            "products", "influencers", "campaigns", "proposals",
+            "brands", "sellers", "outreach_logs", "crm_pipelines",
+            "sample_logs", "group_buy_applications", "playbooks",
+            "orders", "sales_pages",
+        ]:
+            _add_column(conn, tbl, "company_id INTEGER DEFAULT 1 REFERENCES companies(id)")
+
+        # 기존 데이터 전부 company_id=1 (블렌드펀치) 로 설정
+        for tbl in [
+            "products", "influencers", "campaigns", "proposals",
+            "brands", "sellers", "outreach_logs", "crm_pipelines",
+            "sample_logs", "group_buy_applications", "playbooks",
+            "orders", "sales_pages",
+        ]:
+            try:
+                conn.execute(text(f"UPDATE {tbl} SET company_id = 1 WHERE company_id IS NULL"))
+                print(f"  migrated {tbl}.company_id → 1")
+            except Exception:
+                pass
+
         # ── SQLite Indexes (성능 최적화) ──────────────────────────────
         indexes = [
             ("idx_products_brand",       "products",    "brand"),

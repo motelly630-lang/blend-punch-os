@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Integer, Text, DateTime, JSON
+from sqlalchemy import Column, String, Float, Integer, Text, DateTime, JSON, ForeignKey
 from app.models.base import Base
 
 
@@ -8,6 +8,7 @@ class Influencer(Base):
     __tablename__ = "influencers"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     name = Column(String(200), nullable=False)
     platform = Column(String(30), nullable=False)       # instagram|youtube|tiktok|blog|naver
     handle = Column(String(200), nullable=False)

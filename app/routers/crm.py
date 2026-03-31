@@ -25,6 +25,7 @@ from app.models.influencer import Influencer
 from app.models.product import Product
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 
 router = APIRouter(prefix="/crm")
 templates = Jinja2Templates(directory="app/templates")
@@ -60,7 +61,8 @@ def crm_list(
     product_id: str = "",
     status: str = "",
 ):
-    q = db.query(CrmPipeline)
+    cid = get_company_id(current_user)
+    q = db.query(CrmPipeline).filter(CrmPipeline.company_id == cid)
     if product_id:
         q = q.filter(CrmPipeline.product_id == product_id)
     if status:
@@ -79,8 +81,8 @@ def crm_list(
     completed_count = sum(1 for p in pipelines if p.status == "completed")
     rejected_count = sum(1 for p in pipelines if p.status == "rejected")
 
-    products = db.query(Product).filter(Product.status == "active").order_by(Product.name).all()
-    influencers = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).limit(300).all()
+    products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
+    influencers = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.status == "active").order_by(Influencer.name).limit(300).all()
 
     return templates.TemplateResponse("crm/index.html", {
         "request": request,
@@ -114,8 +116,9 @@ def crm_new_form(
     influencer_id: str = "",
     product_id: str = "",
 ):
-    products = db.query(Product).filter(Product.status == "active").order_by(Product.name).all()
-    influencers = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).limit(300).all()
+    cid = get_company_id(current_user)
+    products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
+    influencers = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.status == "active").order_by(Influencer.name).limit(300).all()
     return templates.TemplateResponse("crm/form.html", {
         "request": request,
         "active_page": "crm",
@@ -141,7 +144,9 @@ def crm_create(
     dm_count: int = Form(0),
     notes: str = Form(""),
 ):
+    cid = get_company_id(current_user)
     pipeline = CrmPipeline(
+        company_id=cid,
         influencer_id=influencer_id or None,
         product_id=product_id or None,
         status=status,
@@ -163,12 +168,13 @@ def crm_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    pipeline = db.query(CrmPipeline).filter(CrmPipeline.id == pipeline_id).first()
+    cid = get_company_id(current_user)
+    pipeline = db.query(CrmPipeline).filter(CrmPipeline.company_id == cid, CrmPipeline.id == pipeline_id).first()
     if not pipeline:
         return RedirectResponse("/crm?err=파이프라인을+찾을+수+없습니다", status_code=302)
 
-    products = db.query(Product).filter(Product.status == "active").order_by(Product.name).all()
-    influencers = db.query(Influencer).filter(Influencer.status == "active").order_by(Influencer.name).limit(300).all()
+    products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
+    influencers = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.status == "active").order_by(Influencer.name).limit(300).all()
 
     return templates.TemplateResponse("crm/detail.html", {
         "request": request,
@@ -201,7 +207,8 @@ def crm_update(
     dm_count: int = Form(0),
     notes: str = Form(""),
 ):
-    pipeline = db.query(CrmPipeline).filter(CrmPipeline.id == pipeline_id).first()
+    cid = get_company_id(current_user)
+    pipeline = db.query(CrmPipeline).filter(CrmPipeline.company_id == cid, CrmPipeline.id == pipeline_id).first()
     if not pipeline:
         return RedirectResponse("/crm", status_code=302)
     pipeline.influencer_id = influencer_id or None
@@ -223,7 +230,8 @@ def crm_update_status(
     current_user: User = Depends(get_current_user),
     status: str = Form(...),
 ):
-    pipeline = db.query(CrmPipeline).filter(CrmPipeline.id == pipeline_id).first()
+    cid = get_company_id(current_user)
+    pipeline = db.query(CrmPipeline).filter(CrmPipeline.company_id == cid, CrmPipeline.id == pipeline_id).first()
     if not pipeline:
         return HTMLResponse('<span class="text-red-500 text-xs">Not found</span>')
     pipeline.status = status
@@ -265,7 +273,8 @@ def crm_delete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    pipeline = db.query(CrmPipeline).filter(CrmPipeline.id == pipeline_id).first()
+    cid = get_company_id(current_user)
+    pipeline = db.query(CrmPipeline).filter(CrmPipeline.company_id == cid, CrmPipeline.id == pipeline_id).first()
     if pipeline:
         db.delete(pipeline)
         db.commit()
@@ -285,11 +294,13 @@ def sample_create(
     sent_at: str = Form(""),
     notes: str = Form(""),
 ):
-    pipeline = db.query(CrmPipeline).filter(CrmPipeline.id == pipeline_id).first()
+    cid = get_company_id(current_user)
+    pipeline = db.query(CrmPipeline).filter(CrmPipeline.company_id == cid, CrmPipeline.id == pipeline_id).first()
     if not pipeline:
         return RedirectResponse("/crm", status_code=302)
 
     sample = SampleLog(
+        company_id=cid,
         pipeline_id=pipeline_id,
         influencer_id=pipeline.influencer_id,
         product_id=product_id or pipeline.product_id or None,
@@ -316,7 +327,8 @@ def sample_update_status(
     tracking_number: str = Form(""),
     delivered_at: str = Form(""),
 ):
-    sample = db.query(SampleLog).filter(SampleLog.id == sample_id).first()
+    cid = get_company_id(current_user)
+    sample = db.query(SampleLog).filter(SampleLog.company_id == cid, SampleLog.id == sample_id).first()
     if not sample:
         return RedirectResponse(f"/crm/{pipeline_id}", status_code=302)
     sample.status = status
@@ -335,7 +347,8 @@ def sample_delete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    sample = db.query(SampleLog).filter(SampleLog.id == sample_id).first()
+    cid = get_company_id(current_user)
+    sample = db.query(SampleLog).filter(SampleLog.company_id == cid, SampleLog.id == sample_id).first()
     if sample:
         db.delete(sample)
         db.commit()

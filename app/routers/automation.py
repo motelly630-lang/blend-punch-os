@@ -6,6 +6,7 @@ from app.models import Product, Proposal
 from app.models.playbook import Playbook
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 
 router = APIRouter(prefix="/automation")
 templates = Jinja2Templates(directory="app/templates")
@@ -17,15 +18,17 @@ def automation_index(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    cid = get_company_id(current_user)
     products = (
         db.query(Product)
-        .filter(Product.status != "archived")
+        .filter(Product.company_id == cid, Product.status != "archived")
         .order_by(Product.name)
         .all()
     )
 
     recent_playbooks = (
         db.query(Playbook)
+        .filter(Playbook.company_id == cid)
         .order_by(Playbook.created_at.desc())
         .limit(5)
         .all()
@@ -34,7 +37,7 @@ def automation_index(
     dm_types = ("dm_first", "dm_followup", "dm_confirm", "seller_outreach", "inf_summary", "memo")
     recent_proposals = (
         db.query(Proposal)
-        .filter(Proposal.proposal_type.in_(dm_types))
+        .filter(Proposal.company_id == cid, Proposal.proposal_type.in_(dm_types))
         .order_by(Proposal.created_at.desc())
         .limit(5)
         .all()

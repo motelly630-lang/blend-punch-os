@@ -179,6 +179,7 @@ async def shop_prepare(slug: str, body: PrepareBody,
 
     order = Order(
         id=str(uuid.uuid4()),
+        company_id=page.company_id if hasattr(page, 'company_id') else 1,
         order_number=_order_number(),
         sales_page_id=page.id,
         product_id=product.id,

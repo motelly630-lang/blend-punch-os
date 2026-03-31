@@ -10,6 +10,7 @@ from app.models import Product, Influencer
 from app.models.brand import Brand as BrandModel
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.services.image_service import save_product_image
 from app.services.product_service import validate_product_completeness
 
@@ -46,24 +47,25 @@ def _parse_set_options(raw: str) -> list | None:
 def product_list(request: Request, db: Session = Depends(get_db),
                  q: str = "", category: str = "", completeness: str = "",
                  current_user: User = Depends(get_current_user)):
+    cid = get_company_id(current_user)
     from sqlalchemy import func
     brand_rows = (
         db.query(Product.brand, func.count(Product.id).label("cnt"))
-        .filter(Product.brand.isnot(None), Product.brand != "")
+        .filter(Product.company_id == cid, Product.brand.isnot(None), Product.brand != "")
         .group_by(Product.brand)
         .order_by(Product.brand)
         .all()
     )
-    brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.logo.isnot(None)).all()}
+    brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.company_id == cid, BrandModel.logo.isnot(None)).all()}
     from sqlalchemy import func as _func2
     first_imgs = {r.brand: r.img for r in db.query(Product.brand, _func2.min(Product.product_image).label("img"))
-                  .filter(Product.product_image.isnot(None), Product.product_image != "")
+                  .filter(Product.company_id == cid, Product.product_image.isnot(None), Product.product_image != "")
                   .group_by(Product.brand).all()}
     brand_list = [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand), "first_image": first_imgs.get(r.brand)} for r in brand_rows]
 
     products = []
     if q or category or completeness:
-        query = db.query(Product)
+        query = db.query(Product).filter(Product.company_id == cid)
         if q:
             query = query.filter(
                 Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%")
@@ -89,21 +91,22 @@ def product_list(request: Request, db: Session = Depends(get_db),
 def product_brand(brand_name: str, request: Request, db: Session = Depends(get_db),
                   q: str = "", view: str = "gallery",
                   current_user: User = Depends(get_current_user)):
+    cid = get_company_id(current_user)
     from sqlalchemy import func
-    query = db.query(Product).filter(Product.brand == brand_name)
+    query = db.query(Product).filter(Product.company_id == cid, Product.brand == brand_name)
     if q:
         query = query.filter(Product.name.ilike(f"%{q}%"))
     products = query.order_by(Product.created_at.desc()).limit(300).all()
     brand_rows = (
         db.query(Product.brand, func.count(Product.id).label("cnt"))
-        .filter(Product.brand.isnot(None), Product.brand != "")
+        .filter(Product.company_id == cid, Product.brand.isnot(None), Product.brand != "")
         .group_by(Product.brand)
         .order_by(Product.brand)
         .all()
     )
-    brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.logo.isnot(None)).all()}
+    brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.company_id == cid, BrandModel.logo.isnot(None)).all()}
     brand_list = [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand)} for r in brand_rows]
-    brand_obj = db.query(BrandModel).filter(BrandModel.name == brand_name).first()
+    brand_obj = db.query(BrandModel).filter(BrandModel.company_id == cid, BrandModel.name == brand_name).first()
     return templates.TemplateResponse(
         "products/brand.html",
         {"request": request, "active_page": "products", "current_user": current_user,
@@ -115,9 +118,10 @@ def product_brand(brand_name: str, request: Request, db: Session = Depends(get_d
 @router.get("/new")
 def product_new(request: Request, db: Session = Depends(get_db),
                 current_user: User = Depends(get_current_user)):
+    cid = get_company_id(current_user)
     from_products = {r.brand for r in db.query(Product.brand)
-                     .filter(Product.brand.isnot(None), Product.brand != "").distinct()}
-    from_brands = {b.name for b in db.query(BrandModel).all()}
+                     .filter(Product.company_id == cid, Product.brand.isnot(None), Product.brand != "").distinct()}
+    from_brands = {b.name for b in db.query(BrandModel).filter(BrandModel.company_id == cid).all()}
     existing_brands = sorted(from_products | from_brands)
     return templates.TemplateResponse(
         "products/form.html",
@@ -177,6 +181,7 @@ def product_create(
     product_link: str = Form(""),
     product_type: str = Form("A"),
 ):
+    cid = get_company_id(current_user)
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
     image_path = _save_image(product_image) or (product_image_url.strip() or None)
     set_opts = _parse_set_options(set_options_json)
@@ -188,6 +193,7 @@ def product_create(
     commission = recommended_commission_rate / 100.0  # form sends %, DB stores 0-1
 
     product = Product(
+        company_id=cid,
         name=name, brand=brand, category=category, price=price,
         source_url=source_url or None, description=description or None,
         internal_notes=internal_notes or None,
@@ -231,7 +237,8 @@ def product_create(
 @router.get("/{product_id}")
 def product_detail(product_id: str, request: Request, db: Session = Depends(get_db),
                    current_user: User = Depends(get_current_user)):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    cid = get_company_id(current_user)
+    product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
     if not product:
         return RedirectResponse("/products?err=제품을+찾을+수+없습니다", status_code=302)
 
@@ -239,7 +246,7 @@ def product_detail(product_id: str, request: Request, db: Session = Depends(get_
     recommended_influencers = []
     product_cats = set(product.categories or [])
     if product_cats:
-        all_active = db.query(Influencer).filter(Influencer.status == "active").all()
+        all_active = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.status == "active").all()
         scored = []
         for inf in all_active:
             overlap = len(product_cats & set(inf.categories or []))
@@ -260,12 +267,13 @@ def product_detail(product_id: str, request: Request, db: Session = Depends(get_
 @router.get("/{product_id}/edit")
 def product_edit(product_id: str, request: Request, db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    cid = get_company_id(current_user)
+    product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
     if not product:
         return RedirectResponse("/products", status_code=302)
     from_products = {r.brand for r in db.query(Product.brand)
-                     .filter(Product.brand.isnot(None), Product.brand != "").distinct()}
-    from_brands = {b.name for b in db.query(BrandModel).all()}
+                     .filter(Product.company_id == cid, Product.brand.isnot(None), Product.brand != "").distinct()}
+    from_brands = {b.name for b in db.query(BrandModel).filter(BrandModel.company_id == cid).all()}
     existing_brands = sorted(from_products | from_brands)
     return templates.TemplateResponse(
         "products/form.html",
@@ -318,7 +326,8 @@ def product_update(
     product_link: str = Form(""),
     product_type: str = Form("A"),
 ):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    cid = get_company_id(current_user)
+    product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
     if not product:
         return RedirectResponse("/products", status_code=302)
 
@@ -379,12 +388,14 @@ def product_update(
 @router.post("/{product_id}/clone")
 def product_clone(product_id: str, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user)):
+    cid = get_company_id(current_user)
     import uuid as _uuid
-    src = db.query(Product).filter(Product.id == product_id).first()
+    src = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
     if not src:
         return RedirectResponse("/products", status_code=302)
     clone = Product(
         id=str(_uuid.uuid4()),
+        company_id=cid,
         name=src.name + " (복제)",
         brand=src.brand, category=src.category,
         price=src.price, source_url=src.source_url,
@@ -414,7 +425,8 @@ def product_clone(product_id: str, db: Session = Depends(get_db),
 @router.post("/{product_id}/delete")
 def product_delete(product_id: str, db: Session = Depends(get_db),
                    current_user: User = Depends(get_current_user)):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    cid = get_company_id(current_user)
+    product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
     if product:
         db.delete(product)
         db.commit()

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime
+from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey
 from app.models.base import Base
 
 
@@ -11,6 +11,7 @@ class OutreachLog(Base):
     __tablename__ = "outreach_logs"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     operator = Column(String(100), nullable=False)        # employee who logged
     influencer_handle = Column(String(200), nullable=False)
     influencer_id = Column(String(36), nullable=True)     # linked influencer (auto or manual)

@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.database import get_db
 from app.models import Influencer
 from app.models.user import User
@@ -207,6 +208,7 @@ async def import_confirm(
         logger.exception("mapping_json 파싱 실패")
         return RedirectResponse(f"/influencers/import?err={quote(f'mapping 오류: {e}')}", status_code=302)
 
+    cid = get_company_id(current_user)
     headers = payload.get("headers", [])
     rows = payload.get("rows", [])
     saved = skipped = 0
@@ -232,6 +234,7 @@ async def import_confirm(
 
         try:
             inf = Influencer(
+                company_id=cid,
                 name=name,
                 handle=handle,
                 platform=row_data.get("platform", "instagram"),

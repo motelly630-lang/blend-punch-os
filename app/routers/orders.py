@@ -15,6 +15,7 @@ from app.models.sales_page import SalesPage
 from app.models.product import Product
 from app.models.seller import Seller
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.models.user import User
 from app.services.kakao_notify import send_kakao_shipping
 
@@ -25,8 +26,8 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 def _get_orders(db: Session, status: str = "", seller_code: str = "",
-                page_id: str = "", search: str = ""):
-    q = db.query(Order)
+                page_id: str = "", search: str = "", company_id: int = 1):
+    q = db.query(Order).filter(Order.company_id == company_id)
     if status == "new":
         q = q.filter(Order.payment_status == "paid", Order.order_status == "confirmed")
     elif status == "pending":
@@ -62,18 +63,19 @@ def orders_list(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    orders = _get_orders(db, status, seller_code, page_id, search)
-    pages = db.query(SalesPage).order_by(SalesPage.created_at.desc()).all()
-    sellers = db.query(Seller).filter(Seller.is_active == True).all()
+    cid = get_company_id(user)
+    orders = _get_orders(db, status, seller_code, page_id, search, company_id=cid)
+    pages = db.query(SalesPage).filter(SalesPage.company_id == cid).order_by(SalesPage.created_at.desc()).all()
+    sellers = db.query(Seller).filter(Seller.company_id == cid, Seller.is_active == True).all()
 
     # 탭 카운트
     counts = {
-        "all": db.query(Order).count(),
-        "new": db.query(Order).filter(Order.payment_status == "paid", Order.order_status == "confirmed").count(),
-        "pending": db.query(Order).filter(Order.payment_status == "pending").count(),
-        "shipping": db.query(Order).filter(Order.order_status == "shipping").count(),
-        "delivered": db.query(Order).filter(Order.order_status == "delivered").count(),
-        "cancelled": db.query(Order).filter(Order.order_status == "cancelled").count(),
+        "all": db.query(Order).filter(Order.company_id == cid).count(),
+        "new": db.query(Order).filter(Order.company_id == cid, Order.payment_status == "paid", Order.order_status == "confirmed").count(),
+        "pending": db.query(Order).filter(Order.company_id == cid, Order.payment_status == "pending").count(),
+        "shipping": db.query(Order).filter(Order.company_id == cid, Order.order_status == "shipping").count(),
+        "delivered": db.query(Order).filter(Order.company_id == cid, Order.order_status == "delivered").count(),
+        "cancelled": db.query(Order).filter(Order.company_id == cid, Order.order_status == "cancelled").count(),
     }
     return templates.TemplateResponse("orders/index.html", {
         "request": request, "orders": orders, "pages": pages,
@@ -98,9 +100,10 @@ def orders_export(
     except ImportError:
         return RedirectResponse("/orders?err=openpyxl+미설치", status_code=302)
 
-    orders = _get_orders(db, status, seller_code, page_id)
-    pages_map = {p.id: p for p in db.query(SalesPage).all()}
-    products_map = {p.id: p for p in db.query(Product).all()}
+    cid = get_company_id(user)
+    orders = _get_orders(db, status, seller_code, page_id, company_id=cid)
+    pages_map = {p.id: p for p in db.query(SalesPage).filter(SalesPage.company_id == cid).all()}
+    products_map = {p.id: p for p in db.query(Product).filter(Product.company_id == cid).all()}
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -281,7 +284,8 @@ async def orders_bulk_ship(
 def order_detail(order_id: str, request: Request,
                  db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
-    order = db.query(Order).filter(Order.id == order_id).first()
+    cid = get_company_id(user)
+    order = db.query(Order).filter(Order.company_id == cid, Order.id == order_id).first()
     if not order:
         return RedirectResponse("/orders?err=주문을+찾을+수+없습니다", status_code=302)
     page = db.query(SalesPage).filter(SalesPage.id == order.sales_page_id).first()
@@ -302,7 +306,8 @@ async def order_ship(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    order = db.query(Order).filter(Order.id == order_id).first()
+    cid = get_company_id(user)
+    order = db.query(Order).filter(Order.company_id == cid, Order.id == order_id).first()
     if order:
         order.order_status = "shipping"
         order.carrier_name = carrier_name or None
@@ -319,7 +324,8 @@ async def order_ship(
 @router.post("/{order_id}/deliver")
 def order_deliver(order_id: str, db: Session = Depends(get_db),
                   user: User = Depends(get_current_user)):
-    order = db.query(Order).filter(Order.id == order_id).first()
+    cid = get_company_id(user)
+    order = db.query(Order).filter(Order.company_id == cid, Order.id == order_id).first()
     if order:
         order.order_status = "delivered"
         db.commit()
@@ -333,7 +339,8 @@ def order_cancel(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    order = db.query(Order).filter(Order.id == order_id).first()
+    cid = get_company_id(user)
+    order = db.query(Order).filter(Order.company_id == cid, Order.id == order_id).first()
     if order:
         order.order_status = "cancelled"
         order.payment_status = "cancelled"
@@ -350,7 +357,8 @@ def order_notes(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    order = db.query(Order).filter(Order.id == order_id).first()
+    cid = get_company_id(user)
+    order = db.query(Order).filter(Order.company_id == cid, Order.id == order_id).first()
     if order:
         order.notes = notes or None
         db.commit()

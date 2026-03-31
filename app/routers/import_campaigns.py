@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.database import get_db
 from app.models import Campaign, Product, Influencer
 from app.models.user import User
@@ -261,12 +262,13 @@ async def import_confirm(
     except Exception as e:
         return RedirectResponse(f"/campaigns/import?err={quote(f'mapping 오류: {e}')}", status_code=302)
 
+    cid = get_company_id(current_user)
     headers = payload.get("headers", [])
     rows = payload.get("rows", [])
 
-    # Pre-load product/influencer name→id maps for matching
-    product_map = {p.name.strip().lower(): p.id for p in db.query(Product).all()}
-    inf_map = {i.name.strip().lower(): i.id for i in db.query(Influencer).all()}
+    # Pre-load product/influencer name→id maps for matching (company-scoped)
+    product_map = {p.name.strip().lower(): p.id for p in db.query(Product).filter(Product.company_id == cid).all()}
+    inf_map = {i.name.strip().lower(): i.id for i in db.query(Influencer).filter(Influencer.company_id == cid).all()}
 
     saved = skipped = 0
     errors: list[str] = []
@@ -301,6 +303,7 @@ async def import_confirm(
 
         try:
             c = Campaign(
+                company_id=cid,
                 name=row_data["name"],
                 product_id=product_id,
                 influencer_id=influencer_id,

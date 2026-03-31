@@ -8,6 +8,7 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
     order_number = Column(String(50), unique=True, nullable=False)   # BP-YYYYMMDD-XXXXXX
 
     # 판매 페이지 / 상품

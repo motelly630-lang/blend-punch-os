@@ -13,6 +13,7 @@ from app.models.sales_page import SalesPage
 from app.models.product import Product
 from app.models.order import Order
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.models.user import User
 
 router = APIRouter(prefix="/sales-pages")
@@ -59,8 +60,9 @@ def _parse_json_list(val: str) -> list | None:
 @router.get("")
 def pages_list(request: Request, db: Session = Depends(get_db),
                user: User = Depends(get_current_user)):
-    pages = db.query(SalesPage).order_by(SalesPage.created_at.desc()).all()
-    products = {p.id: p for p in db.query(Product).all()}
+    cid = get_company_id(user)
+    pages = db.query(SalesPage).filter(SalesPage.company_id == cid).order_by(SalesPage.created_at.desc()).all()
+    products = {p.id: p for p in db.query(Product).filter(Product.company_id == cid).all()}
     order_counts = {
         p.id: db.query(Order).filter(Order.sales_page_id == p.id,
                                      Order.payment_status == "paid").count()
@@ -77,7 +79,8 @@ def pages_list(request: Request, db: Session = Depends(get_db),
 @router.get("/new")
 def pages_new(request: Request, db: Session = Depends(get_db),
               user: User = Depends(get_current_user)):
-    products = db.query(Product).filter(Product.status == "active").order_by(Product.name).all()
+    cid = get_company_id(user)
+    products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
     return templates.TemplateResponse("sales_pages/form.html", {
         "request": request, "page": None, "products": products,
         "user": user, "active_page": "sales_pages",
@@ -109,6 +112,7 @@ async def pages_create(
     slug = slug.strip().lower()
     if not re.match(r'^[a-z0-9\-]{2,80}$', slug):
         return RedirectResponse("/sales-pages/new?err=슬러그는+영문소문자·숫자·하이픈만+가능", status_code=302)
+    cid = get_company_id(user)
     if db.query(SalesPage).filter(SalesPage.slug == slug).first():
         return RedirectResponse("/sales-pages/new?err=이미+사용중인+슬러그입니다", status_code=302)
 
@@ -122,6 +126,7 @@ async def pages_create(
 
     p = SalesPage(
         id=str(uuid.uuid4()),
+        company_id=cid,
         slug=slug,
         product_id=product_id,
         title=title or None,
@@ -149,10 +154,11 @@ async def pages_create(
 @router.get("/{page_id}/edit")
 def pages_edit(page_id: str, request: Request, db: Session = Depends(get_db),
                user: User = Depends(get_current_user)):
-    page = db.query(SalesPage).filter(SalesPage.id == page_id).first()
+    cid = get_company_id(user)
+    page = db.query(SalesPage).filter(SalesPage.company_id == cid, SalesPage.id == page_id).first()
     if not page:
         return RedirectResponse("/sales-pages?err=페이지를+찾을+수+없습니다", status_code=302)
-    products = db.query(Product).filter(Product.status == "active").order_by(Product.name).all()
+    products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
     return templates.TemplateResponse("sales_pages/form.html", {
         "request": request, "page": page, "products": products,
         "user": user, "active_page": "sales_pages",
@@ -183,7 +189,8 @@ async def pages_update(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    page = db.query(SalesPage).filter(SalesPage.id == page_id).first()
+    cid = get_company_id(user)
+    page = db.query(SalesPage).filter(SalesPage.company_id == cid, SalesPage.id == page_id).first()
     if not page:
         return RedirectResponse("/sales-pages", status_code=302)
 
@@ -227,7 +234,8 @@ async def pages_update(
 @router.post("/{page_id}/activate")
 def pages_activate(page_id: str, db: Session = Depends(get_db),
                    user: User = Depends(get_current_user)):
-    page = db.query(SalesPage).filter(SalesPage.id == page_id).first()
+    cid = get_company_id(user)
+    page = db.query(SalesPage).filter(SalesPage.company_id == cid, SalesPage.id == page_id).first()
     if page:
         page.status = "active"
         db.commit()
@@ -237,7 +245,8 @@ def pages_activate(page_id: str, db: Session = Depends(get_db),
 @router.post("/{page_id}/close")
 def pages_close(page_id: str, db: Session = Depends(get_db),
                 user: User = Depends(get_current_user)):
-    page = db.query(SalesPage).filter(SalesPage.id == page_id).first()
+    cid = get_company_id(user)
+    page = db.query(SalesPage).filter(SalesPage.company_id == cid, SalesPage.id == page_id).first()
     if page:
         page.status = "closed"
         db.commit()
@@ -247,7 +256,8 @@ def pages_close(page_id: str, db: Session = Depends(get_db),
 @router.post("/{page_id}/delete")
 def pages_delete(page_id: str, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
-    page = db.query(SalesPage).filter(SalesPage.id == page_id).first()
+    cid = get_company_id(user)
+    page = db.query(SalesPage).filter(SalesPage.company_id == cid, SalesPage.id == page_id).first()
     if page:
         db.delete(page)
         db.commit()

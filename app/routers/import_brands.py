@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.brand import Brand
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,8 @@ async def import_upload(
         return HTMLResponse('<p class="text-gray-400 text-sm p-4">파싱된 데이터가 없습니다. 헤더를 확인하세요.</p>')
 
     # 이미 존재하는 브랜드 이름
-    existing_names = {b.name for b in db.query(Brand.name).all()}
+    cid = get_company_id(current_user)
+    existing_names = {b.name for b in db.query(Brand.name).filter(Brand.company_id == cid).all()}
 
     return templates.TemplateResponse(
         "brands/import_preview.html",
@@ -103,7 +105,8 @@ async def import_confirm(
     except Exception:
         return RedirectResponse("/brands?msg=데이터+오류", status_code=302)
 
-    existing_names = {b.name for b in db.query(Brand.name).all()}
+    cid = get_company_id(current_user)
+    existing_names = {b.name for b in db.query(Brand.name).filter(Brand.company_id == cid).all()}
     added = 0
     skipped = 0
     for row in rows:
@@ -113,6 +116,7 @@ async def import_confirm(
             continue
         db.add(Brand(
             id=str(uuid.uuid4()),
+            company_id=cid,
             name=name,
             description=row.get("description") or None,
         ))

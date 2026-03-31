@@ -8,6 +8,7 @@ from app.models import Product, Influencer, Campaign, Proposal
 from app.models.settlement import Settlement
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -19,31 +20,33 @@ def dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    cid = get_company_id(current_user)
     now = datetime.now()
 
     # ── Basic counts ──────────────────────────────────────────────────────────
-    product_count = db.query(func.count(Product.id)).scalar()
-    influencer_count = db.query(func.count(Influencer.id)).scalar()
-    campaign_count = db.query(func.count(Campaign.id)).scalar()
-    proposal_count = db.query(func.count(Proposal.id)).scalar()
+    product_count = db.query(func.count(Product.id)).filter(Product.company_id == cid).scalar()
+    influencer_count = db.query(func.count(Influencer.id)).filter(Influencer.company_id == cid).scalar()
+    campaign_count = db.query(func.count(Campaign.id)).filter(Campaign.company_id == cid).scalar()
+    proposal_count = db.query(func.count(Proposal.id)).filter(Proposal.company_id == cid).scalar()
 
     # ── Revenue KPIs (SQL aggregates — no full table loads) ───────────────────
     total_revenue = db.query(func.sum(Campaign.actual_revenue)).filter(
-        Campaign.status == "completed"
+        Campaign.company_id == cid, Campaign.status == "completed"
     ).scalar() or 0
 
     active_revenue = db.query(func.sum(Campaign.actual_revenue)).filter(
-        Campaign.status == "active"
+        Campaign.company_id == cid, Campaign.status == "active"
     ).scalar() or 0
 
     this_month = now.strftime("%Y-%m")
     monthly_revenue = db.query(func.sum(Campaign.actual_revenue)).filter(
+        Campaign.company_id == cid,
         Campaign.status == "completed",
         func.strftime("%Y-%m", Campaign.end_date) == this_month,
     ).scalar() or 0
 
     total_seller_commission = db.query(func.sum(Campaign.seller_commission_amount)).filter(
-        Campaign.status == "completed"
+        Campaign.company_id == cid, Campaign.status == "completed"
     ).scalar() or 0
 
     # ── Settlement KPIs (SQL aggregates) ─────────────────────────────────────
@@ -68,6 +71,7 @@ def dashboard(
         func.strftime("%Y-%m", Campaign.end_date).label("ym"),
         func.sum(Campaign.actual_revenue).label("rev"),
     ).filter(
+        Campaign.company_id == cid,
         Campaign.status == "completed",
         Campaign.actual_revenue.isnot(None),
         Campaign.end_date.isnot(None),
@@ -89,6 +93,7 @@ def dashboard(
         Campaign.product_id,
         func.sum(Campaign.actual_revenue).label("total_rev"),
     ).filter(
+        Campaign.company_id == cid,
         Campaign.status == "completed",
         Campaign.product_id.isnot(None),
         Campaign.actual_revenue.isnot(None),
@@ -98,21 +103,21 @@ def dashboard(
 
     top_products = []
     for row in top_raw:
-        p = db.query(Product).filter(Product.id == row.product_id).first()
+        p = db.query(Product).filter(Product.company_id == cid, Product.id == row.product_id).first()
         if p:
             top_products.append({"product": p, "revenue": row.total_rev or 0})
 
     # ── Active campaigns ──────────────────────────────────────────────────────
     active_campaigns = (
         db.query(Campaign)
-        .filter(Campaign.status.in_(["active", "planning", "negotiating", "contracted"]))
+        .filter(Campaign.company_id == cid, Campaign.status.in_(["active", "planning", "negotiating", "contracted"]))
         .order_by(Campaign.created_at.desc())
         .limit(5)
         .all()
     )
 
     # ── Recent products ───────────────────────────────────────────────────────
-    recent_products = db.query(Product).order_by(Product.created_at.desc()).limit(5).all()
+    recent_products = db.query(Product).filter(Product.company_id == cid).order_by(Product.created_at.desc()).limit(5).all()
 
     return templates.TemplateResponse(
         "dashboard/index.html",
