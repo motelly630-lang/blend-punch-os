@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import get_current_user, require_super_admin
 from app.models.user import User
 from app.services.feature_flags import (
     ALL_FEATURES, PLAN_FEATURES,
@@ -53,7 +53,7 @@ def features_index(
 def features_apply_plan(
     plan: str = Form(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     """플랜 프리셋 일괄 적용 (admin 전용)."""
     try:
@@ -71,7 +71,7 @@ def features_apply_plan(
 async def features_toggle(
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     """단일 기능 토글 — JSON API (admin 전용)."""
     body = await request.json()

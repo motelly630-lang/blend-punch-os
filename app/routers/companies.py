@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import require_super_admin
 from app.models.user import User
 from app.models.feature_flag import Company, CompanyFeature
 from app.services.feature_flags import (
@@ -30,7 +30,7 @@ templates = Jinja2Templates(directory="app/templates")
 def companies_list(
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     companies = db.query(Company).order_by(Company.created_at.asc()).all()
 
@@ -58,7 +58,7 @@ def companies_list(
 def companies_new(
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     return templates.TemplateResponse("companies/new.html", {
         "request": request,
@@ -73,7 +73,7 @@ def companies_create(
     name: str = Form(...),
     plan: str = Form("pro"),
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     name = name.strip()
     if not name:
@@ -97,7 +97,7 @@ def company_detail(
     company_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
@@ -140,7 +140,7 @@ def company_update(
     plan: str = Form("pro"),
     is_active: str = Form("on"),
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
@@ -163,7 +163,7 @@ def company_apply_plan(
     company_id: int,
     plan: str = Form(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
@@ -185,7 +185,7 @@ async def company_toggle_feature(
     company_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     body = await request.json()
     key     = body.get("key", "")
@@ -209,7 +209,7 @@ def company_add_user(
     company_id: int,
     user_id: str = Form(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
@@ -231,7 +231,7 @@ def company_remove_user(
     company_id: int,
     user_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_super_admin),
 ):
     target = db.query(User).filter(
         User.id == user_id, User.company_id == company_id

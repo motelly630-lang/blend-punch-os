@@ -41,6 +41,13 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def require_super_admin(user: User = Depends(get_current_user)) -> User:
+    """수퍼어드민 전용 — company_id=None + role=admin (블렌드펀치 계정만 허용)."""
+    if user.company_id is not None or user.role != "admin":
+        raise InsufficientPermissions()
+    return user
+
+
 def require_manager(user: User = Depends(get_current_user)) -> User:
     if user.role not in ("admin", "manager"):
         raise InsufficientPermissions()

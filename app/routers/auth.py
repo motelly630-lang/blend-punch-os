@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.auth.service import verify_password, create_access_token, hash_password
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import get_current_user, require_super_admin
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -62,7 +62,7 @@ ROLES = [("admin", "관리자"), ("staff", "스태프"), ("partner", "파트너"
 
 @router.get("/users")
 def user_list(request: Request, db: Session = Depends(get_db),
-              current_user: User = Depends(require_admin)):
+              current_user: User = Depends(require_super_admin)):
     users = db.query(User).order_by(User.created_at).all()
     return templates.TemplateResponse("auth/users.html", {
         "request": request, "active_page": "users",
@@ -73,7 +73,7 @@ def user_list(request: Request, db: Session = Depends(get_db),
 @router.post("/users/new")
 def user_create(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_super_admin),
     username: str = Form(...),
     password: str = Form(...),
     role: str = Form("partner"),
@@ -95,7 +95,7 @@ def user_create(
 def user_edit(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_super_admin),
     role: str = Form(...),
     is_active: str = Form("on"),
 ):
@@ -114,7 +114,7 @@ def user_edit(
 def user_reset_password(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_super_admin),
     new_password: str = Form(...),
 ):
     user = db.query(User).filter(User.id == user_id).first()
@@ -140,7 +140,7 @@ def changelog(request: Request, current_user: User = Depends(get_current_user)):
 def user_delete(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_super_admin),
 ):
     if user_id == current_user.id:
         return RedirectResponse("/users?err=자신의+계정은+삭제할+수+없습니다", status_code=302)
