@@ -255,6 +255,76 @@
   </div>
   {% endif %}
 
+  <!-- ── 법적 필수 정보 / 안내 섹션 ──────────────────────────────── -->
+  <div class="mt-2 mb-4 rounded-2xl border border-gray-100 overflow-hidden bg-white">
+
+    {% set sections = [] %}
+    {% if biz and biz.shipping_guide %}
+      {% set _ = sections.append(('shipping', '배송 안내', biz.shipping_guide)) %}
+    {% endif %}
+    {% if biz and biz.return_policy %}
+      {% set _ = sections.append(('return', '교환 / 환불 정책', biz.return_policy)) %}
+    {% endif %}
+    {% if biz and biz.payment_guide %}
+      {% set _ = sections.append(('payment', '결제 안내', biz.payment_guide)) %}
+    {% endif %}
+
+    {% for key, label, content in sections %}
+    <div x-data="{ open: false }" class="{% if not loop.first %}border-t border-gray-100{% endif %}">
+      <button type="button" @click="open = !open"
+        class="w-full flex items-center justify-between px-4 py-3.5 text-left">
+        <span class="text-sm font-medium text-gray-700">{{ label }}</span>
+        <svg class="w-4 h-4 text-gray-400 transition-transform" :class="open ? 'rotate-180' : ''"
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      <div x-show="open" x-cloak class="px-4 pb-4">
+        <div class="text-xs text-gray-500 leading-relaxed whitespace-pre-line">{{ content }}</div>
+      </div>
+    </div>
+    {% endfor %}
+
+    {% if not sections %}
+    {# 안내 문구 미설정 시 아무것도 표시하지 않음 #}
+    {% endif %}
+
+  </div>
+
+  <!-- ── 사업자 정보 (항상 표시) ────────────────────────────────── -->
+  {% if biz and (biz.company_name or biz.biz_reg_number) %}
+  <div class="mb-6 px-4 py-4 bg-gray-50 rounded-2xl border border-gray-100">
+    <div class="text-xs font-semibold text-gray-500 mb-2.5 tracking-wide uppercase">사업자 정보</div>
+    <dl class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-gray-500">
+      {% if biz.company_name %}
+      <div><dt class="inline text-gray-400">상호</dt> <dd class="inline text-gray-700 font-medium">{{ biz.company_name }}</dd></div>
+      {% endif %}
+      {% if biz.ceo_name %}
+      <div><dt class="inline text-gray-400">대표자</dt> <dd class="inline text-gray-700">{{ biz.ceo_name }}</dd></div>
+      {% endif %}
+      {% if biz.biz_reg_number %}
+      <div class="col-span-2"><dt class="inline text-gray-400">사업자등록번호</dt> <dd class="inline text-gray-700">{{ biz.biz_reg_number }}</dd></div>
+      {% endif %}
+      {% if biz.mail_order_number %}
+      <div class="col-span-2"><dt class="inline text-gray-400">통신판매업신고번호</dt> <dd class="inline text-gray-700">{{ biz.mail_order_number }}</dd></div>
+      {% endif %}
+      {% if biz.address %}
+      <div class="col-span-2"><dt class="inline text-gray-400">주소</dt> <dd class="inline text-gray-700">{{ biz.address }}</dd></div>
+      {% endif %}
+      {% if biz.phone %}
+      <div><dt class="inline text-gray-400">전화</dt> <dd class="inline text-gray-700">{{ biz.phone }}</dd></div>
+      {% endif %}
+      {% if biz.email %}
+      <div><dt class="inline text-gray-400">이메일</dt> <dd class="inline text-gray-700">{{ biz.email }}</dd></div>
+      {% endif %}
+    </dl>
+    <div class="mt-3 pt-2.5 border-t border-gray-200 text-xs text-gray-400 leading-relaxed">
+      본 쇼핑몰은 토스페이먼츠를 통해 결제가 처리됩니다.
+      소비자피해보상보험 가입 사업자입니다.
+    </div>
+  </div>
+  {% endif %}
+
   <!-- 에러 메시지 -->
   <template x-if="errorMsg">
     <div class="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700"

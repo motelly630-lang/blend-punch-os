@@ -25,6 +25,7 @@ from app.routers import orders as orders_router
 from app.routers import sales_pages as sales_pages_router
 from app.routers import sellers as sellers_router
 from app.routers import applications as applications_router
+from app.routers import business_info as business_info_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions
 
 
@@ -126,6 +127,7 @@ app.include_router(orders_router.router)
 app.include_router(sales_pages_router.router)
 app.include_router(sellers_router.router)
 app.include_router(applications_router.router)
+app.include_router(business_info_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────
@@ -208,8 +210,9 @@ def _setup_filters():
     import app.routers.sales_pages as sp
     import app.routers.sellers as sel
     import app.routers.applications as appl
+    import app.routers.business_info as biz
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl]:
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num

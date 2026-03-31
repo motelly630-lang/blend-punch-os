@@ -14,6 +14,7 @@ from app.models.sales_page import SalesPage
 from app.models.product import Product
 from app.models.seller import Seller
 from app.models.order import Order
+from app.models.business_info import BusinessInfo
 from app.api.payments import confirm_toss_payment
 from app.config import settings
 
@@ -112,6 +113,8 @@ def shop_product(slug: str, request: Request,
     page_options = page.options or (product.set_options if hasattr(product, "set_options") else None) or []
     addon_products = page.addon_products or []
 
+    biz = db.query(BusinessInfo).filter(BusinessInfo.id == 1).first()
+
     return templates.TemplateResponse("shop/product.html", {
         "request": request,
         "page": page,
@@ -122,6 +125,7 @@ def shop_product(slug: str, request: Request,
         "toss_client_key": settings.toss_client_key,
         "page_options": page_options,
         "addon_products": addon_products,
+        "biz": biz,
     })
 
 

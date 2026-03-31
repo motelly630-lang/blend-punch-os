@@ -112,6 +112,19 @@ def migrate():
         _add_column(conn, "products", "is_complete INTEGER DEFAULT 0")
         _add_column(conn, "products", "missing_fields JSON")
 
+        # --- business_infos (전자상거래 법적 필수 정보) ---
+        # 테이블은 init_db()가 생성; 컬럼 누락분만 보완
+        _add_column(conn, "business_infos", "company_name VARCHAR(200)")
+        _add_column(conn, "business_infos", "ceo_name VARCHAR(100)")
+        _add_column(conn, "business_infos", "biz_reg_number VARCHAR(50)")
+        _add_column(conn, "business_infos", "mail_order_number VARCHAR(100)")
+        _add_column(conn, "business_infos", "address TEXT")
+        _add_column(conn, "business_infos", "phone VARCHAR(50)")
+        _add_column(conn, "business_infos", "email VARCHAR(200)")
+        _add_column(conn, "business_infos", "shipping_guide TEXT")
+        _add_column(conn, "business_infos", "return_policy TEXT")
+        _add_column(conn, "business_infos", "payment_guide TEXT")
+
         # ── SQLite Indexes (성능 최적화) ──────────────────────────────
         indexes = [
             ("idx_products_brand",       "products",    "brand"),
