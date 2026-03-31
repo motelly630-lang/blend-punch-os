@@ -134,8 +134,8 @@
       </a>
     </nav>
 
-    <!-- Admin-only links -->
-    {% if current_user and current_user.role == 'admin' %}
+    <!-- Super-admin only links (company_id=None + role=admin) -->
+    {% if is_super_admin() %}
     <div class="px-2 pb-2">
       <a href="/companies"
         class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5

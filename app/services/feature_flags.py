@@ -133,6 +133,11 @@ def is_feature_enabled_for_current_user(key: str) -> bool:
     return key in enabled
 
 
+def is_super_admin_for_current_user() -> bool:
+    """Jinja2 global 함수 — 수퍼어드민(company_id=None + role=admin) 여부."""
+    return _ctx_is_super.get()
+
+
 # ── DB 기반 함수 ──────────────────────────────────────────────────────────────
 
 def invalidate(company_id: int = 1) -> None:

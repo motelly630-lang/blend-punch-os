@@ -76,21 +76,24 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         from app.services.feature_flags import (
-            ALWAYS_ON, get_path_feature, is_enabled,
+            ALWAYS_ON, get_path_feature,
             get_enabled_features, get_user_company, set_request_context,
         )
         from app.auth.service import decode_token
 
         path = request.url.path
 
-        # ── 항상 허용 경로 ──────────────────────────────────────────────
-        if path == "/" or path == "":
-            set_request_context(1, True, frozenset())
+        # ── 정적/공개 경로는 JWT 파싱 생략 ─────────────────────────────
+        skip_parse = (
+            path.startswith("/static") or
+            path.startswith("/shop") or
+            path.startswith("/public") or
+            path.startswith("/catalog") or
+            path in ("/login", "/logout", "/robots.txt")
+        )
+        if skip_parse:
+            set_request_context(1, False, frozenset())
             return await call_next(request)
-        for prefix in self._ALWAYS_ALLOW:
-            if path == prefix or path.startswith(prefix + "/"):
-                set_request_context(1, True, frozenset())
-                return await call_next(request)
 
         # ── JWT에서 user 컨텍스트 추출 ────────────────────────────────
         company_id = 1
@@ -120,6 +123,16 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
 
         # ── ContextVar 설정 (Jinja2 global에서 사용) ──────────────────
         set_request_context(company_id, is_super, enabled)
+
+        # ── ALWAYS_ALLOW 경로는 feature gate 건너뜀 (사이드바는 필터됨) ──
+        always_allow = (
+            path == "/" or path == "" or
+            path.startswith("/companies") or
+            path.startswith("/settings") or
+            path.startswith("/users")
+        )
+        if always_allow:
+            return await call_next(request)
 
         # ── URL prefix 기능 차단 ───────────────────────────────────────
         feature_key = get_path_feature(path)
@@ -313,7 +326,10 @@ def _setup_filters():
 
     # is_feature_enabled: ContextVar 기반 — 미들웨어가 요청마다 설정한 값을 반환
     # DB 조회 없음, 매우 빠름
-    from app.services.feature_flags import is_feature_enabled_for_current_user as _is_feature_enabled
+    from app.services.feature_flags import (
+        is_feature_enabled_for_current_user as _is_feature_enabled,
+        is_super_admin_for_current_user as _is_super_admin,
+    )
 
     import app.routers.companies as comp
 
@@ -332,6 +348,7 @@ def _setup_filters():
         env.filters["enumerate"] = enumerate
         env.globals["outreach_active_count"] = _outreach_active_count
         env.globals["is_feature_enabled"] = _is_feature_enabled
+        env.globals["is_super_admin"] = _is_super_admin
         env.globals["ALL_FEATURES"] = _ALL_FEATURES
 
 
