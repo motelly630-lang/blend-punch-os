@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.database import get_db
 from app.models.brand import Brand
 from app.models.user import User
@@ -48,7 +49,11 @@ def brand_create(
         logo=logo_path,
     )
     db.add(brand)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return RedirectResponse(f"/brands/new?error=이미+존재하는+브랜드명입니다:+{name}", status_code=302)
     return RedirectResponse("/brands?msg=브랜드가+등록되었습니다", status_code=302)
 
 

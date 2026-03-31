@@ -4,6 +4,11 @@
 
 {% block content %}
 <div class="max-w-lg">
+  {% if request.query_params.get('error') %}
+  <div class="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+    {{ request.query_params.get('error') }}
+  </div>
+  {% endif %}
   <form method="post" enctype="multipart/form-data"
     action="{% if brand %}/brands/{{ brand.id }}/edit{% else %}/brands/new{% endif %}"
     class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-5">

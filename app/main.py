@@ -27,7 +27,8 @@ from app.routers import sellers as sellers_router
 from app.routers import applications as applications_router
 from app.routers import business_info as business_info_router
 from app.routers import feature_flags as feature_flags_router
-from app.auth.dependencies import RequiresLogin, InsufficientPermissions
+from app.routers import companies as companies_router
+from app.auth.dependencies import RequiresLogin, InsufficientPermissions, FeatureDisabled
 
 
 @asynccontextmanager
@@ -58,34 +59,72 @@ app.add_middleware(NoIndexMiddleware)
 
 class FeatureGateMiddleware(BaseHTTPMiddleware):
     """
-    URL prefix 기반 기능 차단 미들웨어.
-    비활성화된 기능의 경로에 접근하면:
-    - JSON 요청 → 403 JSON 응답
-    - 일반 요청 → 대시보드로 redirect
-    /settings/* 와 /static/* 은 항상 허용 (관리 페이지 접근 보장)
+    멀티테넌트 기능 차단 미들웨어.
+
+    매 요청마다:
+      1. JWT 쿠키 파싱 → username → (company_id, is_super) 조회 (60s 캐시)
+      2. ContextVar 설정 → Jinja2 is_feature_enabled() 에서 DB 없이 사용
+      3. URL prefix 매핑 → 비활성 기능이면 403/redirect
+
+    항상 허용: /settings, /companies, /static, /login, /logout,
+               /shop, /public, /catalog, /
     """
-    _ALWAYS_ALLOW = ("/settings", "/static", "/login", "/logout", "/shop", "/public", "/catalog")
+    _ALWAYS_ALLOW = (
+        "/settings", "/companies", "/static", "/login", "/logout",
+        "/shop", "/public", "/catalog", "/users",
+    )
 
     async def dispatch(self, request: Request, call_next):
+        from app.services.feature_flags import (
+            ALWAYS_ON, get_path_feature, is_enabled,
+            get_enabled_features, get_user_company, set_request_context,
+        )
+        from app.auth.service import decode_token
+
         path = request.url.path
 
-        # 항상 허용하는 경로
+        # ── 항상 허용 경로 ──────────────────────────────────────────────
+        if path == "/" or path == "":
+            set_request_context(1, True, frozenset())
+            return await call_next(request)
         for prefix in self._ALWAYS_ALLOW:
-            if path.startswith(prefix) or path == prefix:
+            if path == prefix or path.startswith(prefix + "/"):
+                set_request_context(1, True, frozenset())
                 return await call_next(request)
 
-        from app.services.feature_flags import get_path_feature, is_enabled
-        feature_key = get_path_feature(path)
+        # ── JWT에서 user 컨텍스트 추출 ────────────────────────────────
+        company_id = 1
+        is_super   = False
+        enabled    = frozenset()
 
-        if feature_key:
-            from app.database import SessionLocal
-            db = SessionLocal()
+        token = request.cookies.get("access_token")
+        if token:
             try:
-                allowed = is_enabled(db, feature_key)
-            finally:
-                db.close()
+                payload = decode_token(token)
+                if payload:
+                    username = payload.get("sub", "")
+                    if username:
+                        from app.database import SessionLocal
+                        db = SessionLocal()
+                        try:
+                            company_id, is_super = get_user_company(db, username)
+                            if is_super:
+                                from app.services.feature_flags import ALL_FEATURES
+                                enabled = frozenset(set(ALL_FEATURES.keys()) | ALWAYS_ON)
+                            else:
+                                enabled = get_enabled_features(db, company_id)
+                        finally:
+                            db.close()
+            except Exception:
+                pass
 
-            if not allowed:
+        # ── ContextVar 설정 (Jinja2 global에서 사용) ──────────────────
+        set_request_context(company_id, is_super, enabled)
+
+        # ── URL prefix 기능 차단 ───────────────────────────────────────
+        feature_key = get_path_feature(path)
+        if feature_key and feature_key not in ALWAYS_ON and not is_super:
+            if feature_key not in enabled:
                 accept = request.headers.get("accept", "")
                 if "application/json" in accept or request.headers.get("x-requested-with"):
                     return JSONResponse(
@@ -131,6 +170,16 @@ async def insufficient_permissions_handler(request: Request, exc: InsufficientPe
     return RedirectResponse(url="/?err=권한이+없습니다", status_code=302)
 
 
+@app.exception_handler(FeatureDisabled)
+async def feature_disabled_handler(request: Request, exc: FeatureDisabled):
+    if _is_api_request(request):
+        return JSONResponse(
+            {"error": f"'{exc.key}' 기능이 비활성화되어 있습니다."},
+            status_code=403,
+        )
+    return RedirectResponse(url="/?err=비활성화된+기능입니다", status_code=302)
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     if _is_api_request(request):
@@ -174,6 +223,7 @@ app.include_router(sellers_router.router)
 app.include_router(applications_router.router)
 app.include_router(business_info_router.router)
 app.include_router(feature_flags_router.router)
+app.include_router(companies_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────
@@ -261,17 +311,13 @@ def _setup_filters():
 
     from app.services.feature_flags import ALL_FEATURES as _ALL_FEATURES
 
-    def _is_feature_enabled(key: str) -> bool:
-        """템플릿에서 호출: {% if is_feature_enabled('products') %}"""
-        from app.database import SessionLocal
-        from app.services.feature_flags import is_enabled
-        db = SessionLocal()
-        try:
-            return is_enabled(db, key)
-        finally:
-            db.close()
+    # is_feature_enabled: ContextVar 기반 — 미들웨어가 요청마다 설정한 값을 반환
+    # DB 조회 없음, 매우 빠름
+    from app.services.feature_flags import is_feature_enabled_for_current_user as _is_feature_enabled
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz, ff]:
+    import app.routers.companies as comp
+
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz, ff, comp]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num

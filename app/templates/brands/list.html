@@ -25,9 +25,27 @@
 {% endif %}
 
 {% if brands %}
-<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+<!-- 검색 바 -->
+<div class="flex items-center gap-3 mb-4">
+  <div class="relative flex-1 max-w-sm">
+    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+    </svg>
+    <input type="text" id="brand-search"
+      placeholder="브랜드명 검색..."
+      class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+  </div>
+  <span id="brand-count" class="text-xs text-gray-400 flex-shrink-0">총 {{ brands | length }}개</span>
+</div>
+
+<div id="no-results" style="display:none" class="bg-white rounded-xl border border-gray-100 p-10 text-center text-sm text-gray-400">
+  검색 결과가 없습니다
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" id="brand-grid">
   {% for b in brands %}
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-all group flex flex-col">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-all group flex flex-col brand-card"
+    data-name="{{ b.name | lower }}" data-desc="{{ (b.description or '') | lower }}">
     <!-- Logo -->
     <div class="flex items-center justify-center mb-3">
       {% if b.logo %}
@@ -128,6 +146,29 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+  // ── 브랜드 검색 필터 ──
+  var searchInput  = document.getElementById('brand-search');
+  var countEl      = document.getElementById('brand-count');
+  var noResults    = document.getElementById('no-results');
+  var total        = document.querySelectorAll('.brand-card').length;
+
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      var q = this.value.trim().toLowerCase();
+      var cards = document.querySelectorAll('.brand-card');
+      var visible = 0;
+      cards.forEach(function (card) {
+        var match = !q || card.dataset.name.includes(q) || card.dataset.desc.includes(q);
+        card.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      countEl.textContent = q ? (visible + ' / ' + total + '개') : ('총 ' + total + '개');
+      noResults.style.display = (visible === 0) ? '' : 'none';
+    });
+    searchInput.focus();
+  }
+
+
   var modal     = document.getElementById('import-modal');
   var dropzone  = document.getElementById('import-dropzone');
   var spinner   = document.getElementById('import-spinner');

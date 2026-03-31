@@ -13,7 +13,7 @@ from app.auth.dependencies import get_current_user, require_admin
 from app.models.user import User
 from app.services.feature_flags import (
     ALL_FEATURES, PLAN_FEATURES,
-    get_or_create_company, get_enabled_features,
+    get_or_create_default_company, get_enabled_features,
     apply_plan, toggle_feature,
 )
 
@@ -27,7 +27,7 @@ def features_index(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    company = get_or_create_company(db)
+    company = get_or_create_default_company(db)
     enabled = get_enabled_features(db, company.id)
 
     # 그룹별 분류

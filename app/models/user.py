@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey
 from app.models.base import Base
 
 
@@ -13,5 +13,8 @@ class User(Base):
     hashed_password = Column(String(200), nullable=False)
     role = Column(String(20), default="partner")   # admin | staff | partner (legacy: manager, viewer)
     is_active = Column(Boolean, default=True)
+    # NULL = 슈퍼어드민 (모든 기능/회사 접근 가능)
+    # 값 있음 = 해당 company 소속, 회사 기능 제한 적용
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

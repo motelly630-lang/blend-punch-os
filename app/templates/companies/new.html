@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}새 회사 등록 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}새 회사 등록{% endblock %}
+{% block header_actions %}
+<a href="/companies" class="text-sm text-gray-500 hover:text-gray-700">← 목록</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-md">
+  <form method="post" action="/companies/new" class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
+    <div>
+      <label class="text-sm font-medium text-gray-700 mb-1 block">회사명 *</label>
+      <input name="name" placeholder="(주)블렌드펀치" required
+        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </div>
+    <div>
+      <label class="text-sm font-medium text-gray-700 mb-1 block">초기 플랜</label>
+      <select name="plan" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <option value="pro">Pro — 전체 기능</option>
+        <option value="basic">Basic — 주요 기능</option>
+        <option value="beta">Beta — 핵심 기능만</option>
+      </select>
+    </div>
+    <button type="submit"
+      class="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+      회사 생성
+    </button>
+  </form>
+</div>
+{% endblock %}

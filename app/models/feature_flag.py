@@ -10,9 +10,10 @@ from app.models.base import Base
 class Company(Base):
     __tablename__ = "companies"
 
-    id = Column(Integer, primary_key=True, default=1)
-    name = Column(String(200), default="BLEND PUNCH")
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False)
     plan = Column(String(20), default="pro")       # beta | basic | pro
+    is_active = Column(Boolean, default=True)      # False = 해당 회사 전체 접근 차단
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

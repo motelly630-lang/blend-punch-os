@@ -13,15 +13,42 @@
     <!-- 제품 선택 -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-3">
       <h3 class="text-sm font-semibold text-gray-700">제품 선택 <span class="text-red-500">*</span></h3>
-      <select name="product_id" id="product-select" required
-        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-        <option value="">제품을 선택하세요</option>
-        {% for p in products %}
-        <option value="{{ p.id }}" {% if p.id == prefill_product_id %}selected{% endif %}>
-          {{ p.name }} — {{ p.brand }}{% if p.category %} ({{ p.category }}){% endif %}
-        </option>
-        {% endfor %}
-      </select>
+
+      <!-- 검색 드롭다운 -->
+      <div class="relative" id="prod-picker">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input type="text" id="prod-search-input" autocomplete="off"
+            placeholder="제품명 또는 브랜드 검색..."
+            class="w-full pl-9 pr-8 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <button type="button" id="prod-clear-btn" style="display:none"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 text-lg leading-none">×</button>
+        </div>
+
+        <!-- 드롭다운 목록 -->
+        <div id="prod-dropdown" style="display:none"
+          class="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+          {% for p in products %}
+          <div class="prod-option px-3 py-2.5 cursor-pointer hover:bg-blue-50 flex items-center justify-between gap-2"
+            data-value="{{ p.id }}"
+            data-label="{{ p.name }}{% if p.brand %} — {{ p.brand }}{% endif %}"
+            data-search="{{ (p.name ~ ' ' ~ (p.brand or '') ~ ' ' ~ (p.category or '')) | lower | e }}"
+            {% if p.id == prefill_product_id %}data-preselect="1"{% endif %}>
+            <div>
+              <span class="text-sm font-medium text-gray-800">{{ p.name }}</span>
+              {% if p.brand %}<span class="text-xs text-gray-400 ml-1">— {{ p.brand }}</span>{% endif %}
+            </div>
+            {% if p.category %}<span class="text-xs text-gray-400 flex-shrink-0">{{ p.category }}</span>{% endif %}
+          </div>
+          {% endfor %}
+          <div id="prod-no-results" style="display:none" class="px-3 py-3 text-xs text-gray-400 text-center">검색 결과가 없습니다</div>
+        </div>
+      </div>
+
+      <!-- hidden — hx-include 대상 및 폼 제출값 -->
+      <input type="hidden" name="product_id" id="product-select">
     </div>
 
     <!-- AI 초안 생성 -->
@@ -33,7 +60,7 @@
         </div>
         <button type="button"
           hx-post="/api/ai/proposal-draft"
-          hx-include="#product-select,[name='custom_instructions']"
+          hx-vals='js:{"product_id": document.getElementById("product-select").value, "custom_instructions": document.querySelector("[name=custom_instructions]").value}'
           hx-target="#ai-draft-area"
           hx-swap="outerHTML"
           hx-indicator="#ai-btn-spinner"
@@ -85,6 +112,83 @@
 
 {% block scripts %}
 <script>
+(function () {
+  var searchInput = document.getElementById('prod-search-input');
+  var dropdown    = document.getElementById('prod-dropdown');
+  var hiddenInput = document.getElementById('product-select');
+  var clearBtn    = document.getElementById('prod-clear-btn');
+  var noResults   = document.getElementById('prod-no-results');
+  var options     = document.querySelectorAll('.prod-option');
+
+  // prefill
+  var preselect = document.querySelector('.prod-option[data-preselect]');
+  if (preselect) selectOption(preselect);
+
+  function showDropdown() { dropdown.style.display = ''; }
+  function hideDropdown() { dropdown.style.display = 'none'; }
+
+  function selectOption(el) {
+    hiddenInput.value = el.dataset.value;
+    searchInput.value = el.dataset.label;
+    clearBtn.style.display = '';
+    searchInput.classList.remove('border-gray-200');
+    searchInput.classList.add('border-blue-300', 'bg-blue-50');
+    hideDropdown();
+  }
+
+  function clearSelection() {
+    hiddenInput.value = '';
+    searchInput.value = '';
+    clearBtn.style.display = 'none';
+    searchInput.classList.add('border-gray-200');
+    searchInput.classList.remove('border-blue-300', 'bg-blue-50');
+    filterOptions('');
+  }
+
+  function filterOptions(q) {
+    var lq = q.toLowerCase();
+    var visible = 0;
+    options.forEach(function (el) {
+      var match = !lq || el.dataset.search.includes(lq);
+      el.style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    noResults.style.display = visible === 0 ? '' : 'none';
+  }
+
+  searchInput.addEventListener('focus', function () {
+    if (!hiddenInput.value) filterOptions(this.value);
+    showDropdown();
+  });
+  searchInput.addEventListener('input', function () {
+    hiddenInput.value = '';
+    clearBtn.style.display = 'none';
+    searchInput.classList.add('border-gray-200');
+    searchInput.classList.remove('border-blue-300', 'bg-blue-50');
+    filterOptions(this.value);
+    showDropdown();
+  });
+  clearBtn.addEventListener('click', clearSelection);
+
+  options.forEach(function (el) {
+    el.addEventListener('click', function () { selectOption(el); });
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!document.getElementById('prod-picker').contains(e.target)) hideDropdown();
+  });
+
+  // form submit validation
+  document.querySelector('form').addEventListener('submit', function (e) {
+    if (!hiddenInput.value) {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.classList.add('border-red-400', 'ring-2', 'ring-red-300');
+      searchInput.placeholder = '제품을 선택해주세요';
+    }
+  });
+})();
+
 function copyDraft() {
   const body = document.getElementById('draft-body');
   if (!body) return;

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}회사 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}회사 관리{% endblock %}
+{% block header_actions %}
+<a href="/companies/new"
+  class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+  + 새 회사 등록
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="text-left px-5 py-3 font-medium text-gray-500">회사명</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500">플랜</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500">상태</th>
+        <th class="text-right px-5 py-3 font-medium text-gray-500">사용자</th>
+        <th class="text-right px-5 py-3 font-medium text-gray-500">활성 기능</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500">생성일</th>
+        <th class="px-5 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for c in companies %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-5 py-3.5 font-medium text-gray-800">{{ c.name }}</td>
+        <td class="px-5 py-3.5">
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium
+            {% if c.plan == 'pro' %}bg-indigo-100 text-indigo-700
+            {% elif c.plan == 'basic' %}bg-blue-100 text-blue-700
+            {% else %}bg-gray-100 text-gray-600{% endif %}">
+            {{ c.plan | upper }}
+          </span>
+        </td>
+        <td class="px-5 py-3.5">
+          {% if c.is_active %}
+          <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">활성</span>
+          {% else %}
+          <span class="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs font-medium">비활성</span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3.5 text-right text-gray-600">{{ stats[c.id].users }}</td>
+        <td class="px-5 py-3.5 text-right text-gray-600">{{ stats[c.id].features }} / {{ all_features | length }}</td>
+        <td class="px-5 py-3.5 text-gray-400 text-xs">{{ c.created_at | date }}</td>
+        <td class="px-5 py-3.5 text-right">
+          <a href="/companies/{{ c.id }}"
+            class="text-xs text-blue-600 hover:text-blue-700 font-medium">관리 →</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="px-5 py-10 text-center text-gray-400">등록된 회사가 없습니다</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
