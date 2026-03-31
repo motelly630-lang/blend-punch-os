@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # Instagram 봇 계정
     instagram_username: str = ""
     instagram_password: str = ""
+    # 카카오 알림톡 (알리고 비즈메시지)
+    kakao_mock: bool = True              # false 설정 시 실제 발송
+    kakao_api_key: str = ""
+    kakao_user_id: str = ""
+    kakao_sender_key: str = ""
+    kakao_ship_template: str = ""        # 배송시작 알림톡 템플릿 코드
 
 
 settings = Settings()

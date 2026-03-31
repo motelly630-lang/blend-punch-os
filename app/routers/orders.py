@@ -1,10 +1,12 @@
 """
 어드민 주문 관리
 """
+import csv
 import io
+import logging
 from datetime import datetime
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -14,6 +16,9 @@ from app.models.product import Product
 from app.models.seller import Seller
 from app.auth.dependencies import get_current_user
 from app.models.user import User
+from app.services.kakao_notify import send_kakao_shipping
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/orders")
 templates = Jinja2Templates(directory="app/templates")
@@ -158,6 +163,120 @@ def orders_export(
     )
 
 
+@router.post("/bulk-ship")
+async def orders_bulk_ship(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    CSV 일괄 송장 업로드.
+
+    CSV 형식 (헤더 필수):
+      order_number,courier,tracking_number
+      BP-20260101-ABCDEF,CJ대한통운,123456789
+
+    - order_number 또는 order_id 중 하나 필요
+    - courier, tracking_number 필수
+    - 인코딩: UTF-8 (BOM 포함 가능) 또는 CP949(EUC-KR)
+    """
+    # ── 파일 읽기 & 인코딩 처리 ─────────────────────────────────────────
+    content = await file.read()
+    if not content:
+        return JSONResponse({"ok": False, "error": "파일이 비어있습니다."}, status_code=400)
+
+    for encoding in ("utf-8-sig", "utf-8", "cp949"):
+        try:
+            text = content.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        return JSONResponse({"ok": False, "error": "파일 인코딩을 읽을 수 없습니다. UTF-8 또는 EUC-KR로 저장해주세요."}, status_code=400)
+
+    # ── CSV 파싱 & 헤더 검증 ─────────────────────────────────────────────
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        return JSONResponse({"ok": False, "error": "CSV 헤더가 없습니다."}, status_code=400)
+
+    headers = {f.strip().lower() for f in reader.fieldnames}
+    id_fields = {"order_id", "order_number"}
+    required = {"courier", "tracking_number"}
+
+    if not (headers & id_fields):
+        return JSONResponse(
+            {"ok": False, "error": "order_number 또는 order_id 컬럼이 필요합니다."},
+            status_code=400,
+        )
+    missing = required - headers
+    if missing:
+        return JSONResponse(
+            {"ok": False, "error": f"필수 컬럼 누락: {', '.join(sorted(missing))}"},
+            status_code=400,
+        )
+
+    # ── 행별 처리 ────────────────────────────────────────────────────────
+    processed, skipped = 0, 0
+    errors: list[str] = []
+
+    rows = list(reader)
+    if not rows:
+        return JSONResponse({"ok": False, "error": "데이터 행이 없습니다."}, status_code=400)
+
+    for line_no, raw_row in enumerate(rows, start=2):
+        row = {k.strip().lower(): (v or "").strip() for k, v in raw_row.items()}
+
+        order_number = row.get("order_number", "")
+        order_id = row.get("order_id", "")
+        courier = row.get("courier", "")
+        tracking = row.get("tracking_number", "")
+        identifier = order_number or order_id
+
+        # 빈 행 skip
+        if not identifier:
+            skipped += 1
+            continue
+
+        # 필수값 누락
+        if not courier or not tracking:
+            errors.append(f"행 {line_no} ({identifier}): courier 또는 tracking_number 값이 없습니다.")
+            skipped += 1
+            continue
+
+        # 주문 조회 (order_number 우선)
+        if order_number:
+            order = db.query(Order).filter(Order.order_number == order_number).first()
+        else:
+            order = db.query(Order).filter(Order.id == order_id).first()
+
+        if not order:
+            errors.append(f"행 {line_no}: 주문을 찾을 수 없습니다 ({identifier})")
+            skipped += 1
+            continue
+
+        # 배송 정보 업데이트
+        order.carrier_name = courier
+        order.tracking_number = tracking
+        order.order_status = "shipping"
+        order.shipped_at = datetime.utcnow()
+        processed += 1
+
+        # 카카오 알림톡 (실패해도 처리 계속)
+        try:
+            await send_kakao_shipping(order)
+        except Exception as e:
+            logger.warning("카카오 알림 실패 (주문 처리는 완료): %s", e)
+
+    db.commit()
+
+    return JSONResponse({
+        "ok": True,
+        "processed": processed,
+        "skipped": skipped,
+        "errors": errors,
+    })
+
+
 @router.get("/{order_id}")
 def order_detail(order_id: str, request: Request,
                  db: Session = Depends(get_db),
@@ -176,7 +295,7 @@ def order_detail(order_id: str, request: Request,
 
 
 @router.post("/{order_id}/ship")
-def order_ship(
+async def order_ship(
     order_id: str,
     carrier_name: str = Form(""),
     tracking_number: str = Form(""),
@@ -190,6 +309,10 @@ def order_ship(
         order.tracking_number = tracking_number or None
         order.shipped_at = datetime.utcnow()
         db.commit()
+        try:
+            await send_kakao_shipping(order)
+        except Exception as e:
+            logger.warning("카카오 알림 실패: %s", e)
     return RedirectResponse(f"/orders/{order_id}?msg=배송처리됨", status_code=302)
 
 
