@@ -51,19 +51,19 @@ def dashboard(
 
     # ── Settlement KPIs (SQL aggregates) ─────────────────────────────────────
     pending_amount = db.query(func.sum(Settlement.final_payment)).filter(
-        Settlement.status == "pending"
+        Settlement.company_id == cid, Settlement.status == "pending"
     ).scalar() or 0
     confirmed_amount = db.query(func.sum(Settlement.final_payment)).filter(
-        Settlement.status == "confirmed"
+        Settlement.company_id == cid, Settlement.status == "confirmed"
     ).scalar() or 0
     paid_amount = db.query(func.sum(Settlement.final_payment)).filter(
-        Settlement.status == "paid"
+        Settlement.company_id == cid, Settlement.status == "paid"
     ).scalar() or 0
     pending_count = db.query(func.count(Settlement.id)).filter(
-        Settlement.status == "pending"
+        Settlement.company_id == cid, Settlement.status == "pending"
     ).scalar() or 0
     confirmed_count = db.query(func.count(Settlement.id)).filter(
-        Settlement.status == "confirmed"
+        Settlement.company_id == cid, Settlement.status == "confirmed"
     ).scalar() or 0
 
     # ── Monthly revenue trend (last 6 months, single GROUP BY query) ──────────
