@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}메뉴얼 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}메뉴얼 관리{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+  <p class="text-sm text-gray-500 mb-6">각 페이지의 메뉴얼 내용을 직접 수정하거나 AI로 생성할 수 있습니다.</p>
+
+  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-100 bg-gray-50">
+          <th class="text-left px-5 py-3 font-semibold text-gray-600">페이지</th>
+          <th class="text-left px-5 py-3 font-semibold text-gray-600">상태</th>
+          <th class="text-left px-5 py-3 font-semibold text-gray-600">마지막 수정</th>
+          <th class="px-5 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for p in pages %}
+        <tr class="hover:bg-gray-50 transition-colors">
+          <td class="px-5 py-3.5 font-medium text-gray-800">{{ p.label }}</td>
+          <td class="px-5 py-3.5">
+            {% if p.has_custom %}
+              {% if p.source == 'ai' %}
+              <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">AI 생성</span>
+              {% else %}
+              <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">직접 작성</span>
+              {% endif %}
+            {% else %}
+              <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">기본값</span>
+            {% endif %}
+          </td>
+          <td class="px-5 py-3.5 text-gray-400 text-xs">
+            {% if p.updated_at %}{{ p.updated_at | dt }}{% else %}—{% endif %}
+          </td>
+          <td class="px-5 py-3.5 text-right">
+            <a href="/settings/manuals/{{ p.key }}/edit"
+               class="text-xs font-medium text-blue-600 hover:text-blue-800">수정 →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

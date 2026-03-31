@@ -28,6 +28,7 @@ from app.routers import applications as applications_router
 from app.routers import business_info as business_info_router
 from app.routers import feature_flags as feature_flags_router
 from app.routers import companies as companies_router
+from app.routers import manuals as manuals_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions, FeatureDisabled
 
 
@@ -129,7 +130,8 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
             path == "/" or path == "" or
             path.startswith("/companies") or
             path.startswith("/settings") or
-            path.startswith("/users")
+            path.startswith("/users") or
+            path.startswith("/api/manual")
         )
         if always_allow:
             return await call_next(request)
@@ -237,6 +239,7 @@ app.include_router(applications_router.router)
 app.include_router(business_info_router.router)
 app.include_router(feature_flags_router.router)
 app.include_router(companies_router.router)
+app.include_router(manuals_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────
@@ -332,8 +335,9 @@ def _setup_filters():
     )
 
     import app.routers.companies as comp
+    import app.routers.manuals as man
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz, ff, comp]:
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz, ff, comp, man]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num

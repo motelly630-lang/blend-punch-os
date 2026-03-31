@@ -35,4 +35,5 @@ def init_db():
     import app.models.order  # noqa
     import app.models.business_info  # noqa
     import app.models.feature_flag  # noqa
+    import app.models.manual  # noqa
     Base.metadata.create_all(bind=engine)

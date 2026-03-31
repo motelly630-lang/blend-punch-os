@@ -1,0 +1,69 @@
+{% if manual %}
+<!-- 제목 -->
+<div class="pb-4 mb-5 border-b border-gray-100">
+  <div class="flex items-center gap-2">
+    <h2 class="font-bold text-gray-900 text-base">{{ manual.title }}</h2>
+    {% if manual.source == 'ai' %}
+    <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">AI 생성</span>
+    {% elif manual.source == 'manual' %}
+    <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">직접 작성</span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 기능 설명 -->
+{% if manual.description %}
+<div class="mb-5">
+  <div class="flex items-center gap-2 mb-2">
+    <div class="w-1 h-4 bg-blue-500 rounded-full flex-shrink-0"></div>
+    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">기능 설명</h3>
+  </div>
+  <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ manual.description }}</p>
+</div>
+{% endif %}
+
+<!-- 사용 방법 -->
+{% if manual.how_to %}
+<div class="mb-5">
+  <div class="flex items-center gap-2 mb-2">
+    <div class="w-1 h-4 bg-emerald-500 rounded-full flex-shrink-0"></div>
+    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">사용 방법</h3>
+  </div>
+  <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-line bg-emerald-50 rounded-xl p-3.5 border border-emerald-100">{{ manual.how_to }}</div>
+</div>
+{% endif %}
+
+<!-- 실제 예시 -->
+{% if manual.examples %}
+<div class="mb-5">
+  <div class="flex items-center gap-2 mb-2">
+    <div class="w-1 h-4 bg-amber-400 rounded-full flex-shrink-0"></div>
+    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">실제 예시</h3>
+  </div>
+  <div class="text-sm text-gray-600 leading-relaxed whitespace-pre-line bg-amber-50 rounded-xl p-3.5 border border-amber-100">{{ manual.examples }}</div>
+</div>
+{% endif %}
+
+<!-- 주의사항 -->
+{% if manual.warnings %}
+<div class="mb-5">
+  <div class="flex items-center gap-2 mb-2">
+    <div class="w-1 h-4 bg-red-400 rounded-full flex-shrink-0"></div>
+    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide">주의사항</h3>
+  </div>
+  <div class="text-sm text-red-700 leading-relaxed whitespace-pre-line bg-red-50 rounded-xl p-3.5 border border-red-100">{{ manual.warnings }}</div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="text-center py-10">
+  <div class="text-5xl mb-3">📝</div>
+  <p class="text-sm text-gray-500 mb-3">아직 메뉴얼이 작성되지 않았습니다.</p>
+  {% if is_super_admin() %}
+  <a href="/settings/manuals/{{ page_key }}/edit"
+     class="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+    메뉴얼 작성하기 →
+  </a>
+  {% endif %}
+</div>
+{% endif %}
