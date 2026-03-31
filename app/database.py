@@ -34,4 +34,5 @@ def init_db():
     import app.models.sales_page  # noqa
     import app.models.order  # noqa
     import app.models.business_info  # noqa
+    import app.models.feature_flag  # noqa
     Base.metadata.create_all(bind=engine)

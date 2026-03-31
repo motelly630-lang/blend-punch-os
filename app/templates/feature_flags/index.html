@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}기능 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}기능 관리{% endblock %}
+{% block header_actions %}
+<span class="text-xs text-gray-400">변경사항은 즉시 반영됩니다 (캐시 30초)</span>
+{% endblock %}
+
+{% block content %}
+
+<!-- 플랜 프리셋 -->
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-5">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h3 class="font-semibold text-gray-800">플랜 프리셋</h3>
+      <p class="text-xs text-gray-400 mt-0.5">현재 플랜: <span class="font-medium text-blue-600">{{ company.plan | upper }}</span></p>
+    </div>
+  </div>
+  <div class="grid grid-cols-3 gap-3">
+    {% for plan_key, plan_label, plan_desc, plan_color in [
+      ('beta',  '베타',  '핵심 기능 3개 — 초기 테스트용', 'gray'),
+      ('basic', '기본',  '주요 OS + 커머스 기능 10개',    'blue'),
+      ('pro',   '프로',  '전체 기능 ' ~ (plan_counts.pro) ~ '개 — 제한 없음', 'indigo'),
+    ] %}
+    <form method="post" action="/settings/features/plan">
+      <input type="hidden" name="plan" value="{{ plan_key }}">
+      <button type="submit"
+        onclick="return confirm('{{ plan_label }} 플랜을 적용하시겠습니까?\n현재 기능 설정이 변경됩니다.')"
+        class="w-full text-left p-4 rounded-xl border-2 transition-all hover:shadow-sm
+          {% if company.plan == plan_key %}
+            border-{{ plan_color }}-500 bg-{{ plan_color }}-50
+          {% else %}
+            border-gray-100 hover:border-{{ plan_color }}-200
+          {% endif %}">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm text-gray-800">{{ plan_label }}</span>
+          {% if company.plan == plan_key %}
+          <span class="text-xs px-1.5 py-0.5 bg-{{ plan_color }}-100 text-{{ plan_color }}-700 rounded-full font-medium">현재</span>
+          {% endif %}
+        </div>
+        <div class="text-xs text-gray-500">{{ plan_desc }}</div>
+        <div class="mt-2 flex flex-wrap gap-1">
+          {% for fk in plan_features[plan_key] | sort %}
+          <span class="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{{ ALL_FEATURES[fk].name if fk in ALL_FEATURES else fk }}</span>
+          {% endfor %}
+        </div>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- 기능별 개별 토글 -->
+<div class="grid grid-cols-2 gap-4">
+
+  <!-- OS 기능 -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <h3 class="font-semibold text-gray-800 mb-1">OS 기능</h3>
+    <p class="text-xs text-gray-400 mb-4">메인 운영 플랫폼 기능</p>
+    <div class="space-y-2.5">
+      {% for key, feat in os_features.items() %}
+      <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+        <div>
+          <div class="text-sm font-medium text-gray-700">{{ feat.name }}</div>
+          <div class="text-xs text-gray-400 mt-0.5">
+            <span class="px-1.5 py-0.5 rounded text-xs
+              {% if feat.tier == 'pro' %}bg-indigo-50 text-indigo-600
+              {% elif feat.tier == 'basic' %}bg-blue-50 text-blue-600
+              {% else %}bg-gray-100 text-gray-500{% endif %}">
+              {{ feat.tier }}
+            </span>
+          </div>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer"
+          title="{{ '비활성화' if key in enabled else '활성화' }}">
+          <input type="checkbox"
+            class="sr-only peer"
+            {% if key in enabled %}checked{% endif %}
+            onchange="toggleFeature('{{ key }}', this.checked, this)">
+          <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer
+            peer-checked:after:translate-x-full peer-checked:after:border-white
+            after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+            after:bg-white after:border-gray-300 after:border after:rounded-full
+            after:h-4 after:w-4 after:transition-all
+            peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 커머스 기능 -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <h3 class="font-semibold text-gray-800 mb-1">커머스 기능</h3>
+    <p class="text-xs text-gray-400 mb-4">판매 / 주문 / 셀러 관리</p>
+    <div class="space-y-2.5">
+      {% for key, feat in commerce_features.items() %}
+      <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+        <div>
+          <div class="text-sm font-medium text-gray-700">{{ feat.name }}</div>
+          <div class="text-xs text-gray-400 mt-0.5">
+            <span class="px-1.5 py-0.5 rounded text-xs
+              {% if feat.tier == 'pro' %}bg-indigo-50 text-indigo-600
+              {% elif feat.tier == 'basic' %}bg-blue-50 text-blue-600
+              {% else %}bg-gray-100 text-gray-500{% endif %}">
+              {{ feat.tier }}
+            </span>
+          </div>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox"
+            class="sr-only peer"
+            {% if key in enabled %}checked{% endif %}
+            onchange="toggleFeature('{{ key }}', this.checked, this)">
+          <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer
+            peer-checked:after:translate-x-full peer-checked:after:border-white
+            after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+            after:bg-white after:border-gray-300 after:border after:rounded-full
+            after:h-4 after:w-4 after:transition-all
+            peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- 활성화 현황 요약 -->
+    <div class="mt-4 pt-4 border-t border-gray-100">
+      <div class="text-xs text-gray-500">
+        전체 {{ enabled | length }} / {{ ALL_FEATURES | length }}개 활성화
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+async function toggleFeature(key, isEnabled, checkbox) {
+  try {
+    const resp = await fetch('/settings/features/toggle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key, enabled: isEnabled}),
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      alert(data.error || '오류가 발생했습니다.');
+      checkbox.checked = !isEnabled;  // 롤백
+    }
+  } catch (e) {
+    alert('네트워크 오류가 발생했습니다.');
+    checkbox.checked = !isEnabled;
+  }
+}
+</script>
+{% endblock %}

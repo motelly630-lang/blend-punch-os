@@ -112,6 +112,15 @@ def migrate():
         _add_column(conn, "products", "is_complete INTEGER DEFAULT 0")
         _add_column(conn, "products", "missing_fields JSON")
 
+        # --- companies / company_features (기능 플래그) ---
+        # 테이블은 init_db()가 생성; 컬럼 누락분만 보완
+        _add_column(conn, "companies", "name VARCHAR(200)")
+        _add_column(conn, "companies", "plan VARCHAR(20) DEFAULT 'pro'")
+        _add_column(conn, "companies", "created_at DATETIME")
+        _add_column(conn, "companies", "updated_at DATETIME")
+        _add_column(conn, "company_features", "enabled INTEGER DEFAULT 1")
+        _add_column(conn, "company_features", "updated_at DATETIME")
+
         # --- business_infos (전자상거래 법적 필수 정보) ---
         # 테이블은 init_db()가 생성; 컬럼 누락분만 보완
         _add_column(conn, "business_infos", "company_name VARCHAR(200)")

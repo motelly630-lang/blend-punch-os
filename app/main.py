@@ -26,6 +26,7 @@ from app.routers import sales_pages as sales_pages_router
 from app.routers import sellers as sellers_router
 from app.routers import applications as applications_router
 from app.routers import business_info as business_info_router
+from app.routers import feature_flags as feature_flags_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions
 
 
@@ -53,6 +54,50 @@ class NoIndexMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(NoIndexMiddleware)
+
+
+class FeatureGateMiddleware(BaseHTTPMiddleware):
+    """
+    URL prefix 기반 기능 차단 미들웨어.
+    비활성화된 기능의 경로에 접근하면:
+    - JSON 요청 → 403 JSON 응답
+    - 일반 요청 → 대시보드로 redirect
+    /settings/* 와 /static/* 은 항상 허용 (관리 페이지 접근 보장)
+    """
+    _ALWAYS_ALLOW = ("/settings", "/static", "/login", "/logout", "/shop", "/public", "/catalog")
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+
+        # 항상 허용하는 경로
+        for prefix in self._ALWAYS_ALLOW:
+            if path.startswith(prefix) or path == prefix:
+                return await call_next(request)
+
+        from app.services.feature_flags import get_path_feature, is_enabled
+        feature_key = get_path_feature(path)
+
+        if feature_key:
+            from app.database import SessionLocal
+            db = SessionLocal()
+            try:
+                allowed = is_enabled(db, feature_key)
+            finally:
+                db.close()
+
+            if not allowed:
+                accept = request.headers.get("accept", "")
+                if "application/json" in accept or request.headers.get("x-requested-with"):
+                    return JSONResponse(
+                        {"error": f"'{feature_key}' 기능이 비활성화되어 있습니다."},
+                        status_code=403,
+                    )
+                return RedirectResponse("/?err=비활성화된+기능입니다", status_code=302)
+
+        return await call_next(request)
+
+
+app.add_middleware(FeatureGateMiddleware)
 
 
 @app.get("/robots.txt", include_in_schema=False)
@@ -128,6 +173,7 @@ app.include_router(sales_pages_router.router)
 app.include_router(sellers_router.router)
 app.include_router(applications_router.router)
 app.include_router(business_info_router.router)
+app.include_router(feature_flags_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────
@@ -211,8 +257,21 @@ def _setup_filters():
     import app.routers.sellers as sel
     import app.routers.applications as appl
     import app.routers.business_info as biz
+    import app.routers.feature_flags as ff
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz]:
+    from app.services.feature_flags import ALL_FEATURES as _ALL_FEATURES
+
+    def _is_feature_enabled(key: str) -> bool:
+        """템플릿에서 호출: {% if is_feature_enabled('products') %}"""
+        from app.database import SessionLocal
+        from app.services.feature_flags import is_enabled
+        db = SessionLocal()
+        try:
+            return is_enabled(db, key)
+        finally:
+            db.close()
+
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz, ff]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num
@@ -226,6 +285,8 @@ def _setup_filters():
         env.globals["enumerate"] = enumerate
         env.filters["enumerate"] = enumerate
         env.globals["outreach_active_count"] = _outreach_active_count
+        env.globals["is_feature_enabled"] = _is_feature_enabled
+        env.globals["ALL_FEATURES"] = _ALL_FEATURES
 
 
 _outreach_cache: dict = {"value": 0, "expires": 0.0}

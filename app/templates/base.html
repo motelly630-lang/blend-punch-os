@@ -70,6 +70,7 @@
          'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'),
       ] %}
       {% for page, href, label, path in nav %}
+      {% if is_feature_enabled(page) %}
       <a href="{{ href }}"
         class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
           {% if active_page == page %}bg-blue-600 text-white{% else %}text-gray-400 hover:bg-gray-800 hover:text-white{% endif %}">
@@ -87,12 +88,14 @@
           {% endif %}
         {% endif %}
       </a>
+      {% endif %}
       {% endfor %}
 
       <!-- 커머스 섹션 -->
       <div class="mx-1 mt-3 mb-1 border-t border-gray-700"></div>
       <div class="px-3 py-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider">커머스</div>
       {% for page, href, label, path in commerce_nav %}
+      {% if is_feature_enabled(page) %}
       <a href="https://shop.blendpunch.com{{ href }}" target="_blank"
         class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
           text-gray-400 hover:bg-gray-800 hover:text-white">
@@ -104,12 +107,44 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
         </svg>
       </a>
+      {% endif %}
       {% endfor %}
+      <!-- 인사이트 섹션 -->
+      <div class="mx-1 mt-3 mb-1 border-t border-gray-700"></div>
+      <div class="px-3 py-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider">인사이트</div>
+      <a href="https://insight.blendpunch.com/public/insights" target="_blank"
+        class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-gray-400 hover:bg-gray-800 hover:text-white">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+        </svg>
+        공구 인사이트
+        <svg class="w-3 h-3 ml-auto opacity-40 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+        </svg>
+      </a>
+      <a href="https://insight.blendpunch.com/admin/insights" target="_blank"
+        class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-gray-400 hover:bg-gray-800 hover:text-white">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+        인사이트 관리
+        <svg class="w-3 h-3 ml-auto opacity-40 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+        </svg>
+      </a>
     </nav>
 
     <!-- Admin-only links -->
     {% if current_user and current_user.role == 'admin' %}
     <div class="px-2 pb-2">
+      <a href="/settings/features"
+        class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5
+          {% if active_page == 'feature_flags' %}bg-blue-600 text-white{% else %}text-gray-500 hover:bg-gray-800 hover:text-white{% endif %}">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/>
+        </svg>
+        기능 관리
+      </a>
       <a href="/users"
         class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors
           {% if active_page == 'users' %}bg-blue-600 text-white{% else %}text-gray-500 hover:bg-gray-800 hover:text-white{% endif %}">
