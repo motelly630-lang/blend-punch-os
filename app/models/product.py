@@ -57,6 +57,9 @@ class Product(Base):
     # AI Assistant additions
     product_type = Column(String(1), default="A")            # A/B/C/D type classifier
 
+    # 메모 (자유 입력, 내부 전용)
+    notes = Column(Text, nullable=True)
+
     # Data completeness
     is_complete = Column(Boolean, default=False)             # 필수 필드 모두 채워진 경우 True
     missing_fields = Column(JSON, nullable=True)             # list[str] 미입력 필드 레이블 목록

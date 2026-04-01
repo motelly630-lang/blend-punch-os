@@ -138,6 +138,12 @@
               placeholder="내부 운영 참고사항, 벤더 특이사항 등 (외부 비공개)"
               class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.internal_notes or '' if product else '' }}</textarea>
           </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">메모</label>
+            <textarea name="notes" rows="3"
+              placeholder="자유 메모 — 바이어 요청사항, 캠페인 이력, 특이사항 등"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ product.notes or '' if product else '' }}</textarea>
+          </div>
         </div>
       </div>
 
@@ -217,7 +223,9 @@
             <div class="text-xs text-gray-400 py-3 text-center">세트 옵션 없음 (단품) · 위 버튼으로 추가</div>
           </template>
         </div>
-        <input type="hidden" id="set-options-json-input" name="set_options_json" :value="JSON.stringify(sets)">
+        <input type="hidden" id="set-options-json-input" name="set_options_json"
+          value="{{ (product.set_options or []) | tojson if product else '[]' }}"
+          :value="JSON.stringify(sets)">
       </div>
 
       <!-- ── 가격 / 수익 구조 ── -->
@@ -450,7 +458,9 @@
       <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">소비자 카테고리 태그</h3>
         <p class="text-xs text-gray-400 mb-3">공개 갤러리 필터에 사용됩니다 (복수 선택 가능)</p>
-        <input type="hidden" id="categories-json-input" name="categories_json" :value="JSON.stringify(selectedCats)">
+        <input type="hidden" id="categories-json-input" name="categories_json"
+          value="{{ (product.categories or []) | tojson if product else '[]' }}"
+          :value="JSON.stringify(selectedCats)">
         <div class="flex flex-wrap gap-2">
           {% for cat in ["식품","주방","리빙","뷰티","건강","다이어트","육아","반려동물"] %}
           <button type="button" @click="toggleCat('{{ cat }}')"
@@ -462,9 +472,14 @@
 
       <div class="flex items-center justify-between">
         <a href="/products{% if product %}/{{ product.id }}{% endif %}" class="text-sm text-gray-500 hover:text-gray-700">취소</a>
-        <button type="submit" class="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
-          {% if product %}수정 저장{% else %}등록{% endif %}
-        </button>
+        <div class="flex items-center gap-3">
+          {% if product %}
+          <span id="auto-save-status" class="text-xs text-gray-400 transition-opacity duration-500" style="opacity:0"></span>
+          {% endif %}
+          <button type="submit" class="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+            {% if product %}수정 저장{% else %}등록{% endif %}
+          </button>
+        </div>
       </div>
     </form>
   </div>
@@ -756,13 +771,81 @@ function previewImg(input) {
 
 // ─── Tom Select brand dropdown ────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function () {
-  new TomSelect('#field-brand', {
+  var tsInstance = new TomSelect('#field-brand', {
     create: true,
     sortField: { field: 'text', direction: 'asc' },
     placeholder: '브랜드 선택 또는 직접 입력...',
     createLabel: '새 브랜드 추가: ',
   });
+  {% if product %}
+  // 브랜드 변경 시 자동 저장
+  tsInstance.on('change', function(val) { triggerAutosave('brand', val); });
+  {% endif %}
 });
+
+{% if product %}
+// ─── 자동 저장 (edit 모드 전용) ────────────────────────────────────────────────
+(function() {
+  var productId = '{{ product.id }}';
+  var statusEl = document.getElementById('auto-save-status');
+  var debounceTimer = null;
+  var SKIP_NAMES = new Set(['set_options_json', 'categories_json', 'product_image', 'product_image_url']);
+  var PCT_NAMES  = new Set(['discount_rate', 'seller_commission_rate', 'vendor_commission_rate', 'recommended_commission_rate']);
+
+  function showStatus(msg, cls) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.className = 'text-xs transition-opacity duration-500 ' + cls;
+    statusEl.style.opacity = '1';
+  }
+
+  function doSave(fieldName, fieldValue) {
+    showStatus('저장 중...', 'text-gray-400');
+    fetch('/products/' + productId + '/field', {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({field: fieldName, value: fieldValue})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        showStatus('자동 저장됨', 'text-green-600');
+        setTimeout(function() {
+          if (statusEl) statusEl.style.opacity = '0';
+        }, 2500);
+      } else {
+        showStatus('저장 실패 (' + (data.error || '?') + ')', 'text-red-500');
+      }
+    })
+    .catch(function() { showStatus('저장 실패', 'text-red-500'); });
+  }
+
+  window.triggerAutosave = function(fieldName, fieldValue) {
+    if (SKIP_NAMES.has(fieldName)) return;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function() { doSave(fieldName, fieldValue); }, 2500);
+  };
+
+  var form = document.getElementById('product-main-form');
+  if (!form) return;
+
+  // text / textarea / select
+  form.querySelectorAll('input:not([type=file]):not([type=hidden]):not([type=radio]):not([type=checkbox]), textarea, select').forEach(function(el) {
+    if (SKIP_NAMES.has(el.name)) return;
+    el.addEventListener('input', function() { if (el.name) triggerAutosave(el.name, el.value); });
+    if (el.tagName === 'SELECT') {
+      el.addEventListener('change', function() { if (el.name) triggerAutosave(el.name, el.value); });
+    }
+  });
+
+  // radio buttons
+  form.querySelectorAll('input[type=radio]').forEach(function(el) {
+    el.addEventListener('change', function() {
+      if (el.checked && el.name) triggerAutosave(el.name, el.value);
+    });
+  });
+})();
+{% endif %}
 
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -49,6 +49,7 @@ def migrate():
         _add_column(conn, "products", "seller_commission_rate FLOAT DEFAULT 0")
         _add_column(conn, "products", "vendor_commission_rate FLOAT DEFAULT 0")
         _add_column(conn, "products", "product_link TEXT")
+        _add_column(conn, "products", "notes TEXT")
 
         # --- influencers ---
         _add_column(conn, "influencers", "profile_image VARCHAR(500)")

@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -183,6 +183,7 @@ def product_create(
     vendor_commission_rate: str = Form(""),
     product_link: str = Form(""),
     product_type: str = Form("A"),
+    notes: str = Form(""),
 ):
     cid = get_company_id(current_user)
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
@@ -227,6 +228,7 @@ def product_create(
         vendor_commission_rate=float(vendor_commission_rate) / 100.0 if vendor_commission_rate else 0.0,
         product_link=product_link or None,
         product_type=product_type or "A",
+        notes=notes or None,
     )
     completeness = validate_product_completeness(product)
     product.is_complete = completeness["is_complete"]
@@ -345,6 +347,7 @@ def product_update(
     vendor_commission_rate: str = Form(""),
     product_link: str = Form(""),
     product_type: str = Form("A"),
+    notes: str = Form(""),
 ):
     cid = get_company_id(current_user)
     product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
@@ -353,12 +356,25 @@ def product_update(
 
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
     new_image = _save_image(product_image) or (product_image_url.strip() or None)
-    set_opts = _parse_set_options(set_options_json)
-    try:
-        cats = json.loads(categories_json)
-        cats = [c for c in cats if isinstance(c, str) and c.strip()] or None
-    except Exception:
-        cats = None
+
+    # set_options: 파싱 성공 시만 업데이트, 실패 시 기존 값 유지
+    if set_options_json.strip():
+        parsed_opts = _parse_set_options(set_options_json)
+        # [] → None (사용자가 명시적 삭제), None이지만 raw가 있으면 기존 유지
+        try:
+            raw_list = json.loads(set_options_json)
+            product.set_options = parsed_opts  # 빈 리스트 포함 정상 파싱
+        except Exception:
+            pass  # JSON 파싱 실패 → 기존 값 유지
+
+    # categories: 파싱 성공 시만 업데이트
+    if categories_json.strip():
+        try:
+            cats_raw = json.loads(categories_json)
+            product.categories = [c for c in cats_raw if isinstance(c, str) and c.strip()] or None
+        except Exception:
+            pass  # 파싱 실패 → 기존 값 유지
+
     commission = recommended_commission_rate / 100.0  # form sends %, DB stores 0-1
 
     product.name = name
@@ -368,13 +384,12 @@ def product_update(
     product.source_url = source_url or None
     product.description = description or None
     product.internal_notes = internal_notes or None
+    product.notes = notes or None
     product.key_benefits = key_benefits or None
     product.unique_selling_point = unique_selling_point or None
     product.recommended_commission_rate = commission
     product.content_angle = content_angle or None
     product.positioning = positioning or None
-    product.set_options = set_opts
-    product.categories = cats
     product.group_buy_guideline = group_buy_guideline or None
     product.status = status
     product.visibility_status = visibility_status
@@ -403,6 +418,61 @@ def product_update(
 
     db.commit()
     return RedirectResponse(f"/products/{product_id}?msg=수정되었습니다", status_code=302)
+
+
+@router.patch("/{product_id}/field")
+async def product_patch_field(
+    product_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """자동 저장: 단일 필드 업데이트 (PATCH JSON body: {field, value})"""
+    body = await request.json()
+    field = body.get("field", "")
+    value = body.get("value", "")
+
+    cid = get_company_id(current_user)
+    product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
+    if not product:
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+
+    TEXT_FIELDS = {
+        "name", "description", "internal_notes", "notes", "unique_selling_point",
+        "content_angle", "positioning", "group_buy_guideline", "source_url",
+        "product_link", "brand", "category", "status", "visibility_status",
+        "shipping_type", "carrier", "ship_origin", "dispatch_days",
+        "sample_type", "product_type", "key_benefits_raw",
+    }
+    NUM_FIELDS = {
+        "price", "consumer_price", "lowest_price", "supplier_price",
+        "groupbuy_price", "shipping_cost", "sample_price",
+    }
+    PCT_FIELDS = {
+        "discount_rate", "seller_commission_rate", "vendor_commission_rate",
+        "recommended_commission_rate",
+    }
+
+    try:
+        if field == "key_benefits_raw":
+            kbs = [b.strip() for b in value.splitlines() if b.strip()]
+            product.key_benefits = kbs or None
+        elif field in TEXT_FIELDS:
+            setattr(product, field, value.strip() or None)
+        elif field in NUM_FIELDS:
+            setattr(product, field, float(value) if value.strip() else None)
+        elif field in PCT_FIELDS:
+            setattr(product, field, float(value) / 100.0 if value.strip() else 0.0)
+        else:
+            return JSONResponse({"ok": False, "error": "unknown field"})
+    except (ValueError, TypeError):
+        return JSONResponse({"ok": False, "error": "invalid value"})
+
+    completeness = validate_product_completeness(product)
+    product.is_complete = completeness["is_complete"]
+    product.missing_fields = completeness["missing_fields"] or None
+    db.commit()
+    return JSONResponse({"ok": True, "is_complete": product.is_complete})
 
 
 @router.post("/{product_id}/clone")
