@@ -78,12 +78,15 @@ def orders_list(
         "delivered": db.query(Order).filter(Order.company_id == cid, Order.order_status == "delivered").count(),
         "cancelled": db.query(Order).filter(Order.company_id == cid, Order.order_status == "cancelled").count(),
     }
+    biz = db.query(BusinessInfo).filter(BusinessInfo.id == 1).first()
+    orders_banner = biz.orders_banner_image if biz else None
     return templates.TemplateResponse("orders/index.html", {
         "request": request, "orders": orders, "pages": pages,
         "sellers": sellers, "counts": counts,
         "cur_status": status, "cur_seller": seller_code,
         "cur_page": page_id, "search": search,
         "user": user, "active_page": "orders",
+        "orders_banner_image": orders_banner,
     })
 
 

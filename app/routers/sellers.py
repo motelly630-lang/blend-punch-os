@@ -52,10 +52,21 @@ def sellers_list(request: Request, db: Session = Depends(get_db),
 
     base_url = str(request.base_url).rstrip("/")
 
+    # 인플루언서 목록 (등록/수정 모달용)
+    influencers = db.query(Influencer).filter(
+        Influencer.company_id == cid,
+        Influencer.is_archived == False,
+    ).order_by(Influencer.name).all()
+
+    # 셀러에 연결된 인플루언서 맵
+    inf_ids = [s.influencer_id for s in sellers if s.influencer_id]
+    inf_map = {i.id: i for i in db.query(Influencer).filter(Influencer.id.in_(inf_ids)).all()} if inf_ids else {}
+
     return templates.TemplateResponse("sellers/index.html", {
         "request": request, "sellers": sellers,
         "order_counts": order_counts, "seller_revenue": seller_revenue,
         "sales_pages": sales_pages, "base_url": base_url,
+        "influencers": influencers, "inf_map": inf_map,
         "user": user, "active_page": "sellers",
     })
 
@@ -94,6 +105,7 @@ def seller_edit(
     seller_id: str,
     name: str = Form(...),
     seller_code: str = Form(...),
+    influencer_id: str = Form(""),
     notes: str = Form(""),
     is_active: str = Form("on"),
     db: Session = Depends(get_db),
@@ -111,6 +123,7 @@ def seller_edit(
         return RedirectResponse("/sellers?err=이미+사용중인+셀러코드입니다", status_code=302)
     s.name = name.strip()
     s.seller_code = seller_code
+    s.influencer_id = influencer_id or None
     s.notes = notes or None
     s.is_active = (is_active == "on")
     db.commit()

@@ -19,8 +19,9 @@
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
         <th class="text-left px-4 py-3 font-medium text-gray-500">셀러명</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-500">연결 인플루언서</th>
         <th class="text-left px-4 py-3 font-medium text-gray-500">셀러코드</th>
-        <th class="text-right px-4 py-3 font-medium text-gray-500">주문 수</th>
+        <th class="text-right px-4 py-3 font-medium text-gray-500">주문</th>
         <th class="text-right px-4 py-3 font-medium text-gray-500">매출</th>
         <th class="text-left px-4 py-3 font-medium text-gray-500">공유 링크</th>
         <th class="text-left px-4 py-3 font-medium text-gray-500">상태</th>
@@ -29,26 +30,54 @@
     </thead>
     <tbody class="divide-y divide-gray-50">
       {% for s in sellers %}
-      <tr class="hover:bg-gray-50" x-data="{ open: false }">
+      {% set inf = inf_map.get(s.influencer_id) %}
+      <tr class="hover:bg-gray-50" x-data="{ linkOpen: false, editOpen: false }">
+
+        <!-- 셀러명 -->
         <td class="px-4 py-3 font-medium text-gray-800">{{ s.name }}</td>
+
+        <!-- 연결 인플루언서 -->
+        <td class="px-4 py-3">
+          {% if inf %}
+          <a href="/influencers/{{ inf.id }}"
+            class="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700">
+            {% if inf.profile_image %}
+            <img src="{{ inf.profile_image }}" class="w-5 h-5 rounded-full object-cover">
+            {% else %}
+            <span class="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">{{ inf.name[0] }}</span>
+            {% endif %}
+            {{ inf.name }}
+          </a>
+          {% else %}
+          <span class="text-xs text-gray-300">연결 없음</span>
+          {% endif %}
+        </td>
+
+        <!-- 셀러코드 -->
         <td class="px-4 py-3">
           <code class="bg-gray-100 px-2 py-0.5 rounded text-xs font-mono text-gray-700">{{ s.seller_code }}</code>
         </td>
+
+        <!-- 주문 수 -->
         <td class="px-4 py-3 text-right text-gray-600">{{ order_counts.get(s.id, 0) }}건</td>
+
+        <!-- 매출 -->
         <td class="px-4 py-3 text-right font-medium text-blue-600">
           {{ seller_revenue.get(s.id, 0) | won }}
         </td>
+
+        <!-- 공유 링크 -->
         <td class="px-4 py-3">
           {% if sales_pages %}
           <div class="relative">
-            <button @click="open = !open"
+            <button @click="linkOpen = !linkOpen"
               class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 px-2.5 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
               </svg>
               링크 복사
             </button>
-            <div x-show="open" @click.outside="open = false" x-cloak
+            <div x-show="linkOpen" @click.outside="linkOpen = false" x-cloak
               class="absolute left-0 top-8 bg-white border border-gray-100 shadow-xl rounded-xl py-2 z-30 min-w-[300px]">
               <div class="px-3 py-1.5 text-xs text-gray-400 font-medium border-b border-gray-50 mb-1">판매 페이지 선택</div>
               {% for sp in sales_pages %}
@@ -59,7 +88,7 @@
                   <button
                     @click="navigator.clipboard.writeText('{{ base_url }}/shop/{{ sp.slug }}?seller={{ s.seller_code }}'); copied=true; setTimeout(()=>copied=false,2000)"
                     :class="copied ? 'text-green-600' : 'text-blue-600'"
-                    class="text-xs font-medium flex-shrink-0 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                    class="text-xs font-medium flex-shrink-0 px-2 py-1 rounded hover:bg-blue-50"
                     x-text="copied ? '복사됨!' : '복사'">
                   </button>
                 </div>
@@ -68,9 +97,11 @@
             </div>
           </div>
           {% else %}
-          <span class="text-xs text-gray-400">활성 판매 페이지 없음</span>
+          <span class="text-xs text-gray-300">활성 페이지 없음</span>
           {% endif %}
         </td>
+
+        <!-- 상태 -->
         <td class="px-4 py-3">
           {% if s.is_active %}
           <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">활성</span>
@@ -78,15 +109,72 @@
           <span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">비활성</span>
           {% endif %}
         </td>
+
+        <!-- 액션 -->
         <td class="px-4 py-3">
-          <form method="post" action="/sellers/{{ s.id }}/delete" class="inline"
-            onsubmit="return confirm('{{ s.name }} 셀러를 삭제할까요?')">
-            <button type="submit" class="text-xs text-red-500 hover:text-red-700">삭제</button>
-          </form>
+          <div class="flex items-center gap-2">
+            <button @click="editOpen = true"
+              class="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">수정</button>
+            <form method="post" action="/sellers/{{ s.id }}/delete" class="inline"
+              onsubmit="return confirm('{{ s.name }} 셀러를 삭제할까요?')">
+              <button type="submit" class="text-xs text-red-400 hover:text-red-600">삭제</button>
+            </form>
+          </div>
+
+          <!-- 수정 모달 (행 내부에 위치) -->
+          <div x-show="editOpen" x-cloak
+            class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl" @click.stop>
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-gray-800">셀러 수정 — {{ s.name }}</h3>
+                <button @click="editOpen = false" class="text-gray-400 hover:text-gray-600">✕</button>
+              </div>
+              <form method="post" action="/sellers/{{ s.id }}/edit" class="space-y-3">
+                <div>
+                  <label class="text-xs text-gray-500 block mb-1">셀러명 *</label>
+                  <input name="name" required value="{{ s.name }}"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 block mb-1">셀러코드 *</label>
+                  <input name="seller_code" required value="{{ s.seller_code }}" pattern="[a-z0-9\-_]{2,30}"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 block mb-1">연결 인플루언서</label>
+                  <select name="influencer_id"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">연결 안 함</option>
+                    {% for i in influencers %}
+                    <option value="{{ i.id }}" {% if s.influencer_id == i.id %}selected{% endif %}>
+                      {{ i.name }}{% if i.platform %} ({{ i.platform }}){% endif %}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 block mb-1">메모</label>
+                  <input name="notes" value="{{ s.notes or '' }}"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" name="is_active" id="active-{{ s.id }}" value="on" {% if s.is_active %}checked{% endif %}
+                    class="rounded">
+                  <label for="active-{{ s.id }}" class="text-sm text-gray-700">활성 상태</label>
+                </div>
+                <div class="flex gap-2 pt-1">
+                  <button type="button" @click="editOpen = false"
+                    class="flex-1 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50">취소</button>
+                  <button type="submit"
+                    class="flex-1 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">저장</button>
+                </div>
+              </form>
+            </div>
+          </div>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400 text-sm">등록된 셀러가 없습니다</td></tr>
+      <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400 text-sm">등록된 셀러가 없습니다</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -102,13 +190,29 @@
     </div>
     <form method="post" action="/sellers/new" class="space-y-3">
       <div>
+        <label class="text-xs text-gray-500 block mb-1">연결 인플루언서 (선택)</label>
+        <select name="influencer_id" id="add-inf-select"
+          onchange="onInfluencerSelect(this)"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">인플루언서 없이 등록</option>
+          {% for i in influencers %}
+          <option value="{{ i.id }}"
+            data-name="{{ i.name }}"
+            data-code="{{ i.name | lower | replace(' ', '') }}">
+            {{ i.name }}{% if i.platform %} · {{ i.platform }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <p class="text-xs text-gray-400 mt-1">선택 시 이름·코드가 자동 입력됩니다</p>
+      </div>
+      <div>
         <label class="text-xs text-gray-500 block mb-1">셀러명 *</label>
-        <input name="name" required placeholder="김영수"
+        <input name="name" id="add-name" required placeholder="김영수"
           class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
       </div>
       <div>
         <label class="text-xs text-gray-500 block mb-1">셀러코드 * (URL 파라미터로 사용)</label>
-        <input name="seller_code" required placeholder="kimys01" pattern="[a-z0-9\-_]{2,30}"
+        <input name="seller_code" id="add-code" required placeholder="kimys01" pattern="[a-z0-9\-_]{2,30}"
           class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
         <p class="text-xs text-gray-400 mt-1">영문소문자, 숫자, 하이픈만 (2~30자)</p>
       </div>
@@ -126,4 +230,14 @@
     </form>
   </div>
 </div>
+
+<script>
+function onInfluencerSelect(sel) {
+  var opt = sel.options[sel.selectedIndex];
+  var name = opt.dataset.name || '';
+  var code = opt.dataset.code || '';
+  if (name) document.getElementById('add-name').value = name;
+  if (code) document.getElementById('add-code').value = code.substring(0, 30);
+}
+</script>
 {% endblock %}
