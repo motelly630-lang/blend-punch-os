@@ -1,0 +1,110 @@
+{#
+  인라인 이메일 작성 폼 (htmx)
+
+  Variables expected:
+    related_type  — outreach | crm | influencer | brand
+    related_id    — UUID string
+    prefill_email — 수신자 이메일 (선택)
+    prefill_name  — 수신자 이름 (선택)
+    template_vars_json — JSON 문자열 (선택, 템플릿 변수 자동 치환용)
+#}
+{% set templates_list = [
+  ('', '직접 작성'),
+  ('initial_proposal', '초기 협업 제안'),
+  ('follow_up', '후속 연락'),
+  ('sample_notice', '샘플 발송 안내'),
+  ('thank_you', '감사 인사'),
+] %}
+
+<div x-data="{
+  tpl: '',
+  subject: '',
+  body: '',
+  applyTemplate() {
+    const tpls = {
+      'initial_proposal': {
+        subject: '[협업 제안] {product_name} 공동구매 협업 제안드립니다',
+        body: '안녕하세요, {influencer_name}님!\n\n저는 블렌드펀치의 {sender_name}입니다.\n\n{product_name} 제품의 공동구매 협업을 제안드리고 싶어 연락드렸습니다.\n\n귀하의 채널과 저희 제품이 잘 맞을 것 같아 제안드립니다.\n관심이 있으시다면 편한 시간에 미팅을 잡고 싶습니다.\n\n감사합니다.\n{sender_name} 드림'
+      },
+      'follow_up': {
+        subject: 'Re: 협업 제안 후속 연락드립니다',
+        body: '안녕하세요, {influencer_name}님!\n\n지난번 협업 제안 관련하여 후속 연락드립니다.\n\n혹시 검토해보셨는지 여쭤봐도 될까요?\n궁금하신 점이 있으시면 편하게 연락 주세요.\n\n감사합니다.\n{sender_name} 드림'
+      },
+      'sample_notice': {
+        subject: '[샘플 발송] {product_name} 샘플을 발송해드렸습니다',
+        body: '안녕하세요, {influencer_name}님!\n\n{product_name} 샘플을 발송해드렸습니다.\n\n택배사: {carrier}\n송장번호: {tracking_number}\n\n수령 후 사용해보시고 편하게 의견 주시면 감사하겠습니다.\n\n감사합니다.\n{sender_name} 드림'
+      },
+      'thank_you': {
+        subject: '협업 감사드립니다 — {product_name}',
+        body: '안녕하세요, {influencer_name}님!\n\n이번 {product_name} 협업에 참여해주셔서 진심으로 감사드립니다.\n\n앞으로도 좋은 협업 기회가 있으면 연락드리겠습니다.\n\n감사합니다.\n{sender_name} 드림'
+      }
+    };
+    if (this.tpl && tpls[this.tpl]) {
+      this.subject = tpls[this.tpl].subject;
+      this.body    = tpls[this.tpl].body;
+    } else {
+      this.subject = '';
+      this.body    = '';
+    }
+  }
+}" class="space-y-3">
+
+  <!-- 템플릿 선택 -->
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1">템플릿</label>
+    <select x-model="tpl" @change="applyTemplate()"
+      class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+      {% for val, label in templates_list %}
+      <option value="{{ val }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <form
+    hx-post="/emails/send"
+    hx-target="#email-send-result"
+    hx-swap="innerHTML"
+    class="space-y-3">
+
+    <input type="hidden" name="related_type" value="{{ related_type }}">
+    <input type="hidden" name="related_id" value="{{ related_id }}">
+    <input type="hidden" name="template_vars" value="{{ template_vars_json | default('{}') }}">
+    <input type="hidden" name="template_name" :value="tpl">
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">수신자 이름</label>
+        <input type="text" name="to_name" value="{{ prefill_name | default('') }}" placeholder="홍길동"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">수신자 이메일 <span class="text-red-400">*</span></label>
+        <input type="email" name="to_email" value="{{ prefill_email | default('') }}" required placeholder="email@example.com"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">제목 <span class="text-red-400">*</span></label>
+      <input type="text" name="subject" x-model="subject" required placeholder="이메일 제목"
+        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">내용 <span class="text-red-400">*</span></label>
+      <textarea name="body" x-model="body" required rows="7" placeholder="이메일 내용을 입력하세요..."
+        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono"></textarea>
+      <p class="text-xs text-gray-400 mt-1">{influencer_name}, {product_name}, {sender_name} 등의 변수는 자동 치환됩니다.</p>
+    </div>
+
+    <div class="flex justify-end">
+      <button type="submit"
+        class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        발송
+      </button>
+    </div>
+  </form>
+
+  <!-- 발송 결과 -->
+  <div id="email-send-result"></div>
+</div>

@@ -1,0 +1,16 @@
+{% extends "emails/system/_base.html" %}
+{% block body %}
+<p class="greeting">이메일 인증을 완료해주세요</p>
+<p class="text">안녕하세요, <strong>{{ username }}</strong>님!<br>
+BLEND PUNCH OS에 가입해주셔서 감사합니다.<br>
+아래 버튼을 클릭하여 이메일 인증을 완료해주세요.</p>
+
+<div class="btn-center">
+  <a href="{{ link }}" class="btn">이메일 인증하기</a>
+</div>
+
+<hr class="divider">
+<p class="note">버튼이 동작하지 않으면 아래 링크를 브라우저에 직접 붙여넣어 주세요.</p>
+<div class="link-fallback">{{ link }}</div>
+<p class="note">이 링크는 <strong>24시간</strong> 동안 유효합니다.<br>본인이 가입하지 않으셨다면 이 메일을 무시하셔도 됩니다.</p>
+{% endblock %}

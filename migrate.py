@@ -99,6 +99,12 @@ def migrate():
         # --- trend_briefings (Trend Engine) ---
         # Table is created by init_db(); no extra columns needed
 
+        # --- trend_items (Claw 연동) ---
+        _add_column(conn, "trend_items", "source VARCHAR(50)")
+        _add_column(conn, "trend_items", "brands JSON")
+        _add_column(conn, "trend_items", "season VARCHAR(20)")
+        _add_column(conn, "trend_items", "source_name VARCHAR(100)")
+
         # --- outreach_logs (Outreach & Sample Tracking) ---
         # Table is created by init_db(); no extra columns needed
 
@@ -182,6 +188,50 @@ def migrate():
                 print(f"  + index {idx_name}")
             except Exception:
                 pass
+
+        # ── 소프트 삭제 (archive) 컬럼 추가 ──────────────────────────────────────
+        for tbl in ["products", "brands", "influencers"]:
+            _add_column(conn, tbl, "is_archived INTEGER DEFAULT 0")
+
+        # ── AI 에이전트 파이프라인 컬럼 ──────────────────────────────────────────
+        _add_column(conn, "products", "review_status VARCHAR(30) DEFAULT 'draft'")
+        _add_column(conn, "products", "priority_score FLOAT")
+        _add_column(conn, "brands",   "review_status VARCHAR(30) DEFAULT 'draft'")
+        _add_column(conn, "brands",   "priority_score FLOAT")
+
+        # ── 사용자 이메일 인증 / 비밀번호 재설정 ──────────────────────────────
+        _add_column(conn, "users", "email_verified INTEGER DEFAULT 1")   # 기존 계정은 인증됨 처리
+        _add_column(conn, "users", "verify_token VARCHAR(100)")
+        _add_column(conn, "users", "verify_token_exp DATETIME")
+        _add_column(conn, "users", "reset_token VARCHAR(100)")
+        _add_column(conn, "users", "reset_token_exp DATETIME")
+
+        # ── AI 에이전트 v2 — Decision Engine / Memory / Trigger ──────────────
+        _add_column(conn, "agent_logs", "score FLOAT")
+        _add_column(conn, "agent_logs", "confidence FLOAT")
+        _add_column(conn, "agent_logs", "risk_level VARCHAR(10)")
+
+        # products: pending_review 상태
+        # pipeline_jobs, human_review_queue, agent_memory, trigger_logs → init_db() 생성
+
+        # ── Transaction 레이어 (손익 연동) ────────────────────────────────────────
+        # 테이블은 init_db()가 생성 (Transaction 모델이 Base에 등록됨)
+        try:
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_transactions_company ON transactions(company_id)"
+            ))
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_transactions_campaign ON transactions(campaign_id)"
+            ))
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type)"
+            ))
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(transaction_date)"
+            ))
+            print("  + indexes for transactions")
+        except Exception:
+            pass
 
         conn.commit()
 

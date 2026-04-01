@@ -81,6 +81,66 @@
 
   <div class="text-xs text-gray-400">등록 {{ campaign.created_at | dt }}</div>
 
+  <!-- 캠페인 손익 요약 -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-sm font-semibold text-gray-800">캠페인 손익</h3>
+      <button onclick="document.getElementById('camp-txn-modal').classList.remove('hidden')"
+        class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 px-2.5 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        거래 추가
+      </button>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="bg-blue-50 rounded-lg p-3">
+        <div class="text-xs text-blue-500 mb-1">매출</div>
+        <div class="font-bold text-blue-700">{{ camp_rev | won }}</div>
+      </div>
+      <div class="bg-red-50 rounded-lg p-3">
+        <div class="text-xs text-red-500 mb-1">매입/비용</div>
+        <div class="font-bold text-red-600">{{ camp_cost | won }}</div>
+      </div>
+      <div class="bg-amber-50 rounded-lg p-3">
+        <div class="text-xs text-amber-500 mb-1">인플루언서 정산</div>
+        <div class="font-bold text-amber-700">{{ camp_settle | won }}</div>
+      </div>
+      <div class="rounded-lg p-3 {% if camp_net >= 0 %}bg-green-50{% else %}bg-red-50{% endif %}">
+        <div class="text-xs mb-1 {% if camp_net >= 0 %}text-green-500{% else %}text-red-500{% endif %}">순이익</div>
+        <div class="font-bold {% if camp_net >= 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ camp_net | won }}</div>
+      </div>
+    </div>
+
+    {% if camp_transactions %}
+    <div class="space-y-1.5">
+      <div class="text-xs font-medium text-gray-400 mb-2">거래 내역</div>
+      {% for t in camp_transactions %}
+      <div class="flex items-center justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
+        <div class="flex items-center gap-2">
+          <span class="text-xs px-1.5 py-0.5 rounded font-medium
+            {% if t.type == 'revenue' %}bg-blue-100 text-blue-700{% else %}bg-red-100 text-red-600{% endif %}">
+            {% if t.type == 'revenue' %}매출{% else %}매입{% endif %}
+          </span>
+          <span class="text-gray-700">{{ t.description or "(내용 없음)" }}</span>
+          {% if t.transaction_date %}<span class="text-xs text-gray-400">{{ t.transaction_date }}</span>{% endif %}
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="font-medium {% if t.type == 'revenue' %}text-blue-700{% else %}text-red-600{% endif %}">
+            {% if t.type == 'cost' %}-{% endif %}{{ t.amount | won }}
+          </span>
+          <form method="post" action="/transactions/{{ t.id }}/delete" onsubmit="return confirm('삭제?')">
+            <input type="hidden" name="redirect_to" value="/campaigns/{{ campaign.id }}">
+            <button type="submit" class="text-gray-300 hover:text-red-400 text-xs">✕</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-xs text-gray-400 text-center py-3">등록된 거래 내역이 없습니다</p>
+    {% endif %}
+  </div>
+
   <!-- Quick action -->
   <a href="/proposals/new?campaign_id={{ campaign.id }}"
     class="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-700 text-sm font-medium rounded-lg border border-amber-100 hover:bg-amber-100 transition-colors">
@@ -89,5 +149,71 @@
     </svg>
     이 캠페인으로 제안서 작성
   </a>
+</div>
+
+<!-- 캠페인 거래 등록 모달 -->
+<div id="camp-txn-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+  x-data="{ txnType: 'revenue' }">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-semibold text-gray-800">거래 등록 — {{ campaign.name }}</h2>
+      <button onclick="document.getElementById('camp-txn-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">✕</button>
+    </div>
+    <form method="post" action="/transactions/new" class="space-y-4">
+      <input type="hidden" name="redirect_to" value="/campaigns/{{ campaign.id }}">
+      <input type="hidden" name="campaign_id" value="{{ campaign.id }}">
+
+      <div class="flex gap-2">
+        <button type="button" @click="txnType = 'revenue'"
+          :class="txnType === 'revenue' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'"
+          class="flex-1 py-2 text-sm font-medium rounded-lg transition-colors">매출 (Revenue)</button>
+        <button type="button" @click="txnType = 'cost'"
+          :class="txnType === 'cost' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600'"
+          class="flex-1 py-2 text-sm font-medium rounded-lg transition-colors">매입/비용 (Cost)</button>
+      </div>
+      <input type="hidden" name="type" :value="txnType">
+
+      <div class="grid grid-cols-2 gap-3">
+        <div x-show="txnType === 'revenue'">
+          <label class="block text-xs font-medium text-gray-600 mb-1">출처</label>
+          <select name="source" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="smartstore">스마트스토어</option>
+            <option value="external_link">외부 링크</option>
+            <option value="manual">직접 입력</option>
+          </select>
+        </div>
+        <div x-show="txnType === 'cost'">
+          <label class="block text-xs font-medium text-gray-600 mb-1">비용 분류</label>
+          <select name="category" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="supply_price">브랜드 공급가</option>
+            <option value="ad_cost">광고비</option>
+            <option value="other">기타 비용</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">거래일</label>
+          <input type="date" name="transaction_date"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">금액 (원)</label>
+        <input type="number" name="amount" min="0" step="1000" required
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">내용</label>
+        <input type="text" name="description"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="거래 설명">
+      </div>
+
+      <div class="flex justify-end gap-3 pt-1">
+        <button type="button" onclick="document.getElementById('camp-txn-modal').classList.add('hidden')"
+          class="px-4 py-2 text-sm text-gray-500">취소</button>
+        <button type="submit" class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">등록</button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}

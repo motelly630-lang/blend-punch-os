@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.crm import CrmPipeline, SampleLog, CRM_STATUSES, CRM_STATUS_LABELS, SAMPLE_LOG_STATUSES, SAMPLE_LOG_STATUS_LABELS
+from app.models.email_log import EmailLog, EMAIL_TEMPLATES
 from app.models.influencer import Influencer
 from app.models.product import Product
 from app.models.user import User
@@ -176,6 +177,24 @@ def crm_detail(
     products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
     influencers = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.status == "active").order_by(Influencer.name).limit(300).all()
 
+    email_logs = (
+        db.query(EmailLog)
+        .filter(EmailLog.company_id == cid, EmailLog.related_type == "crm", EmailLog.related_id == pipeline_id)
+        .order_by(EmailLog.created_at.desc())
+        .limit(30)
+        .all()
+    )
+
+    # 템플릿 변수 자동 구성
+    import json
+    inf = pipeline.influencer
+    prod = pipeline.product
+    tpl_vars = {
+        "influencer_name": inf.name if inf else "",
+        "product_name": prod.name if prod else "",
+        "sender_name": current_user.username,
+    }
+
     return templates.TemplateResponse("crm/detail.html", {
         "request": request,
         "active_page": "crm",
@@ -190,6 +209,11 @@ def crm_detail(
         "products": products,
         "influencers": influencers,
         "today": date.today().isoformat(),
+        "email_logs": email_logs,
+        "email_templates": EMAIL_TEMPLATES,
+        "template_vars_json": json.dumps(tpl_vars, ensure_ascii=False),
+        "prefill_email": inf.contact_email if inf and inf.contact_email else "",
+        "prefill_name": inf.name if inf else "",
     })
 
 

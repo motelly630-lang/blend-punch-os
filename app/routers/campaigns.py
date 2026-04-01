@@ -6,9 +6,11 @@ from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
 from app.models import Campaign, Product, Influencer
 from app.models.settlement import Settlement
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
@@ -314,9 +316,32 @@ def campaign_detail(campaign_id: str, request: Request, db: Session = Depends(ge
     campaign = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.id == campaign_id).first()
     if not campaign:
         return RedirectResponse("/campaigns?err=캠페인을+찾을+수+없습니다", status_code=302)
+
+    # ── 캠페인 단위 손익 집계 ──────────────────────────────────────────────────
+    txn_rev = db.query(func.sum(Transaction.amount)).filter(
+        Transaction.campaign_id == campaign_id, Transaction.type == "revenue"
+    ).scalar() or 0
+    txn_cost = db.query(func.sum(Transaction.amount)).filter(
+        Transaction.campaign_id == campaign_id, Transaction.type == "cost"
+    ).scalar() or 0
+    settle_amt = db.query(func.sum(Settlement.final_payment)).filter(
+        Settlement.campaign_id == campaign_id,
+        Settlement.status.in_(["paid", "confirmed"]),
+    ).scalar() or 0
+    camp_net = txn_rev - txn_cost - settle_amt
+
+    camp_transactions = db.query(Transaction).filter(
+        Transaction.campaign_id == campaign_id
+    ).order_by(Transaction.transaction_date.desc()).all()
+
     return templates.TemplateResponse("campaigns/detail.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": campaign,
+        "camp_rev": txn_rev,
+        "camp_cost": txn_cost,
+        "camp_settle": settle_amt,
+        "camp_net": camp_net,
+        "camp_transactions": camp_transactions,
     })
 
 

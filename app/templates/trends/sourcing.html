@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}소싱 필요 트렌드 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}트렌드{% endblock %}
+
+{% block content %}
+
+{# ── 서브탭 ── #}
+<div class="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+  <a href="/trends/feed"
+     class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">
+    피드
+  </a>
+  <a href="/trends/actionable"
+     class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">
+    실행 트렌드
+  </a>
+  <a href="/trends/sourcing"
+     class="px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-900 shadow-sm">
+    소싱 필요
+    <span class="ml-1 bg-orange-100 text-orange-700 text-xs font-bold px-1.5 py-0.5 rounded-full">{{ items|length }}</span>
+  </a>
+  <a href="/trends/engine"
+     class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">
+    시즌 엔진
+  </a>
+</div>
+
+{# ── 안내 배너 ── #}
+<div class="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl px-5 py-4 mb-6 flex items-center gap-3">
+  <div class="text-2xl">📦</div>
+  <div>
+    <div class="font-semibold text-orange-900 text-sm">소싱 필요 — 트렌드는 높지만 매칭 제품이 없는 신규 매출 기회</div>
+    <div class="text-xs text-orange-700 mt-0.5">트렌드 점수 6점 이상이며 매칭 제품이 없는 트렌드입니다.</div>
+  </div>
+</div>
+
+{# ── 카테고리 필터 ── #}
+<div class="flex flex-wrap gap-2 mb-5">
+  <a href="/trends/sourcing"
+     class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if not selected_category %}border-blue-500 bg-blue-50 text-blue-700{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    전체
+  </a>
+  {% for cat in categories %}
+  <a href="/trends/sourcing?category={{ cat }}"
+     class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if selected_category == cat %}border-blue-500 bg-blue-50 text-blue-700{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    {{ cat }}
+  </a>
+  {% endfor %}
+</div>
+
+{# ── 트렌드 목록 ── #}
+{% if items %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+  {% for item in items %}
+  <div class="bg-white rounded-xl border border-orange-100 shadow-sm p-4 flex flex-col gap-3">
+    {# 상단 #}
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{{ item.category }}</span>
+      <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">소싱필요</span>
+    </div>
+
+    {# 제목 #}
+    <div class="font-semibold text-gray-900 text-sm leading-snug">{{ item.title }}</div>
+
+    {# 요약 #}
+    {% if item.summary %}
+    <div class="text-xs text-gray-500 leading-relaxed line-clamp-2">{{ item.summary }}</div>
+    {% endif %}
+
+    {# 트렌드 점수 바 #}
+    <div>
+      <div class="flex justify-between text-xs text-gray-500 mb-1">
+        <span>트렌드 점수</span>
+        <span class="font-bold text-gray-800">{{ "%.1f"|format(item.trend_score or 0) }} / 10</span>
+      </div>
+      <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div class="h-full bg-orange-400 rounded-full" style="width: {{ ((item.trend_score or 0) / 10 * 100)|int }}%"></div>
+      </div>
+    </div>
+
+    {# 태그 #}
+    {% if item.tags %}
+    <div class="flex flex-wrap gap-1">
+      {% for tag in (item.tags or [])[:5] %}
+      <span class="text-xs px-1.5 py-0.5 bg-orange-50 text-orange-600 rounded border border-orange-100">#{{ tag }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# 하단: 소싱 요청 버튼 #}
+    <div class="pt-2 border-t border-gray-50 flex items-center justify-between">
+      <div class="text-xs text-gray-400">
+        {% if item.source_name %}{{ item.source_name }} · {% endif %}
+        {% if item.created_at %}{{ item.created_at.strftime('%m/%d') }}{% endif %}
+      </div>
+      <a href="/products/new?trend_title={{ item.title|urlencode }}&category={{ item.category|urlencode }}"
+         class="inline-flex items-center gap-1 bg-orange-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-orange-600 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        제품 등록
+      </a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="text-center py-20 text-gray-400">
+  <div class="text-4xl mb-3">✅</div>
+  <div class="font-medium">소싱이 필요한 트렌드가 없습니다</div>
+  <div class="text-sm mt-1">모든 트렌드에 매칭 제품이 있거나 트렌드 데이터가 없습니다</div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}실행 트렌드 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}트렌드{% endblock %}
+
+{% block content %}
+
+{# ── 서브탭 ── #}
+<div class="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+  <a href="/trends/feed"
+     class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">
+    피드
+  </a>
+  <a href="/trends/actionable"
+     class="px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-900 shadow-sm">
+    실행 트렌드
+    <span class="ml-1 bg-green-100 text-green-700 text-xs font-bold px-1.5 py-0.5 rounded-full">{{ items|length }}</span>
+  </a>
+  <a href="/trends/sourcing"
+     class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">
+    소싱 필요
+  </a>
+  <a href="/trends/engine"
+     class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">
+    시즌 엔진
+  </a>
+</div>
+
+{# ── 안내 배너 ── #}
+<div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl px-5 py-4 mb-6 flex items-center gap-3">
+  <div class="text-2xl">⚡</div>
+  <div>
+    <div class="font-semibold text-green-900 text-sm">실행 트렌드 — 지금 바로 공구를 시작할 수 있는 트렌드</div>
+    <div class="text-xs text-green-700 mt-0.5">우리 제품과 매칭된 트렌드만 표시됩니다. final_score 기준 정렬.</div>
+  </div>
+</div>
+
+{# ── 카테고리 필터 ── #}
+<div class="flex flex-wrap gap-2 mb-5">
+  <a href="/trends/actionable"
+     class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if not selected_category %}border-blue-500 bg-blue-50 text-blue-700{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    전체
+  </a>
+  {% for cat in categories %}
+  <a href="/trends/actionable?category={{ cat }}"
+     class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if selected_category == cat %}border-blue-500 bg-blue-50 text-blue-700{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    {{ cat }}
+  </a>
+  {% endfor %}
+</div>
+
+{# ── 트렌드 카드 ── #}
+{% if items %}
+<div class="flex flex-col gap-4">
+  {% for item in items %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    {# 상단 헤더 #}
+    <div class="flex items-start justify-between gap-3 mb-3">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{{ item.category }}</span>
+        {% if item.match_status == 'matched' %}
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">매칭됨</span>
+        {% else %}
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">유사제품</span>
+        {% endif %}
+        {% if item.source_name %}
+        <span class="text-xs text-gray-400">{{ item.source_name }}</span>
+        {% endif %}
+      </div>
+      {# 점수 배지 #}
+      <div class="flex-shrink-0 text-right">
+        <div class="text-lg font-bold text-indigo-600">
+          {% if item.final_score %}{{ "%.1f"|format(item.final_score) }}{% else %}—{% endif %}
+        </div>
+        <div class="text-xs text-gray-400">final score</div>
+      </div>
+    </div>
+
+    {# 제목 + 요약 #}
+    <div class="font-semibold text-gray-900 mb-1">{{ item.title }}</div>
+    {% if item.summary %}
+    <div class="text-sm text-gray-500 mb-3 leading-relaxed">{{ item.summary }}</div>
+    {% endif %}
+
+    {# 점수 상세 #}
+    <div class="flex items-center gap-4 text-xs text-gray-500 mb-4">
+      <span>트렌드 <span class="font-bold text-gray-700">{{ "%.1f"|format(item.trend_score or 0) }}</span></span>
+      <span>매칭 <span class="font-bold text-gray-700">{{ "%.0f"|format((item.match_score or 0)*100) }}%</span></span>
+      {% if item.season_score %}
+      <span>시즌 <span class="font-bold text-gray-700">{{ "%.1f"|format(item.season_score) }}</span></span>
+      {% endif %}
+    </div>
+
+    {# 매칭된 제품 리스트 #}
+    {% if item.matched_products %}
+    <div class="bg-gray-50 rounded-lg p-3 mb-4">
+      <div class="text-xs font-semibold text-gray-500 mb-2">매칭 제품</div>
+      <div class="flex flex-col gap-2">
+        {% for mp in (item.matched_products or [])[:3] %}
+        <div class="flex items-center gap-2">
+          {% if mp.product_image %}
+          <img src="{{ mp.product_image }}" class="w-8 h-8 rounded object-cover flex-shrink-0" onerror="this.style.display='none'">
+          {% endif %}
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-medium text-gray-800 truncate">{{ mp.product_name }}</div>
+            <div class="text-xs text-gray-400">{{ mp.brand }}</div>
+          </div>
+          <div class="flex-shrink-0">
+            <div class="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div class="h-full rounded-full {% if mp.match_score >= 0.3 %}bg-green-400{% else %}bg-yellow-400{% endif %}"
+                   style="width: {{ (mp.match_score * 100)|int }}%"></div>
+            </div>
+            <div class="text-xs text-gray-400 text-right mt-0.5">{{ "%.0f"|format(mp.match_score*100) }}%</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# 태그 #}
+    {% if item.tags %}
+    <div class="flex flex-wrap gap-1 mb-4">
+      {% for tag in (item.tags or [])[:6] %}
+      <span class="text-xs px-1.5 py-0.5 bg-gray-50 text-gray-500 rounded border border-gray-100">#{{ tag }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# 액션 버튼 3개 ── 핵심 #}
+    <div class="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
+      {# 1) 공구 생성 (제품 자동 주입) #}
+      {% set first_product_id = item.matched_products[0].product_id if item.matched_products else '' %}
+      <a href="/campaigns/new{% if first_product_id %}?product_id={{ first_product_id }}&trend_title={{ item.title|urlencode }}{% endif %}"
+         class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        공구 생성
+      </a>
+
+      {# 2) 제안서 생성 #}
+      <a href="/proposals/new{% if first_product_id %}?product_id={{ first_product_id }}{% endif %}"
+         class="inline-flex items-center gap-1.5 bg-purple-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        제안서 생성
+      </a>
+
+      {# 3) 자동화 센터 (콘텐츠 생성) #}
+      <a href="/automation{% if first_product_id %}?product_id={{ first_product_id }}{% endif %}"
+         class="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+        콘텐츠 생성
+      </a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="text-center py-20 text-gray-400">
+  <div class="text-4xl mb-3">🔍</div>
+  <div class="font-medium">실행 가능한 트렌드가 없습니다</div>
+  <div class="text-sm mt-1 mb-4">트렌드 피드에서 매칭을 실행해보세요</div>
+  <a href="/trends/feed" class="text-sm text-blue-600 hover:underline">피드로 이동 →</a>
+</div>
+{% endif %}
+
+{% endblock %}

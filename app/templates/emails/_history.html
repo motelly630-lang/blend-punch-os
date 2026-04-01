@@ -1,0 +1,51 @@
+{% set status_cls = {
+  'pending':   'bg-gray-100 text-gray-500',
+  'sent':      'bg-blue-100 text-blue-700',
+  'failed':    'bg-red-100 text-red-600',
+  'replied':   'bg-indigo-100 text-indigo-700',
+  'converted': 'bg-green-100 text-green-700',
+} %}
+
+{% if logs %}
+<div class="space-y-2">
+  {% for log in logs %}
+  <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg text-xs">
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 mb-1 flex-wrap">
+        <span class="font-semibold px-2 py-0.5 rounded-full {{ status_cls.get(log.status, 'bg-gray-100 text-gray-500') }}">
+          {{ email_statuses.get(log.status, log.status) }}
+        </span>
+        <span class="text-gray-700 font-medium truncate">{{ log.subject }}</span>
+      </div>
+      <div class="text-gray-400 flex gap-3 flex-wrap">
+        <span>→ {{ log.to_name or '' }}{% if log.to_name %} &lt;{{ log.to_email }}&gt;{% else %}{{ log.to_email }}{% endif %}</span>
+        <span>{{ log.created_at.strftime('%Y.%m.%d %H:%M') if log.created_at else '-' }}</span>
+        {% if log.created_by %}<span>by {{ log.created_by }}</span>{% endif %}
+        {% if log.template_name %}<span class="text-purple-400">템플릿: {{ log.template_name }}</span>{% endif %}
+      </div>
+      {% if log.status == 'failed' and log.error_msg %}
+      <div class="text-red-400 mt-1 text-xs">{{ log.error_msg[:120] }}</div>
+      {% endif %}
+    </div>
+    <div class="flex-shrink-0">
+      <form method="post"
+        hx-post="/emails/{{ log.id }}/status"
+        hx-target="#email-history-list"
+        hx-swap="innerHTML"
+        hx-include="this">
+        <input type="hidden" name="related_type" value="{{ related_type }}">
+        <input type="hidden" name="related_id" value="{{ related_id }}">
+        <select name="status" onchange="this.form.requestSubmit()"
+          class="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white cursor-pointer">
+          {% for key, label in email_statuses.items() %}
+          <option value="{{ key }}" {% if log.status == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-4 text-xs text-gray-300">이메일 발송 이력 없음</div>
+{% endif %}

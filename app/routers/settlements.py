@@ -1,4 +1,5 @@
 import io
+from datetime import date
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
 from app.models import Settlement, Campaign, Influencer
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
@@ -59,7 +61,8 @@ def calc_settlement(sales_amount: float, commission_rate: float, seller_type: st
 @router.get("")
 def settlement_list(request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user),
-                    tab: str = "pending"):
+                    tab: str = "pending",
+                    period: str = ""):
     if tab not in ("pending", "confirmed", "paid", "calc"):
         tab = "pending"
 
@@ -116,12 +119,84 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
         reverse=True,
     )
 
+    # ── 손익계산기 탭 전용 집계 ─────────────────────────────────────────────────
+    calc_data = {}
+    if tab == "calc":
+        # 사용 가능한 기간 목록 (transaction_date 기준 년-월)
+        raw_dates = db.query(Transaction.transaction_date).filter(
+            Transaction.company_id == cid,
+            Transaction.transaction_date.isnot(None),
+        ).distinct().all()
+        calc_periods = sorted(
+            {d[0].strftime("%Y-%m") for d in raw_dates if d[0]},
+            reverse=True,
+        )
+
+        # 기간 필터 적용
+        start_dt = end_dt = None
+        if period:
+            try:
+                y, m = int(period[:4]), int(period[5:7])
+                start_dt = date(y, m, 1)
+                end_dt = date(y + (1 if m == 12 else 0), 1 if m == 12 else m + 1, 1)
+            except (ValueError, IndexError):
+                period = ""
+
+        def _txn_q(type_):
+            q = db.query(func.sum(Transaction.amount)).filter(
+                Transaction.company_id == cid, Transaction.type == type_
+            )
+            if start_dt:
+                q = q.filter(Transaction.transaction_date >= start_dt,
+                              Transaction.transaction_date < end_dt)
+            return q.scalar() or 0
+
+        total_revenue = _txn_q("revenue")
+        total_cost = _txn_q("cost")
+
+        settle_q = db.query(func.sum(Settlement.final_payment)).filter(
+            Settlement.company_id == cid, Settlement.status.in_(["paid", "confirmed"])
+        )
+        if start_dt:
+            settle_q = settle_q.filter(
+                Settlement.created_at >= start_dt, Settlement.created_at < end_dt
+            )
+        total_settlement_pnl = settle_q.scalar() or 0
+
+        net_profit = total_revenue - total_cost - total_settlement_pnl
+
+        # 거래 내역 목록
+        txn_q = db.query(Transaction).filter(Transaction.company_id == cid)
+        if start_dt:
+            txn_q = txn_q.filter(
+                Transaction.transaction_date >= start_dt,
+                Transaction.transaction_date < end_dt,
+            )
+        transactions = txn_q.order_by(Transaction.transaction_date.desc()).limit(300).all()
+
+        # 캠페인 목록 (거래 등록 모달용)
+        campaigns_for_select = db.query(Campaign).filter(
+            Campaign.company_id == cid, Campaign.is_archived == False
+        ).order_by(Campaign.created_at.desc()).limit(100).all()
+
+        calc_data = {
+            "calc_periods": calc_periods,
+            "calc_period": period,
+            "total_revenue": total_revenue,
+            "total_cost": total_cost,
+            "total_settlement_pnl": total_settlement_pnl,
+            "net_profit": net_profit,
+            "transactions": transactions,
+            "campaigns_for_select": campaigns_for_select,
+        }
+
     return templates.TemplateResponse("settlements/index.html", {
         "request": request, "active_page": "settlements", "current_user": current_user,
         "settlements": settlements, "total_paid": total_paid,
         "pending_count": pending_count, "confirmed_count": confirmed_count, "paid_count": paid_count,
         "tab": tab, "periods": periods,
         "seller_types": SELLER_TYPES,
+        **calc_data,
     })
 
 

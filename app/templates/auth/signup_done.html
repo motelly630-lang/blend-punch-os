@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>가입 완료 | BLEND PUNCH OS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Noto Sans KR','system-ui','sans-serif'] } } } }</script>
+</head>
+<body class="bg-gray-50 font-sans antialiased min-h-screen flex items-center justify-center">
+<div class="w-full max-w-sm px-4 text-center">
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-10">
+    <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
+      <svg class="w-7 h-7 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+      </svg>
+    </div>
+    <h1 class="text-lg font-bold text-gray-900 mb-2">인증 메일을 발송했습니다</h1>
+    <p class="text-sm text-gray-500 mb-1">
+      <span class="font-medium text-gray-700">{{ email }}</span> 으로
+    </p>
+    <p class="text-sm text-gray-500 mb-6">인증 링크를 보내드렸습니다.<br>메일함을 확인하고 인증을 완료해주세요.</p>
+    <p class="text-xs text-gray-400">스팸 폴더도 확인해주세요 · 링크는 24시간 유효합니다</p>
+  </div>
+  <div class="mt-4">
+    <a href="/login" class="text-sm text-blue-600 hover:text-blue-800">← 로그인으로 돌아가기</a>
+  </div>
+</div>
+</body>
+</html>

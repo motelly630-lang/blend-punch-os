@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}AI 일괄 등록 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}AI 일괄 등록{% endblock %}
+
+{% block header_actions %}
+<a href="/pipeline/create" class="text-sm font-medium px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">단건 등록</a>
+<a href="/pipeline/queue" class="text-sm font-medium px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">대기열</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl space-y-5">
+
+  <!-- 입력 패널 -->
+  <div id="input-panel" class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h2 class="text-base font-bold text-gray-900">제품 정보 붙여넣기</h2>
+        <p class="text-sm text-gray-500 mt-0.5">여러 제품은 <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">---</code> 로 구분하세요</p>
+      </div>
+      <div id="product-count" class="text-sm font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-full hidden">
+        0개 제품
+      </div>
+    </div>
+
+    <textarea id="batch-text"
+      class="w-full h-72 px-4 py-3 text-sm font-mono border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-gray-50"
+      placeholder="브랜드명: 실리프랑
+제품명: 프리미엄 실리콘 생선찜기
+소비자가: 39000
+공급가: 14000
+공구가: 22000
+카테고리: 주방용품
+특징: 전자레인지 사용 가능, 식품용 실리콘
+---
+브랜드명: 쿠킹스타
+제품명: 에어프라이어 8L
+소비자가: 89000
+공급가: 32000
+공구가: 55000
+카테고리: 주방가전
+특징: 360도 열풍, 기름 없이 바삭"></textarea>
+
+    <div class="flex items-center justify-between mt-4">
+      <div class="text-xs text-gray-400">
+        💡 텍스트, 카탈로그 내용, 엑셀 복사본 모두 가능 — 형식이 달라도 AI가 읽습니다
+      </div>
+      <button id="start-btn" onclick="startBatch()"
+        class="px-6 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        🚀 모두 시작
+      </button>
+    </div>
+  </div>
+
+  <!-- 진행 상황 -->
+  <div id="progress-panel" class="hidden space-y-3">
+    <div class="flex items-center justify-between">
+      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider">진행 현황</div>
+      <div id="summary-badge" class="text-xs font-semibold px-3 py-1 rounded-full bg-blue-50 text-blue-600">
+        실행 중...
+      </div>
+    </div>
+    <div id="cards-list" class="space-y-3"></div>
+  </div>
+
+</div>
+
+<script>
+let jobs = [];  // [{product_id, index, status, name}]
+let pollTimer = null;
+
+const ROLE_ICONS = { staff:'👩‍💼', assistant:'👨‍💻', manager:'👩‍🔬', lead:'🧑‍💼', director:'👔' };
+const ROLE_LABELS = { staff:'사원', assistant:'대리', manager:'과장', lead:'팀장', director:'이사' };
+
+// 텍스트 분석해서 제품 개수 표시
+document.getElementById('batch-text').addEventListener('input', function() {
+  const chunks = this.value.split(/\n---\n|\n---$|^---\n/).filter(c => c.trim());
+  const count = chunks.length;
+  const badge = document.getElementById('product-count');
+  if (count > 0 && this.value.trim()) {
+    badge.textContent = count + '개 제품';
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+});
+
+async function startBatch() {
+  const text = document.getElementById('batch-text').value.trim();
+  if (!text) return alert('제품 정보를 입력해주세요.');
+
+  const chunks = text.split(/\n---\n|\n---$|^---\n|^---$/).map(c => c.trim()).filter(Boolean);
+  if (chunks.length === 0) return alert('제품 정보가 없습니다.');
+
+  const btn = document.getElementById('start-btn');
+  btn.disabled = true;
+  btn.textContent = '시작 중...';
+
+  // 진행 패널 표시
+  document.getElementById('progress-panel').classList.remove('hidden');
+  document.getElementById('cards-list').innerHTML = '';
+  jobs = [];
+
+  // 각 제품 파이프라인 시작
+  for (let i = 0; i < chunks.length; i++) {
+    const fd = new FormData();
+    fd.append('text', chunks[i]);
+
+    const res = await fetch('/api/pipeline/create/product/start', { method: 'POST', body: fd });
+    const data = await res.json();
+    const pid = data.product_id;
+
+    jobs.push({ product_id: pid, index: i, status: 'running', name: `제품 ${i+1}`, steps: 0 });
+    createCard(pid, i, `제품 ${i+1}`, chunks[i]);
+  }
+
+  btn.textContent = `${chunks.length}개 실행 중...`;
+  updateSummary();
+
+  // 폴링 시작
+  pollTimer = setInterval(pollAll, 3000);
+}
+
+function createCard(pid, idx, name, preview) {
+  const card = document.createElement('div');
+  card.id = `card-${pid}`;
+  card.className = 'bg-white rounded-xl border border-gray-100 shadow-sm p-4 transition-all';
+
+  const previewLine = preview.split('\n')[0].replace(/^브랜드명:\s*/, '').trim() || name;
+
+  card.innerHTML = `
+    <div class="flex items-start justify-between gap-3 mb-3">
+      <div class="min-w-0">
+        <div class="text-xs text-gray-400 mb-0.5">제품 ${idx + 1}</div>
+        <div class="font-semibold text-gray-900" id="name-${pid}">${previewLine}</div>
+      </div>
+      <span id="status-${pid}" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 flex-shrink-0">실행 중</span>
+    </div>
+    <div class="flex items-center gap-1.5" id="steps-${pid}">
+      ${['staff','assistant','manager','lead','director'].map(r =>
+        `<div id="step-${pid}-${r}" class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-base grayscale opacity-40 transition-all" title="${ROLE_LABELS[r]}">${ROLE_ICONS[r]}</div>`
+      ).join('<div class="flex-1 h-0.5 bg-gray-100 rounded" id="line-${pid}-"></div>')}
+    </div>
+    <div id="result-${pid}" class="mt-2 text-xs text-gray-500"></div>
+  `;
+  document.getElementById('cards-list').appendChild(card);
+}
+
+async function pollAll() {
+  let doneCount = 0;
+
+  for (const job of jobs) {
+    if (job.status === 'done' || job.status === 'error') {
+      doneCount++;
+      continue;
+    }
+
+    try {
+      const res = await fetch(`/api/pipeline/poll/product/${job.product_id}`);
+      const data = await res.json();
+
+      const steps = data.steps || [];
+
+      // 스텝 아이콘 업데이트
+      for (const step of steps) {
+        const el = document.getElementById(`step-${job.product_id}-${step.role}`);
+        if (el) {
+          el.classList.remove('grayscale', 'opacity-40');
+          if (step.decision === 'pass') {
+            el.className = 'flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-base transition-all';
+          } else {
+            el.className = 'flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-base transition-all';
+          }
+        }
+      }
+
+      // 이름 업데이트 (사원이 추출한 이름)
+      const staffStep = steps.find(s => s.role === 'staff');
+      if (staffStep?.output?.product_name) {
+        const nameEl = document.getElementById(`name-${job.product_id}`);
+        if (nameEl) nameEl.textContent = staffStep.output.product_name;
+        job.name = staffStep.output.product_name;
+      }
+
+      // 상태 업데이트
+      if (data.job_status === 'done' || data.job_status === 'error') {
+        job.status = data.job_status;
+        job.steps = steps.length;
+        doneCount++;
+
+        const statusEl = document.getElementById(`status-${job.product_id}`);
+        const resultEl = document.getElementById(`result-${job.product_id}`);
+        const card = document.getElementById(`card-${job.product_id}`);
+
+        if (data.review_status === 'approved') {
+          statusEl.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700 flex-shrink-0';
+          statusEl.textContent = `✅ 승인 ${data.priority_score ? data.priority_score+'점' : ''}`;
+          resultEl.innerHTML = `<a href="/products/${job.product_id}" class="text-blue-600 hover:underline">제품 보기 →</a>
+            ${data.triggered?.campaign_created ? `<a href="/campaigns/${data.triggered.campaign_created}" class="ml-3 text-green-600 hover:underline">캠페인 →</a>` : ''}
+            ${data.triggered?.proposal_created ? `<a href="/proposals/${data.triggered.proposal_created}" class="ml-3 text-amber-600 hover:underline">제안서 →</a>` : ''}`;
+        } else if (data.review_status === 'rejected') {
+          statusEl.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-600 flex-shrink-0';
+          statusEl.textContent = '❌ 반려';
+          resultEl.innerHTML = `<a href="/pipeline/product/${job.product_id}" class="text-gray-500 hover:underline">상세 보기 →</a>`;
+        } else if (data.review_status === 'pending_review') {
+          statusEl.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-700 flex-shrink-0';
+          statusEl.textContent = '⏳ 검토 대기';
+          resultEl.innerHTML = `<a href="/pipeline/queue" class="text-yellow-700 hover:underline">대기열에서 승인 →</a>`;
+        } else {
+          statusEl.textContent = data.review_status_label || data.review_status;
+          resultEl.innerHTML = `<a href="/pipeline/product/${job.product_id}" class="text-gray-500 hover:underline">상세 보기 →</a>`;
+        }
+      }
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  updateSummary();
+
+  if (doneCount === jobs.length && jobs.length > 0) {
+    clearInterval(pollTimer);
+    document.getElementById('start-btn').disabled = false;
+    document.getElementById('start-btn').textContent = '🚀 모두 시작';
+  }
+}
+
+function updateSummary() {
+  const total = jobs.length;
+  const done = jobs.filter(j => j.status === 'done').length;
+  const badge = document.getElementById('summary-badge');
+  if (done === total && total > 0) {
+    badge.className = 'text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700';
+    badge.textContent = `완료 ${total}/${total}`;
+  } else {
+    badge.className = 'text-xs font-semibold px-3 py-1 rounded-full bg-blue-50 text-blue-600';
+    badge.textContent = `${done}/${total} 완료`;
+  }
+}
+</script>
+{% endblock %}

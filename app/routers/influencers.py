@@ -61,7 +61,10 @@ def _parse_categories(json_str: str, fallback_raw: str = "") -> list | None:
 def influencer_list(request: Request, db: Session = Depends(get_db), q: str = "", platform: str = "",
                     view: str = "gallery", current_user: User = Depends(get_current_user)):
     cid = get_company_id(current_user)
-    query = db.query(Influencer).filter(Influencer.company_id == cid)
+    query = db.query(Influencer).filter(
+        Influencer.company_id == cid,
+        (Influencer.is_archived == False) | (Influencer.is_archived == None),
+    )
     if q:
         query = query.filter(Influencer.name.ilike(f"%{q}%") | Influencer.handle.ilike(f"%{q}%"))
     if platform:
@@ -366,6 +369,6 @@ def influencer_delete(influencer_id: str, db: Session = Depends(get_db),
     cid = get_company_id(current_user)
     influencer = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.id == influencer_id).first()
     if influencer:
-        db.delete(influencer)
+        influencer.is_archived = True
         db.commit()
-    return RedirectResponse("/influencers?msg=삭제되었습니다", status_code=302)
+    return RedirectResponse("/influencers?msg=보관처리되었습니다", status_code=302)

@@ -12,5 +12,6 @@ from app.models.crm import CrmPipeline, SampleLog
 from app.models.automation import AutomationNote, CampaignRecommendation
 from app.models.brand import Brand
 from app.models.group_buy_application import GroupBuyApplication
+from app.models.transaction import Transaction
 
-__all__ = ["User", "Product", "Influencer", "Campaign", "Proposal", "Settlement", "TrendItem", "Playbook", "TrendBriefing", "OutreachLog", "CrmPipeline", "SampleLog", "AutomationNote", "CampaignRecommendation", "Brand", "GroupBuyApplication"]
+__all__ = ["User", "Product", "Influencer", "Campaign", "Proposal", "Settlement", "TrendItem", "Playbook", "TrendBriefing", "OutreachLog", "CrmPipeline", "SampleLog", "AutomationNote", "CampaignRecommendation", "Brand", "GroupBuyApplication", "Transaction"]

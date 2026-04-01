@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}트렌드 피드 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}트렌드{% endblock %}
+
+{% block header_actions %}
+<form method="post" action="/trends/match/run">
+  <button type="submit"
+    class="inline-flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>
+    전체 매칭 재실행
+  </button>
+</form>
+{% endblock %}
+
+{% block content %}
+
+{# ── 서브탭 ── #}
+<div class="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+  <a href="/trends/feed"
+     class="px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-900 shadow-sm">
+    피드
+  </a>
+  <a href="/trends/actionable"
+     class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">
+    실행 트렌드
+    {% if actionable_count > 0 %}
+    <span class="ml-1 bg-green-100 text-green-700 text-xs font-bold px-1.5 py-0.5 rounded-full">{{ actionable_count }}</span>
+    {% endif %}
+  </a>
+  <a href="/trends/sourcing"
+     class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">
+    소싱 필요
+    {% if sourcing_count > 0 %}
+    <span class="ml-1 bg-orange-100 text-orange-700 text-xs font-bold px-1.5 py-0.5 rounded-full">{{ sourcing_count }}</span>
+    {% endif %}
+  </a>
+  <a href="/trends/engine"
+     class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">
+    시즌 엔진
+  </a>
+</div>
+
+{# ── 매칭 현황 요약 ── #}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-2xl font-bold text-gray-900">{{ total }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">전체 트렌드</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-2xl font-bold text-green-600">{{ matched_count }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">매칭됨</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-2xl font-bold text-yellow-500">{{ similar_count }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">유사 제품</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="text-2xl font-bold text-red-500">{{ none_count }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">소싱 필요</div>
+  </div>
+</div>
+
+{# ── 필터 ── #}
+<div class="flex flex-wrap gap-2 mb-5">
+  <a href="/trends/feed"
+     class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if not selected_category and not selected_status %}border-blue-500 bg-blue-50 text-blue-700{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    전체
+  </a>
+  {% for cat in categories %}
+  <a href="/trends/feed?category={{ cat }}"
+     class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if selected_category == cat %}border-blue-500 bg-blue-50 text-blue-700{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    {{ cat }}
+  </a>
+  {% endfor %}
+  <div class="w-px bg-gray-200 mx-1"></div>
+  <a href="/trends/feed?status=matched"
+     class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if selected_status == 'matched' %}border-green-500 bg-green-50 text-green-700{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    매칭됨
+  </a>
+  <a href="/trends/feed?status=similar"
+     class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if selected_status == 'similar' %}border-yellow-500 bg-yellow-50 text-yellow-700{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    유사
+  </a>
+  <a href="/trends/feed?status=none"
+     class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if selected_status == 'none' %}border-red-500 bg-red-50 text-red-700{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    미매칭
+  </a>
+</div>
+
+{# ── 트렌드 목록 ── #}
+{% if items %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+  {% for item in items %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col gap-3">
+    {# 상단: 카테고리 + 매칭 뱃지 #}
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{{ item.category }}</span>
+      {% if item.match_status == 'matched' %}
+        <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">매칭됨</span>
+      {% elif item.match_status == 'similar' %}
+        <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">유사제품</span>
+      {% elif item.match_status == 'none' %}
+        <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">소싱필요</span>
+      {% else %}
+        <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">미분석</span>
+      {% endif %}
+    </div>
+
+    {# 제목 #}
+    <div class="font-semibold text-gray-900 text-sm leading-snug">{{ item.title }}</div>
+
+    {# 요약 #}
+    {% if item.summary %}
+    <div class="text-xs text-gray-500 leading-relaxed line-clamp-2">{{ item.summary }}</div>
+    {% endif %}
+
+    {# 점수 #}
+    <div class="flex items-center gap-3 text-xs text-gray-500">
+      <span>트렌드 <span class="font-bold text-gray-800">{{ "%.1f"|format(item.trend_score or 0) }}</span></span>
+      {% if item.match_score is not none %}
+      <span>매칭 <span class="font-bold text-gray-800">{{ "%.0f"|format((item.match_score or 0) * 100) }}%</span></span>
+      {% endif %}
+      {% if item.final_score is not none %}
+      <span class="ml-auto font-bold text-indigo-600">최종 {{ "%.1f"|format(item.final_score) }}</span>
+      {% endif %}
+    </div>
+
+    {# 태그 #}
+    {% if item.tags %}
+    <div class="flex flex-wrap gap-1">
+      {% for tag in (item.tags or [])[:5] %}
+      <span class="text-xs px-1.5 py-0.5 bg-gray-50 text-gray-500 rounded border border-gray-100">#{{ tag }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# 하단: 출처 + 삭제 #}
+    <div class="flex items-center justify-between pt-1 border-t border-gray-50">
+      <div class="text-xs text-gray-400">
+        {% if item.source_name %}{{ item.source_name }}{% endif %}
+        {% if item.created_at %}· {{ item.created_at.strftime('%m/%d') }}{% endif %}
+      </div>
+      <form method="post" action="/trends/{{ item.id }}/delete"
+            onsubmit="return confirm('삭제하시겠습니까?')">
+        <button type="submit" class="text-xs text-gray-300 hover:text-red-400 transition-colors">삭제</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="text-center py-20 text-gray-400">
+  <div class="text-4xl mb-3">📡</div>
+  <div class="font-medium">트렌드 데이터가 없습니다</div>
+  <div class="text-sm mt-1">Claw 연동 또는 직접 추가해보세요</div>
+</div>
+{% endif %}
+
+{# ── 트렌드 수동 추가 버튼 ── #}
+<div class="mt-8 border-t border-gray-100 pt-6">
+  <details class="bg-white rounded-xl border border-gray-100 shadow-sm">
+    <summary class="px-5 py-4 cursor-pointer text-sm font-medium text-gray-700 flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+      트렌드 직접 추가
+    </summary>
+    <form method="post" action="/trends/save" class="px-5 pb-5 pt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="text-xs font-medium text-gray-600 block mb-1">카테고리</label>
+        <select name="category" required
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+          {% for cat in categories %}
+          <option>{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-600 block mb-1">트렌드 점수 (1~10)</label>
+        <input type="number" name="trend_score" value="7.0" min="1" max="10" step="0.1"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+      </div>
+      <div class="md:col-span-2">
+        <label class="text-xs font-medium text-gray-600 block mb-1">제목</label>
+        <input type="text" name="title" required placeholder="트렌드 제목"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+      </div>
+      <div class="md:col-span-2">
+        <label class="text-xs font-medium text-gray-600 block mb-1">요약</label>
+        <textarea name="summary" rows="2" placeholder="트렌드 설명"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-600 block mb-1">태그 (쉼표 구분)</label>
+        <input type="text" name="tags_raw" placeholder="저당, 칼로리, 식단"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-600 block mb-1">출처 URL</label>
+        <input type="url" name="source_url" placeholder="https://"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+      </div>
+      <div class="md:col-span-2 flex justify-end">
+        <button type="submit"
+          class="bg-blue-600 text-white text-sm font-medium px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+          추가 + 자동 매칭
+        </button>
+      </div>
+    </form>
+  </details>
+</div>
+
+{% endblock %}

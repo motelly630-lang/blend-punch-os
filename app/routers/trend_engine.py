@@ -1,11 +1,15 @@
 from datetime import date
-from fastapi import APIRouter, Request, Depends
-from fastapi.responses import RedirectResponse
+from typing import Optional, List
+from fastapi import APIRouter, Request, Depends, Header, HTTPException
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.config import settings
 from app.models.trend_engine import TrendBriefing
+from app.models.trend import TrendItem
 from app.models.user import User
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
@@ -15,9 +19,90 @@ from app.services.trend_matcher import (
     match_products_to_event,
     run_briefing,
 )
+from app.services.trend_product_matcher import run_matching_for_trend
 
 router = APIRouter(prefix="/trends")
 templates = Jinja2Templates(directory="app/templates")
+
+
+# ── Claw 연동 스키마 ──────────────────────────────────────────────────────────
+
+class ClawTrendPayload(BaseModel):
+    name: str
+    category: str
+    score: float                        # 0~10 트렌드 점수
+    source: Optional[str] = None        # instagram|naver|youtube 등
+    source_url: Optional[str] = None
+    summary: Optional[str] = None
+    brands: Optional[List[str]] = None  # 연관 브랜드명 목록
+    season: Optional[str] = None        # 2026-Q2 등
+    tags: Optional[List[str]] = None
+    collected_at: Optional[str] = None  # ISO 8601
+
+
+def _verify_claw_token(authorization: Optional[str] = Header(None)):
+    """Bearer 토큰 검증. .env의 CLAW_API_TOKEN과 일치해야 함."""
+    token = settings.claw_api_token
+    if not token:
+        raise HTTPException(status_code=503, detail="Claw API token not configured")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing Bearer token")
+    if authorization[7:] != token:
+        raise HTTPException(status_code=403, detail="Invalid token")
+
+
+# ── POST /api/trends  (Claw → Blend Punch OS) ────────────────────────────────
+
+@router.post("/api/ingest")
+def claw_ingest_trend(
+    payload: ClawTrendPayload,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_claw_token),
+):
+    """
+    Claw가 수집한 트렌드 데이터를 수신하여 TrendItem 테이블에 저장한다.
+    name + season 조합이 이미 존재하면 업데이트(upsert), 없으면 신규 생성.
+    """
+    # upsert: 동일 name+season 항목 찾기
+    existing = (
+        db.query(TrendItem)
+        .filter(
+            TrendItem.title == payload.name,
+            TrendItem.season == payload.season,
+        )
+        .first()
+    )
+
+    if existing:
+        existing.trend_score = payload.score
+        existing.summary = payload.summary or existing.summary
+        existing.source_url = payload.source_url or existing.source_url
+        existing.source = payload.source or existing.source
+        existing.brands = payload.brands or existing.brands
+        existing.tags = payload.tags or existing.tags
+        existing.source_name = "Claw"
+        db.commit()
+        run_matching_for_trend(db, existing)
+        return JSONResponse({"status": "updated", "trend_id": existing.id})
+
+    item = TrendItem(
+        company_id=1,
+        title=payload.name,
+        category=payload.category,
+        trend_score=payload.score,
+        source=payload.source,
+        source_url=payload.source_url,
+        summary=payload.summary,
+        brands=payload.brands,
+        season=payload.season,
+        tags=payload.tags,
+        source_name="Claw",
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    run_matching_for_trend(db, item)
+    return JSONResponse({"status": "created", "trend_id": item.id}, status_code=201)
 
 
 @router.get("/engine")
@@ -64,7 +149,7 @@ def engine_dashboard(
 
     return templates.TemplateResponse("trends/engine.html", {
         "request": request,
-        "active_page": "trend_engine",
+        "active_page": "trends",
         "current_user": current_user,
         "engine_events": engine_events,
         "all_events": all_events,
@@ -103,7 +188,7 @@ def briefings_archive(
     )
     return templates.TemplateResponse("trends/briefings.html", {
         "request": request,
-        "active_page": "trend_engine",
+        "active_page": "trends",
         "current_user": current_user,
         "briefings": briefings,
     })

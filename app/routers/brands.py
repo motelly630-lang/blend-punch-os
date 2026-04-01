@@ -18,7 +18,10 @@ templates = Jinja2Templates(directory="app/templates")
 def brand_list(request: Request, db: Session = Depends(get_db),
                current_user: User = Depends(get_current_user)):
     cid = get_company_id(current_user)
-    brands = db.query(Brand).filter(Brand.company_id == cid).order_by(Brand.name).all()
+    brands = db.query(Brand).filter(
+        Brand.company_id == cid,
+        (Brand.is_archived == False) | (Brand.is_archived == None),
+    ).order_by(Brand.name).all()
     return templates.TemplateResponse(
         "brands/list.html",
         {"request": request, "active_page": "brands", "current_user": current_user,
@@ -104,6 +107,6 @@ def brand_delete(brand_id: str, db: Session = Depends(get_db),
     cid = get_company_id(current_user)
     brand = db.query(Brand).filter(Brand.company_id == cid, Brand.id == brand_id).first()
     if brand:
-        db.delete(brand)
+        brand.is_archived = True
         db.commit()
-    return RedirectResponse("/brands?msg=삭제되었습니다", status_code=302)
+    return RedirectResponse("/brands?msg=보관처리되었습니다", status_code=302)

@@ -60,6 +60,11 @@ class Product(Base):
     # Data completeness
     is_complete = Column(Boolean, default=False)             # 필수 필드 모두 채워진 경우 True
     missing_fields = Column(JSON, nullable=True)             # list[str] 미입력 필드 레이블 목록
+    is_archived = Column(Boolean, default=False)
+
+    # AI 에이전트 파이프라인
+    review_status  = Column(String(30), default="draft")   # draft|structured|reviewed|strategy_checked|approved|rejected
+    priority_score = Column(Float, nullable=True)           # 이사 최종 점수 (0~100)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

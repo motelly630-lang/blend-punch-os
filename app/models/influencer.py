@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Integer, Text, DateTime, JSON, ForeignKey
+from sqlalchemy import Column, String, Float, Integer, Text, DateTime, JSON, ForeignKey, Boolean
 from app.models.base import Base
 
 
@@ -48,5 +48,6 @@ class Influencer(Base):
     legal_name = Column(String(100), nullable=True)
     resident_registration_number = Column(String(30), nullable=True)
 
+    is_archived = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

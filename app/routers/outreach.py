@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.outreach import OutreachLog, SAMPLE_STATUSES
+from app.models.email_log import EmailLog, EMAIL_TEMPLATES
 from app.models.influencer import Influencer
 from app.models.product import Product
 from app.models.user import User
@@ -124,6 +125,24 @@ def outreach_list(
 
     today_count = sum(1 for log in logs if log.outreach_date == date.today().isoformat())
 
+    # 이메일 발송 횟수 (log_id → count)
+    outreach_ids = [log.id for log in logs]
+    email_counts: dict[str, int] = {}
+    if outreach_ids:
+        from sqlalchemy import func
+        rows = (
+            db.query(EmailLog.related_id, func.count(EmailLog.id))
+            .filter(
+                EmailLog.company_id == cid,
+                EmailLog.related_type == "outreach",
+                EmailLog.related_id.in_(outreach_ids),
+            )
+            .group_by(EmailLog.related_id)
+            .all()
+        )
+        email_counts = {r[0]: r[1] for r in rows}
+
+    import json
     return templates.TemplateResponse("outreach/index.html", {
         "request": request,
         "active_page": "outreach",
@@ -140,6 +159,11 @@ def outreach_list(
         "today_count": today_count,
         "total": len(logs),
         "today": date.today().isoformat(),
+        "email_counts": email_counts,
+        "email_templates_json": json.dumps(
+            {k: {"subject": v["subject"], "body": v["body"]} for k, v in EMAIL_TEMPLATES.items()},
+            ensure_ascii=False,
+        ),
     })
 
 

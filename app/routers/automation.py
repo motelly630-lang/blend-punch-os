@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Product, Proposal
 from app.models.playbook import Playbook
+from app.models.pipeline_job import PipelineJob
+from app.models.agent_log import REVIEW_STATUSES
 from app.models.user import User
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
@@ -43,6 +45,27 @@ def automation_index(
         .all()
     )
 
+    # 최근 파이프라인 실행 이력 (완료 + 오류 포함)
+    recent_pipeline_runs = (
+        db.query(PipelineJob)
+        .filter(PipelineJob.company_id == cid)
+        .order_by(PipelineJob.started_at.desc())
+        .limit(8)
+        .all()
+    )
+
+    # 각 job에 연결된 제품명 조회
+    pipeline_with_names = []
+    for job in recent_pipeline_runs:
+        product = db.query(Product).filter(Product.id == job.id).first()
+        pipeline_with_names.append({
+            "job": job,
+            "product": product,
+            "review_status_label": REVIEW_STATUSES.get(
+                getattr(product, "review_status", "draft") or "draft", "초안"
+            ) if product else "-",
+        })
+
     return templates.TemplateResponse(
         "automation/index.html",
         {
@@ -52,5 +75,6 @@ def automation_index(
             "products": products,
             "recent_playbooks": recent_playbooks,
             "recent_proposals": recent_proposals,
+            "pipeline_runs": pipeline_with_names,
         },
     )

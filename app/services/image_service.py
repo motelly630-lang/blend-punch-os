@@ -1,6 +1,7 @@
 """
 image_service.py — 공통 이미지 처리 서비스
 - 업로드 이미지: WebP 변환 + 최대 1080px 리사이징
+- S3 업로드 우선, 미설정 시 로컬 저장 fallback
 - 외부 이미지(인스타그램 등) 서버 캐싱 → /static/cache/
 - 누끼 제거: REMOVE_BG_ENABLED=True 시 활성화 (기본 비활성)
 """
@@ -20,7 +21,17 @@ WEBP_QUALITY = 85
 UPLOAD_DIR_PRODUCTS = Path("static/uploads/products")
 UPLOAD_DIR_INFLUENCERS = Path("static/uploads/influencers")
 UPLOAD_DIR_BRANDS = Path("static/brands")
+UPLOAD_DIR_SALES_PAGES = Path("static/uploads/sales_pages")
 CACHE_DIR = Path("static/cache")
+
+# 로컬 디렉토리 → S3 prefix 매핑
+_S3_PREFIX_MAP = {
+    str(UPLOAD_DIR_PRODUCTS): "uploads/products",
+    str(UPLOAD_DIR_INFLUENCERS): "uploads/influencers",
+    str(UPLOAD_DIR_BRANDS): "uploads/brands",
+    str(UPLOAD_DIR_SALES_PAGES): "uploads/sales_pages",
+    str(CACHE_DIR): "uploads/cache",
+}
 
 REMOVE_BG_ENABLED = True
 try:
@@ -29,7 +40,8 @@ try:
 except Exception:
     REMOVE_BG_API_KEY = ""
 
-for _d in (UPLOAD_DIR_PRODUCTS, UPLOAD_DIR_INFLUENCERS, UPLOAD_DIR_BRANDS, CACHE_DIR):
+for _d in (UPLOAD_DIR_PRODUCTS, UPLOAD_DIR_INFLUENCERS, UPLOAD_DIR_BRANDS,
+           UPLOAD_DIR_SALES_PAGES, CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # 인스타그램 이미지 다운로드용 헤더
@@ -41,6 +53,51 @@ _INSTAGRAM_HEADERS = {
     ),
     "Referer": "https://www.instagram.com/",
 }
+
+
+# ── S3 유틸 ────────────────────────────────────────────
+
+def _get_s3_assets_client():
+    """S3 클라이언트 + 에셋 버킷명 반환. 미설정 시 (None, None)."""
+    try:
+        from app.config import settings
+        if not settings.aws_access_key_id:
+            return None, None
+        bucket = settings.s3_assets_bucket or settings.s3_backup_bucket
+        if not bucket:
+            return None, None
+        import boto3
+        client = boto3.client(
+            "s3",
+            region_name=settings.aws_region,
+            aws_access_key_id=settings.aws_access_key_id,
+            aws_secret_access_key=settings.aws_secret_access_key,
+        )
+        return client, bucket
+    except Exception:
+        return None, None
+
+
+def _s3_public_url(bucket: str, region: str, s3_key: str) -> str:
+    return f"https://{bucket}.s3.{region}.amazonaws.com/{s3_key}"
+
+
+def _upload_bytes_to_s3(data: bytes, s3_key: str, content_type: str = "image/webp") -> str | None:
+    """바이트를 S3에 업로드. 성공 시 퍼블릭 URL 반환, 실패 시 None."""
+    try:
+        from app.config import settings
+        client, bucket = _get_s3_assets_client()
+        if not client:
+            return None
+        client.put_object(
+            Bucket=bucket,
+            Key=s3_key,
+            Body=data,
+            ContentType=content_type,
+        )
+        return _s3_public_url(bucket, settings.aws_region, s3_key)
+    except Exception:
+        return None
 
 
 # ── 내부 유틸 ───────────────────────────────────────────
@@ -97,12 +154,26 @@ def _save_pil(img: Image.Image, dest: Path, use_alpha: bool = False) -> None:
         img.save(dest, format="WEBP", quality=WEBP_QUALITY, method=4)
 
 
+def _pil_to_bytes(img: Image.Image, use_alpha: bool = False) -> tuple[bytes, str]:
+    """PIL 이미지를 바이트로 변환. (data, ext) 반환."""
+    buf = BytesIO()
+    if use_alpha or img.mode == "RGBA":
+        img.save(buf, format="PNG", optimize=True)
+        return buf.getvalue(), "png"
+    else:
+        img = img.convert("RGB")
+        img.save(buf, format="WEBP", quality=WEBP_QUALITY, method=4)
+        return buf.getvalue(), "webp"
+
+
 # ── 공개 API ────────────────────────────────────────────
 
 def save_upload(file: UploadFile, dest_dir: Path, remove_bg: bool = False) -> str | None:
     """
-    업로드 파일을 WebP로 변환·저장.
-    반환값: /static/... 경로 문자열 or None
+    업로드 파일을 WebP로 변환.
+    S3 설정 시 → S3 퍼블릭 URL 반환
+    S3 미설정 시 → 로컬 /static/... 경로 반환
+    실패 시 → None
     """
     if not file or not file.filename:
         return None
@@ -111,11 +182,22 @@ def save_upload(file: UploadFile, dest_dir: Path, remove_bg: bool = False) -> st
         img = Image.open(BytesIO(data))
         img = _process_image(img, remove_bg=remove_bg)
         use_alpha = remove_bg and REMOVE_BG_ENABLED and img.mode == "RGBA"
-        ext = "png" if use_alpha else "webp"
+        img_bytes, ext = _pil_to_bytes(img, use_alpha=use_alpha)
         filename = f"{uuid.uuid4().hex}.{ext}"
+        content_type = "image/png" if ext == "png" else "image/webp"
+
+        # S3 업로드 시도
+        s3_prefix = _S3_PREFIX_MAP.get(str(dest_dir), f"uploads/{dest_dir.name}")
+        s3_key = f"{s3_prefix}/{filename}"
+        s3_url = _upload_bytes_to_s3(img_bytes, s3_key, content_type)
+        if s3_url:
+            return s3_url
+
+        # S3 실패 → 로컬 저장 fallback
         dest = dest_dir / filename
-        _save_pil(img, dest, use_alpha=use_alpha)
+        dest.write_bytes(img_bytes)
         return f"/{dest}"
+
     except Exception:
         # 변환 실패 시 원본 그대로 저장
         try:
@@ -125,10 +207,19 @@ def save_upload(file: UploadFile, dest_dir: Path, remove_bg: bool = False) -> st
             if raw_ext not in ("jpg", "jpeg", "png", "webp", "gif"):
                 raw_ext = "jpg"
             filename = f"{uuid.uuid4().hex}.{raw_ext}"
+            raw_data = file.file.read()
+            content_type = f"image/{raw_ext.replace('jpg', 'jpeg')}"
+
+            # S3 업로드 시도
+            s3_prefix = _S3_PREFIX_MAP.get(str(dest_dir), f"uploads/{dest_dir.name}")
+            s3_key = f"{s3_prefix}/{filename}"
+            s3_url = _upload_bytes_to_s3(raw_data, s3_key, content_type)
+            if s3_url:
+                return s3_url
+
+            # 로컬 fallback
             dest = dest_dir / filename
-            with dest.open("wb") as out:
-                file.file.seek(0)
-                shutil.copyfileobj(file.file, out)
+            dest.write_bytes(raw_data)
             return f"/{dest}"
         except Exception:
             return None
@@ -144,6 +235,10 @@ def save_influencer_image(file: UploadFile, remove_bg: bool = False) -> str | No
 
 def save_brand_logo(file: UploadFile, remove_bg: bool = False) -> str | None:
     return save_upload(file, UPLOAD_DIR_BRANDS, remove_bg=remove_bg)
+
+
+def save_sales_page_image(file: UploadFile, remove_bg: bool = False) -> str | None:
+    return save_upload(file, UPLOAD_DIR_SALES_PAGES, remove_bg=remove_bg)
 
 
 def cache_external_image(url: str) -> str | None:

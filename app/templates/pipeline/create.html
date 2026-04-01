@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% block title %}AI 제품 등록 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}AI 제품 자동 등록{% endblock %}
+
+{% block header_actions %}
+<a href="/products" class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100">
+  ← 제품 목록
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-4">
+
+  <!-- 안내 배너 -->
+  <div class="bg-gradient-to-r from-gray-900 to-gray-700 rounded-xl p-5 text-white">
+    <div class="flex items-start gap-3">
+      <div class="text-2xl">🤖</div>
+      <div>
+        <div class="font-bold text-base">AI 자동 등록</div>
+        <div class="text-sm text-gray-300 mt-1">
+          이미지, 엑셀, 텍스트를 업로드하면 AI가 브랜드 생성 → 제품 등록 → 설명 작성 → 가격 분석 → 승인까지 자동으로 처리합니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 업로드 폼 -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <form id="create-form" class="space-y-5">
+
+      <!-- 텍스트 입력 -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+          제품 정보 텍스트
+          <span class="font-normal text-gray-400 ml-1">(필수)</span>
+        </label>
+        <textarea id="input-text" name="text" rows="5"
+          placeholder="예: 브랜드명: 실리프랑&#10;제품명: 프리미엄 실리콘 찜기&#10;소비자가: 39,000원&#10;공급가: 15,000원&#10;특징: 내열 200도, 전자레인지 사용 가능, 식기세척기 OK"
+          class="w-full px-3.5 py-3 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 transition resize-none"></textarea>
+      </div>
+
+      <!-- 이미지 업로드 -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+          상세페이지 이미지
+          <span class="font-normal text-gray-400 ml-1">(선택 · jpg/png/webp)</span>
+        </label>
+        <div id="image-drop"
+          class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-gray-400 transition cursor-pointer"
+          onclick="document.getElementById('image-file').click()">
+          <div id="image-preview" class="hidden">
+            <img id="image-thumb" class="mx-auto max-h-32 rounded-lg object-contain mb-2">
+            <div id="image-name" class="text-xs text-gray-500"></div>
+          </div>
+          <div id="image-placeholder">
+            <div class="text-gray-300 text-3xl mb-2">🖼</div>
+            <div class="text-sm text-gray-400">클릭하거나 파일을 드래그하세요</div>
+          </div>
+          <input type="file" id="image-file" name="image_file" accept="image/*" class="hidden"
+            onchange="previewImage(this)">
+        </div>
+      </div>
+
+      <!-- 엑셀 업로드 -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+          가격표 엑셀
+          <span class="font-normal text-gray-400 ml-1">(선택 · xlsx/xls)</span>
+        </label>
+        <div class="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-gray-400 transition cursor-pointer"
+          onclick="document.getElementById('excel-file').click()">
+          <div id="excel-name" class="text-sm text-gray-400">📊 엑셀 파일 선택</div>
+          <input type="file" id="excel-file" name="excel_file" accept=".xlsx,.xls,.csv" class="hidden"
+            onchange="document.getElementById('excel-name').textContent = '📊 ' + this.files[0].name">
+        </div>
+      </div>
+
+      <button type="button" onclick="startCreate()"
+        id="start-btn"
+        class="w-full py-3 bg-gray-900 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors text-sm flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        AI 자동 등록 시작
+      </button>
+    </form>
+  </div>
+
+  <!-- 진행 상황 (시작 전에는 숨김) -->
+  <div id="progress-section" class="hidden space-y-3">
+
+    <!-- 오피스 씬 (간소화) -->
+    <div class="bg-gradient-to-b from-blue-50 to-gray-50 rounded-xl p-5">
+      <div class="text-center mb-4">
+        <div class="text-xs text-gray-400 font-medium" id="office-text">에이전트가 일을 시작합니다...</div>
+      </div>
+      <div class="flex items-end justify-around gap-2">
+        {% set agents = [
+          ('staff',     '👩‍💼', '사원',  'gray'),
+          ('assistant', '👨‍💻', '대리',  'purple'),
+          ('manager',   '👩‍🔬', '과장',  'blue'),
+          ('lead',      '🧑‍💼', '팀장',  'indigo'),
+          ('director',  '👔',   '이사',  'yellow'),
+        ] %}
+        {% for role, emoji, label, color in agents %}
+        <div class="flex flex-col items-center gap-1" id="char-{{ role }}">
+          <div class="text-xs bg-white rounded-full px-2 py-0.5 shadow-sm border border-gray-100 opacity-0 transition-opacity duration-300"
+            id="char-bubble-{{ role }}">대기</div>
+          <div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl bg-gray-100 border-2 border-gray-200 transition-all duration-300"
+            id="char-avatar-{{ role }}">{{ emoji }}</div>
+          <div class="text-xs font-semibold text-{{ color }}-600 px-2 py-0.5 bg-{{ color }}-50 rounded-full">{{ label }}</div>
+        </div>
+        {% if not loop.last %}
+        <div class="flex-1 h-0.5 bg-gray-200 mb-8 overflow-hidden rounded-full">
+          <div class="h-full bg-blue-400 transition-all duration-700 rounded-full" id="line-{{ loop.index }}" style="width:0%"></div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- 단계별 결과 -->
+    <div id="steps-list" class="space-y-2"></div>
+
+    <!-- 최종 결과 -->
+    <div id="final-result" class="hidden bg-white rounded-xl border shadow-sm p-5">
+      <div class="flex items-center justify-between mb-3">
+        <div class="font-bold text-gray-800" id="final-title"></div>
+        <div class="text-2xl font-black" id="final-score"></div>
+      </div>
+      <div class="bg-gray-100 rounded-full h-2 mb-3">
+        <div id="score-bar" class="h-2 rounded-full transition-all duration-1000" style="width:0%"></div>
+      </div>
+      <div class="text-sm text-gray-600" id="final-summary"></div>
+      <div class="mt-3 flex gap-2">
+        <a id="view-product-btn" href="#"
+          class="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-colors">
+          제품 보기 →
+        </a>
+        <a href="/pipeline/create"
+          class="px-4 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors">
+          또 등록하기
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ROLES = ['staff','assistant','manager','lead','director'];
+const WORKING_MSGS = {
+  staff:     ['데이터 수집 중 📝','브랜드 확인 중...','제품 등록 중...'],
+  assistant: ['설명 작성 중 ✍️','USP 정리 중...','타겟 분석 중...'],
+  manager:   ['마진 계산 중 📊','가격 구조 분석...','리스크 검토 중...'],
+  lead:      ['전략 수립 중 💡','셀러 매칭 중...','공구 가이드 작성...'],
+  director:  ['종합 검토 중 🤔','최종 판단 중...','결재 처리 중 📋'],
+};
+
+let pollTimer = null;
+let processedSteps = 0;
+let createdProductId = null;
+
+function previewImage(input) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('image-thumb').src = e.target.result;
+    document.getElementById('image-name').textContent = input.files[0].name;
+    document.getElementById('image-placeholder').classList.add('hidden');
+    document.getElementById('image-preview').classList.remove('hidden');
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function setChar(role, state) {
+  const avatar = document.getElementById(`char-avatar-${role}`);
+  const bubble = document.getElementById(`char-bubble-${role}`);
+  const states = {
+    idle:    'bg-gray-100 border-gray-200',
+    working: 'bg-blue-100 border-blue-400 animate-bounce',
+    pass:    'bg-green-100 border-green-500',
+    reject:  'bg-red-100 border-red-400',
+  };
+  avatar.className = `w-12 h-12 rounded-full flex items-center justify-center text-2xl border-2 transition-all duration-300 ${states[state] || states.idle}`;
+  if (state !== 'idle') {
+    bubble.classList.remove('opacity-0');
+  }
+}
+
+function setBubble(role, text) {
+  document.getElementById(`char-bubble-${role}`).textContent = text;
+}
+
+function fillLine(idx, pct) {
+  const el = document.getElementById(`line-${idx}`);
+  if (el) el.style.width = pct + '%';
+}
+
+let bubbleIntervals = {};
+function startWorking(role) {
+  setChar(role, 'working');
+  setBubble(role, WORKING_MSGS[role][0]);
+  let i = 0;
+  clearInterval(bubbleIntervals[role]);
+  bubbleIntervals[role] = setInterval(() => {
+    i = (i + 1) % WORKING_MSGS[role].length;
+    setBubble(role, WORKING_MSGS[role][i]);
+  }, 1800);
+}
+
+function addStepCard(step) {
+  const list = document.getElementById('steps-list');
+  const isPass = step.decision === 'pass';
+  const div = document.createElement('div');
+  div.className = `bg-white rounded-lg border ${isPass ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500'} border-gray-100 p-3.5 shadow-sm`;
+
+  let detail = '';
+  const o = step.output || {};
+  if (step.role === 'staff' && step.db_result) {
+    detail = `<div class="text-xs text-gray-500 mt-1">📦 ${step.db_result.brand_created ? '브랜드 신규 생성' : '기존 브랜드 사용'}: <strong>${step.db_result.brand_name || ''}</strong></div>`;
+  } else if (step.role === 'assistant') {
+    detail = o.description ? `<div class="text-xs text-gray-500 mt-1 line-clamp-2">"${o.description}"</div>` : '';
+  } else if (step.role === 'manager') {
+    detail = o.margin_rate ? `<div class="text-xs text-gray-500 mt-1">📊 마진율 ${(o.margin_rate*100).toFixed(0)}% · 공구가 ${(o.groupbuy_price||0).toLocaleString()}원</div>` : '';
+  } else if (step.role === 'lead') {
+    const cats = (o.categories || []).join(' · ');
+    detail = cats ? `<div class="text-xs text-gray-500 mt-1">🏷 ${cats}</div>` : '';
+  } else if (step.role === 'director') {
+    detail = o.executive_summary ? `<div class="text-xs text-gray-500 mt-1">${o.executive_summary}</div>` : '';
+  }
+  if (!isPass && step.reject_reason) {
+    detail += `<div class="text-xs text-red-600 bg-red-50 rounded p-1.5 mt-1">${step.reject_reason}</div>`;
+  }
+
+  div.innerHTML = `
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-sm">${isPass ? '✅' : '❌'}</span>
+        <span class="text-sm font-semibold text-gray-800">${step.role_label}</span>
+      </div>
+      <span class="text-xs text-gray-400">${step.elapsed_ms ? (step.elapsed_ms/1000).toFixed(1)+'s' : ''}</span>
+    </div>
+    ${detail}`;
+  list.appendChild(div);
+}
+
+async function startCreate() {
+  const text = document.getElementById('input-text').value.trim();
+  if (!text && !document.getElementById('image-file').files.length && !document.getElementById('excel-file').files.length) {
+    alert('텍스트, 이미지, 엑셀 중 하나 이상을 입력해주세요.');
+    return;
+  }
+
+  // UI 전환
+  document.getElementById('start-btn').disabled = true;
+  document.getElementById('start-btn').textContent = '처리 중...';
+  document.getElementById('progress-section').classList.remove('hidden');
+  document.getElementById('steps-list').innerHTML = '';
+  document.getElementById('final-result').classList.add('hidden');
+  processedSteps = 0;
+
+  // 모든 캐릭터 waiting
+  ROLES.forEach(r => { setChar(r, 'idle'); setBubble(r, '대기 중'); });
+  [1,2,3,4].forEach(i => fillLine(i, 0));
+  startWorking('staff');
+  document.getElementById('office-text').textContent = '사원이 데이터를 수집하고 있습니다...';
+
+  const formData = new FormData();
+  if (text) formData.append('text', text);
+  const imgFile = document.getElementById('image-file').files[0];
+  if (imgFile) formData.append('image_file', imgFile);
+  const xlFile = document.getElementById('excel-file').files[0];
+  if (xlFile) formData.append('excel_file', xlFile);
+
+  try {
+    const res = await fetch('/api/pipeline/create/product/start', {
+      method: 'POST', body: formData,
+    });
+    const data = await res.json();
+    if (data.product_id) {
+      createdProductId = data.product_id;
+      pollTimer = setInterval(() => pollProgress(createdProductId), 2500);
+    } else {
+      document.getElementById('office-text').textContent = '오류: ' + (data.error || '알 수 없는 오류');
+      document.getElementById('start-btn').disabled = false;
+      document.getElementById('start-btn').textContent = 'AI 자동 등록 시작';
+    }
+  } catch(e) {
+    document.getElementById('office-text').textContent = '오류: ' + e.message;
+    document.getElementById('start-btn').disabled = false;
+    document.getElementById('start-btn').textContent = 'AI 자동 등록 시작';
+  }
+}
+
+async function pollProgress(productId) {
+  try {
+    const res = await fetch(`/api/pipeline/poll/product/${productId}`);
+    const data = await res.json();
+    const steps = data.steps || [];
+
+    for (let i = processedSteps; i < steps.length; i++) {
+      const step = steps[i];
+      const roleIdx = ROLES.indexOf(step.role);
+      clearInterval(bubbleIntervals[step.role]);
+
+      if (step.decision === 'pass') {
+        setChar(step.role, 'pass');
+        setBubble(step.role, '완료 ✅');
+        if (roleIdx + 1 < ROLES.length) {
+          fillLine(roleIdx + 1, 100);
+          setTimeout(() => {
+            startWorking(ROLES[roleIdx + 1]);
+            document.getElementById('office-text').textContent =
+              {assistant:'대리가 설명과 USP를 작성하고 있습니다...',
+               manager:'과장이 가격과 마진을 검토하고 있습니다...',
+               lead:'팀장이 전략을 수립하고 있습니다...',
+               director:'이사가 최종 결재 중입니다...'}[ROLES[roleIdx+1]] || '';
+          }, 400);
+        }
+      } else {
+        setChar(step.role, 'reject');
+        setBubble(step.role, '반려 ❌');
+        ROLES.slice(roleIdx + 1).forEach(r => setBubble(r, '중단'));
+      }
+      addStepCard(step);
+    }
+    processedSteps = steps.length;
+
+    if (data.job_status === 'done' || data.job_status === 'error') {
+      clearInterval(pollTimer);
+      document.getElementById('start-btn').disabled = false;
+      document.getElementById('start-btn').textContent = 'AI 자동 등록 시작';
+
+      // 최종 결과 표시
+      const finalStep = steps.find(s => s.role === 'director');
+      const isApproved = data.review_status === 'approved';
+      const score = data.priority_score;
+
+      document.getElementById('final-result').classList.remove('hidden');
+      document.getElementById('final-title').textContent =
+        isApproved ? '🎉 등록 완료 및 승인' : '❌ ' + (data.review_status === 'rejected' ? '반려' : '처리 완료');
+      if (score) {
+        document.getElementById('final-score').textContent = score + '점';
+        const bar = document.getElementById('score-bar');
+        bar.style.width = score + '%';
+        bar.className = `h-2 rounded-full transition-all duration-1000 ${score>=70?'bg-green-500':score>=50?'bg-yellow-500':'bg-red-500'}`;
+      }
+      if (finalStep?.output?.executive_summary) {
+        document.getElementById('final-summary').textContent = finalStep.output.executive_summary;
+      }
+      if (productId) {
+        document.getElementById('view-product-btn').href = `/products/${productId}`;
+      }
+      document.getElementById('office-text').textContent =
+        isApproved ? '🎉 모든 검토가 완료되었습니다!' : '검토가 완료되었습니다.';
+    }
+  } catch(e) {
+    console.error(e);
+  }
+}
+</script>
+{% endblock %}

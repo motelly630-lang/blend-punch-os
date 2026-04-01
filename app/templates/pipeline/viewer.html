@@ -1,0 +1,730 @@
+{% extends "base.html" %}
+{% block title %}AI 검토 파이프라인 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}AI 에이전트 검토{% endblock %}
+
+{% block content %}
+<style>
+/* ── 오피스 배경 ── */
+.office-floor {
+  background: linear-gradient(180deg, #f0f4ff 0%, #e8edf8 100%);
+  border-radius: 16px;
+  padding: 32px 24px 24px;
+  position: relative;
+  overflow: hidden;
+  min-height: 280px;
+}
+.office-floor::before {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 60px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.04));
+  border-radius: 0 0 16px 16px;
+}
+
+/* ── 책상 ── */
+.desk-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  gap: 8px;
+}
+.desk-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  position: relative;
+  width: 120px;
+}
+
+/* ── 말풍선 ── */
+.speech-bubble {
+  background: white;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #374151;
+  text-align: center;
+  min-width: 80px;
+  max-width: 110px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  margin-bottom: 6px;
+  position: relative;
+  line-height: 1.4;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #e5e7eb;
+}
+.speech-bubble::before {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: white;
+  z-index: 1;
+}
+
+/* ── 캐릭터 아바타 ── */
+.avatar-wrap {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 2px;
+}
+.avatar-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  border: 2.5px solid transparent;
+  background: #f3f4f6;
+  transition: all 0.4s ease;
+  position: relative;
+  z-index: 1;
+}
+.avatar-glow {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* ── 상태별 스타일 ── */
+.state-idle .avatar-circle   { background: #f3f4f6; border-color: #e5e7eb; filter: grayscale(0.3); }
+.state-waiting .avatar-circle { background: #fef9c3; border-color: #fde68a; }
+.state-working .avatar-circle { background: #dbeafe; border-color: #3b82f6; }
+.state-working .avatar-glow   { background: radial-gradient(circle, #93c5fd44 0%, transparent 70%); opacity: 1; }
+.state-pass .avatar-circle    { background: #d1fae5; border-color: #10b981; }
+.state-reject .avatar-circle  { background: #fee2e2; border-color: #ef4444; }
+
+/* ── 책상 테이블 ── */
+.desk-table {
+  width: 100px;
+  height: 14px;
+  background: linear-gradient(180deg, #d1c4a8, #b8a98a);
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 3px 0 #a09070;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+}
+.desk-item {
+  width: 10px; height: 8px;
+  background: rgba(255,255,255,0.5);
+  border-radius: 2px;
+}
+.desk-legs {
+  width: 80px;
+  height: 8px;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 6px;
+}
+.desk-leg {
+  width: 6px;
+  height: 8px;
+  background: #a09070;
+  border-radius: 0 0 2px 2px;
+}
+
+/* ── 직급 배지 ── */
+.rank-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  margin-top: 6px;
+  letter-spacing: 0.02em;
+}
+
+/* ── 애니메이션 ── */
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+@keyframes typing {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  25% { transform: translateY(-4px) rotate(-5deg); }
+  75% { transform: translateY(-2px) rotate(3deg); }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes stamp {
+  0% { transform: scale(1) translateY(0); }
+  50% { transform: scale(0.8) translateY(8px); }
+  100% { transform: scale(1) translateY(0); }
+}
+@keyframes celebrate {
+  0% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-12px) scale(1.1); }
+  60% { transform: translateY(-6px) scale(1.05); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.state-working .avatar-circle { animation: bounce 0.8s ease-in-out infinite; }
+.state-pass    .avatar-circle { animation: celebrate 0.6s ease-in-out; }
+.state-reject  .avatar-circle { animation: shake 0.5s ease-in-out; }
+
+/* 작업중 반짝임 링 */
+.state-working .pulse-ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid #3b82f6;
+  animation: pulse-ring 1.2s ease-out infinite;
+}
+
+/* ── 진행 연결선 ── */
+.progress-line {
+  flex: 1;
+  height: 3px;
+  background: #e5e7eb;
+  position: relative;
+  margin-bottom: 60px;
+  overflow: hidden;
+}
+.progress-line-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #3b82f6);
+  border-radius: 99px;
+  transition: width 0.8s ease;
+}
+
+/* ── 결과 카드 ── */
+.result-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+}
+.result-card.pass  { border-left: 3px solid #10b981; }
+.result-card.reject { border-left: 3px solid #ef4444; }
+
+/* ── 점수 게이지 ── */
+.score-gauge {
+  background: #f3f4f6;
+  border-radius: 99px;
+  height: 8px;
+  overflow: hidden;
+}
+.score-gauge-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 1s ease;
+}
+
+/* ── 타이핑 커서 애니메이션 ── */
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.typing-cursor { animation: blink 1s infinite; }
+</style>
+
+<!-- 상단 정보 바 -->
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4 flex items-center justify-between">
+  <div>
+    <div class="text-xs text-gray-400 font-medium uppercase tracking-wider">
+      {{ "제품" if target_type == "product" else "브랜드" }} AI 검토
+    </div>
+    <div class="text-lg font-bold text-gray-900 mt-0.5">{{ target_name }}</div>
+    {% if target_sub %}
+    <div class="text-sm text-gray-400">{{ target_sub }}</div>
+    {% endif %}
+  </div>
+  <div class="flex items-center gap-3">
+    <div id="status-badge"
+      class="text-xs font-semibold px-3 py-1.5 rounded-full
+        {% if review_status == 'approved' %}bg-green-100 text-green-700
+        {% elif review_status == 'rejected' %}bg-red-100 text-red-600
+        {% elif review_status == 'draft' %}bg-gray-100 text-gray-500
+        {% else %}bg-blue-100 text-blue-700{% endif %}">
+      {% if review_status == 'approved' %}✅ 승인
+      {% elif review_status == 'rejected' %}❌ 반려
+      {% elif review_status == 'draft' %}⏸ 대기
+      {% elif review_status == 'structured' %}📋 구조화 완료
+      {% elif review_status == 'reviewed' %}🔍 검토 완료
+      {% elif review_status == 'strategy_checked' %}💡 전략 검토 완료
+      {% else %}{{ review_status }}{% endif %}
+    </div>
+    <button id="start-btn" onclick="startPipeline()"
+      class="inline-flex items-center gap-2 px-5 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-colors">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      AI 검토 시작
+    </button>
+  </div>
+</div>
+
+<!-- 오피스 씬 -->
+<div class="office-floor mb-4">
+  <!-- 천장 조명 느낌 -->
+  <div class="text-center mb-4">
+    <div class="inline-flex items-center gap-2 bg-white/70 rounded-full px-4 py-1.5 text-xs text-gray-500">
+      <span id="office-status-text">검토를 시작하면 에이전트들이 일을 시작합니다</span>
+    </div>
+  </div>
+
+  <div class="desk-row" id="desk-row">
+    <!-- 사원 -->
+    <div class="desk-unit" id="agent-staff">
+      <div class="speech-bubble" id="bubble-staff">대기 중...</div>
+      <div class="avatar-wrap state-idle" id="avatar-staff">
+        <div class="pulse-ring"></div>
+        <div class="avatar-circle">👩‍💼</div>
+      </div>
+      <div class="desk-table"><div class="desk-item"></div><div class="desk-item"></div></div>
+      <div class="desk-legs"><div class="desk-leg"></div><div class="desk-leg"></div></div>
+      <div class="rank-badge bg-gray-100 text-gray-600">사원</div>
+    </div>
+
+    <!-- 연결선 -->
+    <div class="progress-line"><div class="progress-line-fill" id="line-1" style="width:0%"></div></div>
+
+    <!-- 대리 -->
+    <div class="desk-unit" id="agent-assistant">
+      <div class="speech-bubble" id="bubble-assistant">대기 중...</div>
+      <div class="avatar-wrap state-idle" id="avatar-assistant">
+        <div class="pulse-ring"></div>
+        <div class="avatar-circle">👨‍💻</div>
+      </div>
+      <div class="desk-table"><div class="desk-item"></div><div class="desk-item"></div></div>
+      <div class="desk-legs"><div class="desk-leg"></div><div class="desk-leg"></div></div>
+      <div class="rank-badge bg-purple-100 text-purple-700">대리</div>
+    </div>
+
+    <!-- 연결선 -->
+    <div class="progress-line"><div class="progress-line-fill" id="line-2" style="width:0%"></div></div>
+
+    <!-- 과장 -->
+    <div class="desk-unit" id="agent-manager">
+      <div class="speech-bubble" id="bubble-manager">대기 중...</div>
+      <div class="avatar-wrap state-idle" id="avatar-manager">
+        <div class="pulse-ring"></div>
+        <div class="avatar-circle">👩‍🔬</div>
+      </div>
+      <div class="desk-table"><div class="desk-item"></div><div class="desk-item"></div></div>
+      <div class="desk-legs"><div class="desk-leg"></div><div class="desk-leg"></div></div>
+      <div class="rank-badge bg-blue-100 text-blue-700">과장</div>
+    </div>
+
+    <!-- 연결선 -->
+    <div class="progress-line"><div class="progress-line-fill" id="line-3" style="width:0%"></div></div>
+
+    <!-- 팀장 -->
+    <div class="desk-unit" id="agent-lead">
+      <div class="speech-bubble" id="bubble-lead">대기 중...</div>
+      <div class="avatar-wrap state-idle" id="avatar-lead">
+        <div class="pulse-ring"></div>
+        <div class="avatar-circle">🧑‍💼</div>
+      </div>
+      <div class="desk-table"><div class="desk-item"></div><div class="desk-item"></div></div>
+      <div class="desk-legs"><div class="desk-leg"></div><div class="desk-leg"></div></div>
+      <div class="rank-badge bg-indigo-100 text-indigo-700">팀장</div>
+    </div>
+
+    <!-- 연결선 -->
+    <div class="progress-line"><div class="progress-line-fill" id="line-4" style="width:0%"></div></div>
+
+    <!-- 이사 -->
+    <div class="desk-unit" id="agent-director">
+      <div class="speech-bubble" id="bubble-director">대기 중...</div>
+      <div class="avatar-wrap state-idle" id="avatar-director">
+        <div class="pulse-ring"></div>
+        <div class="avatar-circle">👔</div>
+      </div>
+      <div class="desk-table"><div class="desk-item"></div><div class="desk-item"></div></div>
+      <div class="desk-legs"><div class="desk-leg"></div><div class="desk-leg"></div></div>
+      <div class="rank-badge bg-yellow-100 text-yellow-700">이사</div>
+    </div>
+  </div>
+</div>
+
+<!-- 결과 패널 -->
+<div id="results-panel" class="space-y-3">
+  <div class="text-xs text-gray-400 font-semibold uppercase tracking-wider px-1">검토 결과</div>
+  <div id="results-list" class="space-y-2">
+    <div class="text-sm text-gray-400 text-center py-8 bg-white rounded-xl border border-gray-100">
+      AI 검토를 시작하면 각 직급의 분석 결과가 여기에 표시됩니다
+    </div>
+  </div>
+</div>
+
+<!-- 최종 점수 (승인 시) -->
+<div id="final-score-section" class="hidden mt-4">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-semibold text-gray-800">이사 최종 평가</div>
+      <div id="final-score-value" class="text-2xl font-black text-gray-900"></div>
+    </div>
+    <div class="score-gauge">
+      <div id="score-gauge-bar" class="score-gauge-fill bg-gradient-to-r from-blue-500 to-green-500" style="width:0%"></div>
+    </div>
+    <div id="final-summary" class="mt-3 text-sm text-gray-600"></div>
+    <div id="next-action" class="mt-2 text-sm font-medium text-blue-700"></div>
+  </div>
+</div>
+
+<script>
+const TARGET_TYPE = "{{ target_type }}";
+const TARGET_ID   = "{{ target_id }}";
+
+const ROLE_ORDER  = ["staff", "assistant", "manager", "lead", "director"];
+const BUBBLES = {
+  staff:     ["데이터 수집 중...", "정보 정리하는 중 📝", "기본 정보 확인 중..."],
+  assistant: ["구조화 중... 🔍", "USP 정리하는 중", "설명 다듬는 중..."],
+  manager:   ["마진 계산 중... 📊", "리스크 검토 중", "가격 구조 분석 중..."],
+  lead:      ["시장성 평가 중 💡", "셀러 적합성 판단 중", "전략 수립 중..."],
+  director:  ["종합 검토 중... 🤔", "최종 판단 중", "결재 중 📋"],
+};
+const PASS_MSG   = { staff:"완료! ✅", assistant:"구조화 완료 ✅", manager:"검토 완료 ✅", lead:"전략 승인 ✅", director:"최종 승인 ✅" };
+const REJECT_MSG = { staff:"반려 ❌", assistant:"반려 ❌", manager:"반려 ❌", lead:"반려 ❌", director:"반려 ❌" };
+
+let pollTimer = null;
+let processedSteps = 0;
+let activeRole = null;
+
+function setAvatarState(role, state) {
+  const el = document.getElementById(`avatar-${role}`);
+  if (!el) return;
+  el.className = `avatar-wrap state-${state}`;
+}
+
+function setBubble(role, text) {
+  const el = document.getElementById(`bubble-${role}`);
+  if (el) el.textContent = text;
+}
+
+function fillLine(idx, pct) {
+  const el = document.getElementById(`line-${idx}`);
+  if (el) el.style.width = pct + '%';
+}
+
+function showWorking(role) {
+  if (activeRole && activeRole !== role) {
+    setAvatarState(activeRole, 'idle');
+  }
+  activeRole = role;
+  setAvatarState(role, 'working');
+  const msgs = BUBBLES[role];
+  let i = 0;
+  setBubble(role, msgs[0]);
+  // 말풍선 순환
+  const interval = setInterval(() => {
+    if (activeRole !== role) { clearInterval(interval); return; }
+    i = (i + 1) % msgs.length;
+    setBubble(role, msgs[i]);
+  }, 1800);
+}
+
+function appendResult(step) {
+  const list = document.getElementById('results-list');
+  // 첫 결과면 placeholder 제거
+  const placeholder = list.querySelector('.text-center');
+  if (placeholder) placeholder.remove();
+
+  const isPass = step.decision === 'pass';
+  const card = document.createElement('div');
+  card.className = `result-card ${isPass ? 'pass' : 'reject'}`;
+  card.id = `result-${step.role}`;
+
+  const score = step.priority_score ? `<span class="ml-2 font-bold text-gray-900">${step.priority_score}점</span>` : '';
+  const rejectNote = !isPass && step.reject_reason
+    ? `<div class="mt-1.5 text-xs text-red-600 bg-red-50 rounded p-2">${step.reject_reason}</div>` : '';
+
+  // 주요 출력 요약
+  let outputSummary = '';
+  const out = step.output || {};
+  if (step.role === 'staff') {
+    outputSummary = out.product_name || out.brand_name ? `<div class="text-xs text-gray-500 mt-1">📌 ${out.product_name || out.brand_name || ''}</div>` : '';
+  } else if (step.role === 'assistant') {
+    const usp = (out.usp || []).slice(0, 2).join(' · ');
+    outputSummary = usp ? `<div class="text-xs text-gray-500 mt-1">💡 ${usp}</div>` : '';
+  } else if (step.role === 'manager') {
+    const margin = out.margin_analysis;
+    outputSummary = margin ? `<div class="text-xs text-gray-500 mt-1">📊 마진율 ${(margin.margin_rate * 100 || 0).toFixed(0)}% · ${out.groupbuy_fit || ''}</div>` : '';
+  } else if (step.role === 'lead') {
+    outputSummary = out.campaign_priority ? `<div class="text-xs text-gray-500 mt-1">🎯 ${out.campaign_priority}</div>` : '';
+  } else if (step.role === 'director') {
+    outputSummary = out.executive_summary ? `<div class="text-xs text-gray-500 mt-1 leading-relaxed">${out.executive_summary}</div>` : '';
+  }
+
+  const scoreBadge = step.score != null
+    ? `<span class="ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${step.score >= 0.8 ? 'bg-green-50 text-green-600' : step.score >= 0.6 ? 'bg-yellow-50 text-yellow-600' : 'bg-red-50 text-red-500'}">
+        score ${(step.score * 100).toFixed(0)}
+       </span>` : '';
+  const riskBadge = step.risk_level === 'HIGH'
+    ? `<span class="text-xs px-2 py-0.5 bg-red-50 text-red-500 rounded-full font-medium">⚠ HIGH</span>` : '';
+
+  card.innerHTML = `
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="text-xs font-bold ${isPass ? 'text-green-700' : 'text-red-600'}">${isPass ? '✅' : '❌'}</span>
+      <span class="text-sm font-semibold text-gray-800">${step.role_label}</span>
+      ${score}
+      ${scoreBadge}
+      ${riskBadge}
+      <span class="text-xs text-gray-400 ml-auto">${step.elapsed_ms ? (step.elapsed_ms/1000).toFixed(1)+'s' : ''}</span>
+    </div>
+    ${outputSummary}
+    ${rejectNote}
+  `;
+
+  list.appendChild(card);
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function showFinalScore(score, summary, nextAction) {
+  const section = document.getElementById('final-score-section');
+  section.classList.remove('hidden');
+  document.getElementById('final-score-value').textContent = score + '점';
+  document.getElementById('score-gauge-bar').style.width = score + '%';
+  document.getElementById('score-gauge-bar').className =
+    `score-gauge-fill ${score >= 80 ? 'bg-gradient-to-r from-green-400 to-green-600' :
+     score >= 60 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
+     'bg-gradient-to-r from-red-400 to-red-600'}`;
+  if (summary) document.getElementById('final-summary').textContent = summary;
+  if (nextAction) document.getElementById('next-action').textContent = '▶ ' + nextAction;
+}
+
+function updateStatusBadge(status) {
+  const badge = document.getElementById('status-badge');
+  const map = {
+    draft:            ['bg-gray-100 text-gray-500', '⏸ 대기'],
+    ai_draft:         ['bg-blue-50 text-blue-500', '🤖 AI 초안'],
+    structured:       ['bg-blue-100 text-blue-700', '📋 구조화 완료'],
+    reviewed:         ['bg-indigo-100 text-indigo-700', '🔍 검토 완료'],
+    strategy_checked: ['bg-purple-100 text-purple-700', '💡 전략 완료'],
+    approved:         ['bg-green-100 text-green-700', '✅ 승인'],
+    rejected:         ['bg-red-100 text-red-600', '❌ 반려'],
+    pending_review:   ['bg-yellow-100 text-yellow-700', '⏳ 관리자 검토 대기'],
+  };
+  const [cls, label] = map[status] || ['bg-gray-100 text-gray-500', status];
+  badge.className = `text-xs font-semibold px-3 py-1.5 rounded-full ${cls}`;
+  badge.textContent = label;
+}
+
+async function startPipeline() {
+  const btn = document.getElementById('start-btn');
+  btn.disabled = true;
+  btn.textContent = '실행 중...';
+  processedSteps = 0;
+  document.getElementById('results-list').innerHTML =
+    '<div class="text-sm text-gray-400 text-center py-8 bg-white rounded-xl border border-gray-100">AI 에이전트가 일을 시작했습니다 🚀</div>';
+  document.getElementById('final-score-section').classList.add('hidden');
+  document.getElementById('office-status-text').textContent = '에이전트들이 일을 시작했습니다!';
+
+  // 사원부터 순서대로 waiting 상태로
+  ROLE_ORDER.forEach(r => { setAvatarState(r, 'waiting'); setBubble(r, '곧 시작...'); });
+  ROLE_ORDER.forEach((r, i) => fillLine(i + 1, 0));
+
+  // 첫 번째 에이전트 working 표시
+  showWorking('staff');
+
+  try {
+    const res = await fetch(`/api/pipeline/${TARGET_TYPE}/${TARGET_ID}/start`, {
+      method: 'POST',
+      body: new FormData(),
+    });
+    const data = await res.json();
+    if (data.status === 'already_running') {
+      document.getElementById('office-status-text').textContent = '이미 실행 중입니다...';
+    }
+    // 폴링 시작
+    pollTimer = setInterval(pollProgress, 2500);
+  } catch (e) {
+    document.getElementById('office-status-text').textContent = '오류가 발생했습니다: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'AI 검토 시작';
+  }
+}
+
+async function pollProgress() {
+  try {
+    const res = await fetch(`/api/pipeline/poll/${TARGET_TYPE}/${TARGET_ID}`);
+    const data = await res.json();
+
+    // 새로 완료된 단계 처리
+    const steps = data.steps || [];
+    for (let i = processedSteps; i < steps.length; i++) {
+      const step = steps[i];
+      const roleIdx = ROLE_ORDER.indexOf(step.role);
+
+      // 이전 에이전트 pass/reject 표시
+      if (step.decision === 'pass') {
+        setAvatarState(step.role, 'pass');
+        setBubble(step.role, PASS_MSG[step.role]);
+        if (roleIdx + 1 < ROLE_ORDER.length) {
+          // 다음 라인 채우기
+          fillLine(roleIdx + 1, 100);
+          // 다음 에이전트 working 시작
+          setTimeout(() => showWorking(ROLE_ORDER[roleIdx + 1]), 500);
+        }
+      } else {
+        setAvatarState(step.role, 'reject');
+        setBubble(step.role, REJECT_MSG[step.role]);
+        // 이후 에이전트들 idle
+        for (let j = roleIdx + 1; j < ROLE_ORDER.length; j++) {
+          setAvatarState(ROLE_ORDER[j], 'idle');
+          setBubble(ROLE_ORDER[j], '검토 중단');
+        }
+      }
+      appendResult(step);
+
+      // 이사 최종 점수
+      if (step.role === 'director' && step.priority_score) {
+        const out = step.output || {};
+        showFinalScore(
+          step.priority_score,
+          out.executive_summary,
+          out.next_action,
+        );
+      }
+    }
+    processedSteps = steps.length;
+
+    // 상태 배지 업데이트
+    updateStatusBadge(data.review_status);
+
+    // 완료 처리
+    if (data.job_status === 'done' || data.job_status === 'error') {
+      clearInterval(pollTimer);
+      const btn = document.getElementById('start-btn');
+      btn.disabled = false;
+      btn.textContent = '다시 검토';
+      activeRole = null;
+
+      const statusMsg = {
+        approved:       '🎉 승인! 공구 진행 가능합니다',
+        rejected:       '❌ 반려되었습니다',
+        pending_review: '⏳ 관리자 검토가 필요합니다',
+      }[data.review_status] || '검토가 완료되었습니다';
+      document.getElementById('office-status-text').textContent = statusMsg;
+
+      // 관리자 검토 대기 패널
+      if (data.review_status === 'pending_review' && data.review_queue_id) {
+        showReviewPanel(data.review_queue_id);
+      }
+      // 승인 후 자동 생성 패널
+      if (data.review_status === 'approved' && data.triggered) {
+        showTriggeredPanel(data.triggered);
+      }
+    }
+
+    // 현재 실행 중인 단계 표시 (아직 로그 안 온 단계)
+    if (data.job_status === 'running' && steps.length < 5) {
+      const currentRole = ROLE_ORDER[steps.length];
+      if (currentRole && activeRole !== currentRole) {
+        showWorking(currentRole);
+      }
+    }
+  } catch (e) {
+    console.error('Poll error:', e);
+  }
+}
+
+function showReviewPanel(queueId) {
+  const existing = document.getElementById('review-panel');
+  if (existing) return;
+  const panel = document.createElement('div');
+  panel.id = 'review-panel';
+  panel.className = 'mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-5';
+  panel.innerHTML = `
+    <div class="flex items-start gap-3">
+      <span class="text-2xl">⏳</span>
+      <div class="flex-1">
+        <div class="font-semibold text-yellow-800 mb-1">관리자 검토 대기 중</div>
+        <p class="text-sm text-yellow-700 mb-3">AI 에이전트가 낮은 확신도로 판단했습니다. 관리자의 최종 검토가 필요합니다.</p>
+        <div class="flex gap-2">
+          <a href="/pipeline/queue" class="px-4 py-2 bg-yellow-600 text-white text-sm font-semibold rounded-lg hover:bg-yellow-700 transition-colors">검토 대기열 보기</a>
+        </div>
+      </div>
+    </div>
+  `;
+  document.querySelector('.space-y-3')?.appendChild(panel);
+}
+
+function showTriggeredPanel(triggered) {
+  const existing = document.getElementById('triggered-panel');
+  if (existing) return;
+  let links = '';
+  if (triggered.campaign_created) {
+    links += `<a href="/campaigns/${triggered.campaign_created}" class="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 text-sm rounded-lg border border-green-100 hover:bg-green-100 transition-colors">📅 자동 생성된 캠페인 보기 →</a>`;
+  }
+  if (triggered.proposal_created) {
+    links += `<a href="/proposals/${triggered.proposal_created}" class="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 text-sm rounded-lg border border-amber-100 hover:bg-amber-100 transition-colors">📄 자동 생성된 제안서 보기 →</a>`;
+  }
+  if (!links) return;
+  const panel = document.createElement('div');
+  panel.id = 'triggered-panel';
+  panel.className = 'mt-4 bg-green-50 border border-green-200 rounded-xl p-5';
+  panel.innerHTML = `
+    <div class="font-semibold text-green-800 mb-3">🚀 자동 생성 완료</div>
+    <div class="flex flex-col gap-2">${links}</div>
+  `;
+  document.querySelector('.space-y-3')?.appendChild(panel);
+}
+
+// 이미 검토된 결과가 있으면 표시
+window.addEventListener('DOMContentLoaded', async () => {
+  const res = await fetch(`/api/pipeline/poll/${TARGET_TYPE}/${TARGET_ID}`);
+  const data = await res.json();
+  if (data.steps && data.steps.length > 0) {
+    document.getElementById('results-list').innerHTML = '';
+    data.steps.forEach((step, i) => {
+      setAvatarState(step.role, step.decision === 'pass' ? 'pass' : 'reject');
+      setBubble(step.role, step.decision === 'pass' ? PASS_MSG[step.role] : REJECT_MSG[step.role]);
+      if (step.decision === 'pass' && i < ROLE_ORDER.length - 1) {
+        fillLine(i + 1, 100);
+      }
+      appendResult(step);
+      if (step.role === 'director' && step.priority_score) {
+        const out = step.output || {};
+        showFinalScore(step.priority_score, out.executive_summary, out.next_action);
+      }
+    });
+    processedSteps = data.steps.length;
+    updateStatusBadge(data.review_status);
+    document.getElementById('office-status-text').textContent = '이전 검토 결과입니다';
+    if (data.review_status === 'pending_review' && data.review_queue_id) {
+      showReviewPanel(data.review_queue_id);
+    }
+    if (data.review_status === 'approved' && data.triggered) {
+      showTriggeredPanel(data.triggered);
+    }
+  }
+});
+</script>
+{% endblock %}

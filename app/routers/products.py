@@ -65,7 +65,10 @@ def product_list(request: Request, db: Session = Depends(get_db),
 
     products = []
     if q or category or completeness:
-        query = db.query(Product).filter(Product.company_id == cid)
+        query = db.query(Product).filter(
+            Product.company_id == cid,
+            (Product.is_archived == False) | (Product.is_archived == None),
+        )
         if q:
             query = query.filter(
                 Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%")
@@ -255,11 +258,28 @@ def product_detail(product_id: str, request: Request, db: Session = Depends(get_
         scored.sort(key=lambda x: (-x[0], -(x[1].followers or 0)))
         recommended_influencers = [inf for _, inf in scored[:5]]
 
+    # AI 파이프라인이 자동 생성한 캠페인/제안서 조회
+    from app.models.campaign import Campaign
+    from app.models.proposal import Proposal as ProposalModel
+    ai_campaigns = (
+        db.query(Campaign)
+        .filter(Campaign.company_id == cid, Campaign.product_id == product_id,
+                Campaign.notes.like("%AI 파이프라인%"))
+        .order_by(Campaign.created_at.desc()).limit(3).all()
+    )
+    ai_proposals = (
+        db.query(ProposalModel)
+        .filter(ProposalModel.company_id == cid, ProposalModel.product_id == product_id,
+                ProposalModel.ai_generated == True)
+        .order_by(ProposalModel.created_at.desc()).limit(3).all()
+    )
+
     return templates.TemplateResponse(
         "products/detail.html",
         {
             "request": request, "active_page": "products", "current_user": current_user,
             "product": product, "recommended_influencers": recommended_influencers,
+            "ai_campaigns": ai_campaigns, "ai_proposals": ai_proposals,
         },
     )
 
@@ -428,6 +448,6 @@ def product_delete(product_id: str, db: Session = Depends(get_db),
     cid = get_company_id(current_user)
     product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
     if product:
-        db.delete(product)
+        product.is_archived = True
         db.commit()
-    return RedirectResponse("/products?msg=삭제되었습니다", status_code=302)
+    return RedirectResponse("/products?msg=보관처리되었습니다", status_code=302)

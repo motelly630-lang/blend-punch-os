@@ -1,9 +1,8 @@
 {% extends "base.html" %}
 {% block title %}시즌 트렌드 엔진 | BLEND PUNCH OS{% endblock %}
-{% block page_title %}시즌 트렌드 엔진{% endblock %}
+{% block page_title %}트렌드{% endblock %}
 
 {% block header_actions %}
-<a href="/trends" class="text-sm text-gray-500 hover:text-gray-700 mr-2">트렌드 노트</a>
 <a href="/trends/briefings" class="text-sm text-gray-500 hover:text-gray-700 mr-4">브리핑 아카이브</a>
 <form method="post" action="/trends/engine/run">
   <button type="submit"
@@ -17,6 +16,14 @@
 {% endblock %}
 
 {% block content %}
+
+{# ── 서브탭 ── #}
+<div class="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+  <a href="/trends/feed" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">피드</a>
+  <a href="/trends/actionable" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">실행 트렌드</a>
+  <a href="/trends/sourcing" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-white transition-colors">소싱 필요</a>
+  <a href="/trends/engine" class="px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-900 shadow-sm">시즌 엔진</a>
+</div>
 
 <!-- ── Stats row ──────────────────────────────────────────────────────────── -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
