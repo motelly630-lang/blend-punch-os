@@ -203,7 +203,7 @@
           </option>
           {% endfor %}
         </select>
-        <p class="text-xs text-gray-400 mt-1">선택 시 이름·코드가 자동 입력됩니다</p>
+        <p class="text-xs text-gray-400 mt-1">선택 시 빈 필드에만 제안값이 입력됩니다</p>
       </div>
       <div>
         <label class="text-xs text-gray-500 block mb-1">셀러명 *</label>
@@ -235,9 +235,26 @@
 function onInfluencerSelect(sel) {
   var opt = sel.options[sel.selectedIndex];
   var name = opt.dataset.name || '';
-  var code = opt.dataset.code || '';
-  if (name) document.getElementById('add-name').value = name;
-  if (code) document.getElementById('add-code').value = code.substring(0, 30);
+  var rawCode = opt.dataset.code || '';
+
+  // 영문/숫자만 추출해서 유효한 셀러코드 후보 생성
+  var code = rawCode.replace(/[^a-z0-9\-_]/g, '').substring(0, 30);
+
+  var nameField = document.getElementById('add-name');
+  var codeField = document.getElementById('add-code');
+
+  // 비어있을 때만 채우고, 이미 입력된 값은 건드리지 않음
+  if (name && !nameField.value.trim()) {
+    nameField.value = name;
+  }
+  // 유효한 코드가 있고 필드가 비어있을 때만 채움
+  if (code.length >= 2 && !codeField.value.trim()) {
+    codeField.value = code;
+  }
+
+  // 어떤 경우든 placeholder로 제안값 표시
+  if (name) nameField.placeholder = name;
+  if (code.length >= 2) codeField.placeholder = code;
 }
 </script>
 {% endblock %}
