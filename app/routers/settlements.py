@@ -60,7 +60,7 @@ def calc_settlement(sales_amount: float, commission_rate: float, seller_type: st
 def settlement_list(request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user),
                     tab: str = "pending"):
-    if tab not in ("pending", "confirmed", "paid"):
+    if tab not in ("pending", "confirmed", "paid", "calc"):
         tab = "pending"
 
     cid = get_company_id(current_user)
