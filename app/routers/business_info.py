@@ -4,7 +4,7 @@ GET  /settings/business-info  — 설정 폼
 POST /settings/business-info  — 저장 (upsert id=1)
 """
 from datetime import datetime
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from app.database import get_db
 from app.models.business_info import BusinessInfo
 from app.auth.dependencies import get_current_user
 from app.models.user import User
+from app.services.image_service import save_upload, UPLOAD_DIR_BRANDING
 
 router = APIRouter(prefix="/settings")
 templates = Jinja2Templates(directory="app/templates")
@@ -99,3 +100,55 @@ def biz_info_save(
     info.updated_at        = datetime.utcnow()
     db.commit()
     return RedirectResponse("/settings/business-info?msg=저장되었습니다", status_code=302)
+
+
+@router.post("/branding/login-bg")
+async def upload_login_bg(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    file: UploadFile = File(...),
+):
+    info = _get_or_create(db)
+    url = await save_upload(file, UPLOAD_DIR_BRANDING)
+    info.login_bg_image = url
+    info.updated_at = datetime.utcnow()
+    db.commit()
+    return RedirectResponse("/settings/business-info?msg=로그인+배경+이미지가+저장되었습니다", status_code=302)
+
+
+@router.post("/branding/orders-banner")
+async def upload_orders_banner(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    file: UploadFile = File(...),
+):
+    info = _get_or_create(db)
+    url = await save_upload(file, UPLOAD_DIR_BRANDING)
+    info.orders_banner_image = url
+    info.updated_at = datetime.utcnow()
+    db.commit()
+    return RedirectResponse("/settings/business-info?msg=주문+페이지+배너+이미지가+저장되었습니다", status_code=302)
+
+
+@router.post("/branding/login-bg/delete")
+def delete_login_bg(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    info = _get_or_create(db)
+    info.login_bg_image = None
+    info.updated_at = datetime.utcnow()
+    db.commit()
+    return RedirectResponse("/settings/business-info?msg=로그인+배경+이미지가+삭제되었습니다", status_code=302)
+
+
+@router.post("/branding/orders-banner/delete")
+def delete_orders_banner(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    info = _get_or_create(db)
+    info.orders_banner_image = None
+    info.updated_at = datetime.utcnow()
+    db.commit()
+    return RedirectResponse("/settings/business-info?msg=주문+페이지+배너+이미지가+삭제되었습니다", status_code=302)

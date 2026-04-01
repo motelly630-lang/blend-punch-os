@@ -22,6 +22,7 @@ UPLOAD_DIR_PRODUCTS = Path("static/uploads/products")
 UPLOAD_DIR_INFLUENCERS = Path("static/uploads/influencers")
 UPLOAD_DIR_BRANDS = Path("static/brands")
 UPLOAD_DIR_SALES_PAGES = Path("static/uploads/sales_pages")
+UPLOAD_DIR_BRANDING = Path("static/uploads/branding")
 CACHE_DIR = Path("static/cache")
 
 # 로컬 디렉토리 → S3 prefix 매핑
@@ -30,6 +31,7 @@ _S3_PREFIX_MAP = {
     str(UPLOAD_DIR_INFLUENCERS): "uploads/influencers",
     str(UPLOAD_DIR_BRANDS): "uploads/brands",
     str(UPLOAD_DIR_SALES_PAGES): "uploads/sales_pages",
+    str(UPLOAD_DIR_BRANDING): "uploads/branding",
     str(CACHE_DIR): "uploads/cache",
 }
 

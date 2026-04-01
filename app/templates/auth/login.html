@@ -15,9 +15,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gray-50 font-sans antialiased min-h-screen flex items-center justify-center">
+<body class="font-sans antialiased min-h-screen flex items-center justify-center relative
+  {% if login_bg_image %}bg-gray-900{% else %}bg-gray-50{% endif %}">
 
-  <div class="w-full max-w-sm px-4">
+  {% if login_bg_image %}
+  <div class="absolute inset-0 z-0">
+    <img src="{{ login_bg_image }}" alt="" class="w-full h-full object-cover">
+    <div class="absolute inset-0 bg-black/50"></div>
+  </div>
+  {% endif %}
+
+  <div class="w-full max-w-sm px-4 relative z-10">
 
     <!-- Logo -->
     <div class="text-center mb-8">
@@ -32,8 +40,8 @@
           </svg>
         </div>
       </div>
-      <div class="text-xs font-bold text-gray-400 tracking-widest uppercase">BLEND PUNCH</div>
-      <div class="text-gray-800 font-bold text-lg mt-1">Operations System</div>
+      <div class="text-xs font-bold tracking-widest uppercase {% if login_bg_image %}text-white/70{% else %}text-gray-400{% endif %}">BLEND PUNCH</div>
+      <div class="font-bold text-lg mt-1 {% if login_bg_image %}text-white{% else %}text-gray-800{% endif %}">Operations System</div>
     </div>
 
     <!-- Card -->

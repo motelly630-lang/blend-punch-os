@@ -26,4 +26,8 @@ class BusinessInfo(Base):
     return_policy       = Column(Text, nullable=True)          # 교환/환불 정책
     payment_guide       = Column(Text, nullable=True)          # 결제 안내
 
+    # ── 브랜딩 이미지 ────────────────────────────────────────────────
+    login_bg_image      = Column(String(500), nullable=True)   # 로그인 페이지 배경 이미지 URL
+    orders_banner_image = Column(String(500), nullable=True)   # 주문 관리 페이지 배너 이미지 URL
+
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -62,7 +62,29 @@
   </div>
 </div>
 
-{# ── 필터 ── #}
+{# ── 날짜 필터 ── #}
+{% if date_counts|length > 1 %}
+<div class="flex flex-wrap gap-2 mb-4">
+  <a href="/trends/feed{% if selected_category %}?category={{ selected_category }}{% endif %}"
+     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if not selected_date %}border-gray-800 bg-gray-800 text-white{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    전체 날짜
+  </a>
+  {% for row in date_counts %}
+  <a href="/trends/feed?date={{ row.d }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}"
+     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+       {% if selected_date == row.d|string %}border-blue-500 bg-blue-50 text-blue-700{% else %}border-gray-200 text-gray-500 hover:border-gray-400{% endif %}">
+    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+    </svg>
+    {{ row.d }}
+    <span class="text-xs opacity-60">{{ row.cnt }}건</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── 카테고리/상태 필터 ── #}
 <div class="flex flex-wrap gap-2 mb-5">
   <a href="/trends/feed"
      class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors

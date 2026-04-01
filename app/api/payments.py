@@ -3,9 +3,11 @@
 """
 import base64
 import httpx
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy.orm import Session
 from app.models.order import Order
+from app.models.sales_page import SalesPage
+from app.models.transaction import Transaction
 from app.config import settings
 
 
@@ -57,6 +59,35 @@ async def confirm_toss_payment(payment_key: str, order_id: str, amount: int, db:
         order.payment_method = data.get("method", "")
         order.paid_at = datetime.utcnow()
         order.order_status = "confirmed"
+
+        # ── 재고 차감 ────────────────────────────────────────────────────────
+        page = db.query(SalesPage).filter(SalesPage.id == order.sales_page_id).first()
+        if page:
+            qty = order.quantity or 1
+            # 전체 재고 차감
+            if page.stock_quantity is not None:
+                page.stock_quantity = max(0, page.stock_quantity - qty)
+            # 옵션별 재고 차감
+            if order.option_name and page.options:
+                opts = page.options if isinstance(page.options, list) else []
+                for opt in opts:
+                    if opt.get("name") == order.option_name and opt.get("stock") is not None:
+                        opt["stock"] = max(0, int(opt["stock"]) - qty)
+                        break
+                page.options = opts  # JSON 재할당 필요 (SQLAlchemy mutation tracking)
+
+        # ── 매출 Transaction 자동 생성 ────────────────────────────────────────
+        txn = Transaction(
+            company_id=order.company_id or 1,
+            type="revenue",
+            source="smartstore",
+            amount=order.total_price,
+            transaction_date=date.today(),
+            description=f"주문 {order.order_number}",
+            notes=order.option_name or None,
+        )
+        db.add(txn)
+
         db.commit()
         return {"ok": True, "order": order}
     else:

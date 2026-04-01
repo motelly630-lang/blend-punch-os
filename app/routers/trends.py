@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
 from app.models.trend import TrendItem
 from app.models.user import User
@@ -29,16 +30,32 @@ def trend_feed(
     current_user: User = Depends(get_current_user),
     category: str = "",
     status: str = "",
+    date: str = "",
 ):
     cid = get_company_id(current_user)
+
+    # 날짜별 집계 (필터바용)
+    date_counts = (
+        db.query(func.date(TrendItem.created_at).label("d"), func.count().label("cnt"))
+        .filter(TrendItem.company_id == cid)
+        .group_by(func.date(TrendItem.created_at))
+        .order_by(func.date(TrendItem.created_at).desc())
+        .all()
+    )
+
+    # 전체 통계용
+    all_items = db.query(TrendItem).filter(TrendItem.company_id == cid).all()
+
+    # 필터 적용
     query = db.query(TrendItem).filter(TrendItem.company_id == cid)
     if category:
         query = query.filter(TrendItem.category == category)
     if status:
         query = query.filter(TrendItem.match_status == status)
+    if date:
+        query = query.filter(func.date(TrendItem.created_at) == date)
     items = query.order_by(TrendItem.is_pinned.desc(), TrendItem.trend_score.desc()).all()
 
-    all_items = db.query(TrendItem).filter(TrendItem.company_id == cid).all()
     return templates.TemplateResponse("trends/feed.html", {
         "request": request,
         "active_page": "trends",
@@ -47,6 +64,8 @@ def trend_feed(
         "categories": CATEGORIES,
         "selected_category": category,
         "selected_status": status,
+        "selected_date": date,
+        "date_counts": date_counts,
         "total": len(all_items),
         "matched_count": sum(1 for i in all_items if i.match_status == "matched"),
         "similar_count": sum(1 for i in all_items if i.match_status == "similar"),

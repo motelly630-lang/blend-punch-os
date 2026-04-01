@@ -14,6 +14,7 @@ from app.models.order import Order
 from app.models.sales_page import SalesPage
 from app.models.product import Product
 from app.models.seller import Seller
+from app.models.business_info import BusinessInfo
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
 from app.models.user import User

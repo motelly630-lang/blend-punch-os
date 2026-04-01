@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.models.feature_flag import Company
+from app.models.business_info import BusinessInfo
 from app.auth.service import verify_password, create_access_token, hash_password
 from app.auth.dependencies import get_current_user, require_super_admin
 
@@ -21,11 +22,19 @@ _COOKIE_MAX_AGE = 60 * 60 * 8  # 8 hours
 
 # ── 로그인 ────────────────────────────────────────────────────────────────────
 
+def _get_login_bg(db: Session) -> str | None:
+    info = db.query(BusinessInfo).filter(BusinessInfo.id == 1).first()
+    return info.login_bg_image if info else None
+
+
 @router.get("/login", response_class=HTMLResponse)
-def login_page(request: Request):
+def login_page(request: Request, db: Session = Depends(get_db)):
     if request.cookies.get(_COOKIE_KEY):
         return RedirectResponse("/", status_code=302)
-    return templates.TemplateResponse("auth/login.html", {"request": request})
+    return templates.TemplateResponse("auth/login.html", {
+        "request": request,
+        "login_bg_image": _get_login_bg(db),
+    })
 
 
 @router.post("/login")
@@ -35,6 +44,7 @@ def login(
     username: str = Form(...),
     password: str = Form(...),
 ):
+    bg = _get_login_bg(db)
     # username 또는 email 둘 다 허용
     user = (
         db.query(User).filter(User.username == username).first()
@@ -43,14 +53,14 @@ def login(
     if not user or not user.is_active or not verify_password(password, user.hashed_password):
         return templates.TemplateResponse(
             "auth/login.html",
-            {"request": request, "error": "아이디(이메일) 또는 비밀번호가 올바르지 않습니다."},
+            {"request": request, "error": "아이디(이메일) 또는 비밀번호가 올바르지 않습니다.", "login_bg_image": bg},
             status_code=401,
         )
     # 이메일 미인증 계정 차단 (email 필드가 있는 경우만)
     if user.email and not user.email_verified:
         return templates.TemplateResponse(
             "auth/login.html",
-            {"request": request, "error": "이메일 인증이 필요합니다. 가입 시 발송된 인증 메일을 확인해주세요."},
+            {"request": request, "error": "이메일 인증이 필요합니다. 가입 시 발송된 인증 메일을 확인해주세요.", "login_bg_image": bg},
             status_code=401,
         )
     token = create_access_token(username=user.username, role=user.role)

@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.sales_page import SalesPage
@@ -63,15 +64,27 @@ def pages_list(request: Request, db: Session = Depends(get_db),
     cid = get_company_id(user)
     pages = db.query(SalesPage).filter(SalesPage.company_id == cid).order_by(SalesPage.created_at.desc()).all()
     products = {p.id: p for p in db.query(Product).filter(Product.company_id == cid).all()}
-    order_counts = {
-        p.id: db.query(Order).filter(Order.sales_page_id == p.id,
-                                     Order.payment_status == "paid").count()
-        for p in pages
-    }
+
+    page_ids = [p.id for p in pages]
+
+    # 판매 페이지별 주문 수 + 매출 (SQL 집계)
+    rows = db.query(
+        Order.sales_page_id,
+        func.count(Order.id),
+        func.sum(Order.total_price),
+    ).filter(
+        Order.sales_page_id.in_(page_ids),
+        Order.payment_status == "paid",
+    ).group_by(Order.sales_page_id).all()
+
+    order_counts = {r[0]: r[1] for r in rows}
+    page_revenue = {r[0]: r[2] or 0 for r in rows}
+
     base_url = str(request.base_url).rstrip("/")
     return templates.TemplateResponse("sales_pages/index.html", {
         "request": request, "pages": pages, "products": products,
-        "order_counts": order_counts, "base_url": base_url,
+        "order_counts": order_counts, "page_revenue": page_revenue,
+        "base_url": base_url,
         "user": user, "active_page": "sales_pages",
     })
 

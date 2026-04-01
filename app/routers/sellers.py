@@ -5,8 +5,10 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
+from sqlalchemy import func
 from app.models.seller import Seller
 from app.models.order import Order
+from app.models.sales_page import SalesPage
 from app.models.influencer import Influencer
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
@@ -25,14 +27,36 @@ def sellers_list(request: Request, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
     cid = get_company_id(user)
     sellers = db.query(Seller).filter(Seller.company_id == cid).order_by(Seller.created_at.desc()).all()
-    # 셀러별 주문 수
-    order_counts = {}
-    for s in sellers:
-        order_counts[s.id] = db.query(Order).filter(Order.company_id == cid, Order.seller_id == s.id).count()
+
+    seller_ids = [s.id for s in sellers]
+
+    # 셀러별 주문 수 + 매출 (SQL 집계)
+    rows = db.query(
+        Order.seller_id,
+        func.count(Order.id),
+        func.sum(Order.total_price),
+    ).filter(
+        Order.company_id == cid,
+        Order.seller_id.in_(seller_ids),
+        Order.payment_status == "paid",
+    ).group_by(Order.seller_id).all()
+
+    order_counts = {r[0]: r[1] for r in rows}
+    seller_revenue = {r[0]: r[2] or 0 for r in rows}
+
+    # 활성 판매 페이지 (셀러 링크 생성용)
+    sales_pages = db.query(SalesPage).filter(
+        SalesPage.company_id == cid,
+        SalesPage.status == "active",
+    ).order_by(SalesPage.created_at.desc()).all()
+
+    base_url = str(request.base_url).rstrip("/")
+
     return templates.TemplateResponse("sellers/index.html", {
         "request": request, "sellers": sellers,
-        "order_counts": order_counts, "user": user,
-        "active_page": "sellers",
+        "order_counts": order_counts, "seller_revenue": seller_revenue,
+        "sales_pages": sales_pages, "base_url": base_url,
+        "user": user, "active_page": "sellers",
     })
 
 
