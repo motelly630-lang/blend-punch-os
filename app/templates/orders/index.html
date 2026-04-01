@@ -16,6 +16,12 @@
 {% set msg = request.query_params.get('msg') %}
 {% if msg %}<div class="mb-4 px-4 py-2.5 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg">{{ msg }}</div>{% endif %}
 
+{% if orders_banner_image %}
+<div class="mb-4 rounded-xl overflow-hidden border border-gray-100 shadow-sm" style="max-height: 200px;">
+  <img src="{{ orders_banner_image }}" alt="배너" class="w-full object-cover" style="max-height: 200px;">
+</div>
+{% endif %}
+
 <!-- 탭 -->
 <div class="flex gap-1 mb-4 bg-white rounded-xl border border-gray-100 shadow-sm p-1 overflow-x-auto">
   {% for key, label, cnt in [

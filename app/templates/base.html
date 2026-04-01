@@ -328,7 +328,7 @@
 
   <!-- 패널 -->
   <div x-show="open"
-       class="fixed right-0 top-0 h-full w-[380px] bg-white shadow-2xl z-50 flex flex-col border-l border-gray-200"
+       class="fixed right-0 top-0 h-full w-full sm:w-[380px] bg-white shadow-2xl z-50 flex flex-col border-l border-gray-200"
        x-transition:enter="transition transform duration-300 ease-out"
        x-transition:enter-start="translate-x-full"
        x-transition:enter-end="translate-x-0"
@@ -401,6 +401,20 @@
   function dontShowManualAgain() {
     // 버튼 호환성 유지 (패널 닫기만 수행)
   }
+</script>
+
+<!-- ── 테이블 자동 가로 스크롤 래핑 (모바일) ────────────────────────────── -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('table').forEach(table => {
+      // 이미 overflow-x-auto 래퍼 있으면 스킵
+      if (table.parentElement.classList.contains('overflow-x-auto')) return;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'overflow-x-auto';
+      table.parentNode.insertBefore(wrapper, table);
+      wrapper.appendChild(table);
+    });
+  });
 </script>
 
 <!-- ── 모바일 사이드바 토글 ──────────────────────────────────────────────── -->

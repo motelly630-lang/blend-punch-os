@@ -123,7 +123,8 @@
 <!-- ── LIST VIEW ── -->
 <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
   {% if pipelines %}
-  <table class="w-full text-sm">
+  <div class="overflow-x-auto">
+  <table class="w-full text-sm min-w-[640px]">
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
         <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">인플루언서</th>
@@ -191,6 +192,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <div class="py-16 text-center text-sm text-gray-400">
     파이프라인이 없습니다
