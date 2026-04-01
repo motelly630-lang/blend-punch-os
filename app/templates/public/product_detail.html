@@ -6,12 +6,12 @@
   <a href="/public/products" class="text-sm text-gray-500 hover:text-gray-700">← 목록으로</a>
 </div>
 
-<div class="max-w-3xl space-y-5">
+<div class="max-w-3xl space-y-4">
 
-  <!-- Hero card -->
+  <!-- ── Hero ── -->
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
     {% if product.product_image %}
-    <img src="{{ product.product_image }}" alt="{{ product.name }}" class="w-full object-cover">
+    <img src="{{ product.product_image }}" alt="{{ product.name }}" class="w-full object-cover max-h-72">
     {% endif %}
     <div class="p-5">
       <div class="text-xs text-gray-400 mb-0.5">{{ product.brand }}</div>
@@ -30,36 +30,99 @@
       {% endif %}
 
       {% if product.description %}
-      <p class="text-sm text-gray-600 mb-3">{{ product.description }}</p>
-      {% endif %}
-
-      {% if product.source_url %}
-      <a href="{{ product.source_url }}" target="_blank" rel="noopener"
-        class="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
-        제품 링크 →
-      </a>
+      <p class="text-sm text-gray-600 leading-relaxed">{{ product.description }}</p>
       {% endif %}
     </div>
   </div>
 
-  <!-- Set options -->
+  <!-- ── 가격 / 조건 ── -->
+  {% set has_price = product.groupbuy_price or product.consumer_price or product.seller_commission_rate or product.sample_type or product.shipping_type %}
+  {% if has_price %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">공구 조건</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+
+      {% if product.groupbuy_price %}
+      <div class="bg-blue-50 rounded-xl p-3.5 text-center">
+        <div class="text-xs text-blue-500 mb-1 font-medium">공구가</div>
+        <div class="text-lg font-bold text-blue-700">{{ "{:,}".format(product.groupbuy_price | int) }}원</div>
+        {% if product.consumer_price and product.consumer_price > product.groupbuy_price %}
+        <div class="text-xs text-gray-400 line-through mt-0.5">{{ "{:,}".format(product.consumer_price | int) }}원</div>
+        {% endif %}
+      </div>
+      {% elif product.consumer_price %}
+      <div class="bg-gray-50 rounded-xl p-3.5 text-center">
+        <div class="text-xs text-gray-500 mb-1 font-medium">소비자가</div>
+        <div class="text-lg font-bold text-gray-800">{{ "{:,}".format(product.consumer_price | int) }}원</div>
+      </div>
+      {% endif %}
+
+      {% if product.discount_rate %}
+      <div class="bg-red-50 rounded-xl p-3.5 text-center">
+        <div class="text-xs text-red-500 mb-1 font-medium">할인율</div>
+        <div class="text-lg font-bold text-red-600">{{ (product.discount_rate * 100) | round | int }}%</div>
+        <div class="text-xs text-red-400 mt-0.5">공구 할인</div>
+      </div>
+      {% endif %}
+
+      {% if product.seller_commission_rate %}
+      <div class="bg-green-50 rounded-xl p-3.5 text-center">
+        <div class="text-xs text-green-600 mb-1 font-medium">커미션</div>
+        <div class="text-lg font-bold text-green-700">{{ (product.seller_commission_rate * 100) | round | int }}%</div>
+        <div class="text-xs text-green-500 mt-0.5">셀러 수익률</div>
+      </div>
+      {% endif %}
+
+      {% if product.sample_type and product.sample_type != '없음' %}
+      <div class="bg-amber-50 rounded-xl p-3.5 text-center">
+        <div class="text-xs text-amber-600 mb-1 font-medium">샘플</div>
+        <div class="text-base font-bold text-amber-700">
+          {% if product.sample_type == '무상' %}무상 제공
+          {% elif product.sample_type == '유상' %}유상 제공
+          {% else %}{{ product.sample_type }}{% endif %}
+        </div>
+        {% if product.sample_type == '유상' and product.sample_price %}
+        <div class="text-xs text-amber-500 mt-0.5">{{ "{:,}".format(product.sample_price | int) }}원</div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if product.shipping_type or product.dispatch_days %}
+      <div class="bg-gray-50 rounded-xl p-3.5 text-center">
+        <div class="text-xs text-gray-500 mb-1 font-medium">배송</div>
+        {% if product.shipping_type %}
+        <div class="text-sm font-bold text-gray-700">
+          {% if product.shipping_type == '무료배송' %}무료배송
+          {% else %}유료배송{% endif %}
+        </div>
+        {% endif %}
+        {% if product.dispatch_days %}
+        <div class="text-xs text-gray-400 mt-0.5">{{ product.dispatch_days }} 발송</div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── 세트 구성 ── -->
   {% if product.set_options %}
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
     <h3 class="text-sm font-semibold text-gray-700 mb-3">세트 구성</h3>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {% for s in product.set_options %}
       <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
         <div class="font-semibold text-sm text-gray-900">{{ s.name or (s.qty | string + "개 세트") }}</div>
         {% if s.qty %}<div class="text-xs text-gray-400 mt-0.5">수량 {{ s.qty }}개</div>{% endif %}
         {% if s.price %}<div class="text-base font-bold text-blue-600 mt-1">₩{{ "{:,}".format(s.price | int) }}</div>{% endif %}
-        {% if s.notes %}<div class="text-xs text-gray-400 mt-1">{{ s.notes }}</div>{% endif %}
       </div>
       {% endfor %}
     </div>
   </div>
   {% endif %}
 
-  <!-- Key benefits -->
+  <!-- ── 핵심 혜택 ── -->
   {% if product.key_benefits %}
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
     <h3 class="text-sm font-semibold text-gray-700 mb-3">핵심 혜택</h3>
@@ -76,31 +139,48 @@
   </div>
   {% endif %}
 
-  <!-- Content info -->
-  {% if product.content_angle or product.target_audience %}
+  <!-- ── 콘텐츠 정보 ── -->
+  {% if product.content_angle %}
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-    <h3 class="text-sm font-semibold text-gray-700 mb-3">콘텐츠 정보</h3>
-    <div class="space-y-2 text-sm">
-      {% if product.target_audience %}
-      <div><span class="text-xs text-gray-400">타겟 고객</span><span class="ml-2 text-gray-800">{{ product.target_audience }}</span></div>
-      {% endif %}
-      {% if product.content_angle %}
-      <div><span class="text-xs text-gray-400">콘텐츠 앵글</span><span class="ml-2 text-gray-800">{{ product.content_angle }}</span></div>
-      {% endif %}
-    </div>
+    <h3 class="text-sm font-semibold text-gray-700 mb-3">콘텐츠 앵글</h3>
+    <p class="text-sm text-gray-700">{{ product.content_angle }}</p>
   </div>
   {% endif %}
 
-  <!-- Group buy guideline -->
+  <!-- ── 공동구매 가이드라인 ── -->
   {% if product.group_buy_guideline %}
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-    <h3 class="text-sm font-semibold text-gray-700 mb-3">공동구매 가이드라인</h3>
-    <p class="text-sm text-gray-700 whitespace-pre-line">{{ product.group_buy_guideline }}</p>
+  <div class="bg-blue-50 border border-blue-100 rounded-xl p-5">
+    <h3 class="text-sm font-semibold text-blue-800 mb-2">공동구매 가이드라인</h3>
+    <p class="text-sm text-blue-900 whitespace-pre-line leading-relaxed">{{ product.group_buy_guideline }}</p>
   </div>
   {% endif %}
 
-  <div class="mt-2">
-    <a href="/public/products" class="text-sm text-gray-500 hover:text-gray-700">← 목록으로</a>
+  <!-- ── 링크 ── -->
+  {% if product.source_url or product.product_link %}
+  <div class="flex flex-wrap gap-2">
+    {% if product.source_url %}
+    <a href="{{ product.source_url }}" target="_blank" rel="noopener"
+      class="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium px-3 py-2 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+      </svg>
+      제품 페이지
+    </a>
+    {% endif %}
+    {% if product.product_link %}
+    <a href="{{ product.product_link }}" target="_blank" rel="noopener"
+      class="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-800 font-medium px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+      </svg>
+      스토어 링크
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="pt-2">
+    <a href="/public/products" class="text-sm text-gray-400 hover:text-gray-600">← 목록으로</a>
   </div>
 
 </div>

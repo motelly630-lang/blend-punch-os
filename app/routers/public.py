@@ -7,24 +7,43 @@ from app.database import get_db
 from app.models import Product
 from app.models.brand import Brand as BrandModel
 from app.models.group_buy_application import GroupBuyApplication
+from app.schemas.public_product import PublicProduct
 
 router = APIRouter(prefix="/public")
 templates = Jinja2Templates(directory="app/templates")
 
+# ── 공개 제품 필터 조건 ────────────────────────────────────────────
+# visibility_status = 'hidden' 제품은 절대 노출 금지
+def _public_filter(query):
+    return query.filter(
+        Product.status == "active",
+        (Product.visibility_status == "active") | (Product.visibility_status == None),
+    )
+
 
 def _brand_list(db: Session) -> list[dict]:
     rows = (
-        db.query(Product.brand, func.count(Product.id).label("cnt"))
-        .filter(Product.status == "active", Product.brand.isnot(None), Product.brand != "")
+        _public_filter(db.query(Product.brand, func.count(Product.id).label("cnt")))
+        .filter(Product.brand.isnot(None), Product.brand != "")
         .group_by(Product.brand)
         .order_by(Product.brand)
         .all()
     )
     brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.logo.isnot(None)).all()}
-    first_imgs = {r.brand: r.img for r in db.query(Product.brand, func.min(Product.product_image).label("img"))
-                  .filter(Product.product_image.isnot(None), Product.product_image != "")
-                  .group_by(Product.brand).all()}
-    return [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand), "first_image": first_imgs.get(r.brand)} for r in rows]
+    first_imgs = {
+        r.brand: r.img
+        for r in _public_filter(
+            db.query(Product.brand, func.min(Product.product_image).label("img"))
+        )
+        .filter(Product.product_image.isnot(None), Product.product_image != "")
+        .group_by(Product.brand)
+        .all()
+    }
+    return [
+        {"name": r.brand, "count": r.cnt,
+         "logo": brand_logos.get(r.brand), "first_image": first_imgs.get(r.brand)}
+        for r in rows
+    ]
 
 
 FILTER_CATEGORIES = [
@@ -35,21 +54,21 @@ FILTER_CATEGORIES = [
 ]
 
 
-# ── /public/products — 브랜드 목록 + 검색/카테고리 필터 ──────────
+# ── /public/products ─────────────────────────────────────────────
 @router.get("/products")
 def public_product_list(request: Request, db: Session = Depends(get_db),
                         q: str = "", category: str = ""):
     brands = _brand_list(db)
     products = []
     if q or category:
-        query = db.query(Product).filter(Product.status == "active")
+        query = _public_filter(db.query(Product))
         if q:
             query = query.filter(
                 Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%")
             )
         if category:
             query = query.filter(Product.category == category)
-        products = query.order_by(Product.created_at.desc()).all()
+        products = [PublicProduct.from_orm(p) for p in query.order_by(Product.created_at.desc()).all()]
     return templates.TemplateResponse(
         "public/products.html",
         {"request": request, "brands": brands, "products": products,
@@ -57,15 +76,16 @@ def public_product_list(request: Request, db: Session = Depends(get_db),
     )
 
 
-# ── /public/products/brand/{brand} — 브랜드별 제품 목록 ─────────
+# ── /public/products/brand/{brand} ───────────────────────────────
 @router.get("/products/brand/{brand_name}")
 def public_brand_products(brand_name: str, request: Request, db: Session = Depends(get_db)):
-    products = (
-        db.query(Product)
-        .filter(Product.status == "active", Product.brand == brand_name)
+    db_products = (
+        _public_filter(db.query(Product))
+        .filter(Product.brand == brand_name)
         .order_by(Product.created_at.desc())
         .all()
     )
+    products = [PublicProduct.from_orm(p) for p in db_products]
     brands = _brand_list(db)
     brand_obj = db.query(BrandModel).filter(BrandModel.name == brand_name).first()
     return templates.TemplateResponse(
@@ -76,21 +96,20 @@ def public_brand_products(brand_name: str, request: Request, db: Session = Depen
     )
 
 
-# ── /public/products/product/{id} — 제품 상세 ──────────────────
+# ── /public/products/product/{id} ────────────────────────────────
 @router.get("/products/product/{product_id}")
 def public_product_detail(product_id: str, request: Request, db: Session = Depends(get_db)):
-    product = db.query(Product).filter(
-        Product.id == product_id, Product.status == "active"
-    ).first()
-    if not product:
+    db_product = _public_filter(db.query(Product)).filter(Product.id == product_id).first()
+    if not db_product:
         return RedirectResponse("/public/products", status_code=302)
+    product = PublicProduct.from_orm(db_product)
     return templates.TemplateResponse(
         "public/product_detail.html",
         {"request": request, "product": product},
     )
 
 
-# ── /public/apply — 공구 신청 POST ──────────────────────────────
+# ── /public/apply ────────────────────────────────────────────────
 @router.post("/apply")
 def submit_application(
     product_id: str = Form(""),

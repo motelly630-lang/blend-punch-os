@@ -78,8 +78,16 @@
       <div class="text-xs text-gray-400 mb-0.5">{{ p.brand }}</div>
       <div class="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 mb-1">{{ p.name }}</div>
       {% if p.unique_selling_point %}
-      <div class="text-xs text-gray-500 line-clamp-2">{{ p.unique_selling_point }}</div>
+      <div class="text-xs text-gray-500 line-clamp-2 mb-2">{{ p.unique_selling_point }}</div>
       {% endif %}
+      <div class="flex flex-wrap gap-1">
+        {% if p.groupbuy_price %}
+        <span class="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-full font-medium">{{ "{:,}".format(p.groupbuy_price | int) }}원</span>
+        {% endif %}
+        {% if p.seller_commission_rate %}
+        <span class="text-xs px-1.5 py-0.5 bg-green-50 text-green-600 rounded-full font-medium">커미션 {{ (p.seller_commission_rate * 100) | round | int }}%</span>
+        {% endif %}
+      </div>
     </div>
   </a>
   {% endfor %}

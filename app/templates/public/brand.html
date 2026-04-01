@@ -135,13 +135,17 @@
       {% if p.unique_selling_point %}
       <div class="text-xs text-gray-500 line-clamp-2 mb-2">{{ p.unique_selling_point }}</div>
       {% endif %}
-      {% if p.categories %}
-      <div class="flex flex-wrap gap-1">
-        {% for cat in p.categories[:3] %}
-        <span class="text-xs px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded-full">{{ cat }}</span>
-        {% endfor %}
+      <div class="flex flex-wrap gap-1 mt-auto">
+        {% if p.groupbuy_price %}
+        <span class="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-full font-medium">{{ "{:,}".format(p.groupbuy_price | int) }}원</span>
+        {% endif %}
+        {% if p.seller_commission_rate %}
+        <span class="text-xs px-1.5 py-0.5 bg-green-50 text-green-600 rounded-full font-medium">커미션 {{ (p.seller_commission_rate * 100) | round | int }}%</span>
+        {% endif %}
+        {% if p.sample_type and p.sample_type != '없음' %}
+        <span class="text-xs px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-full">샘플 {{ p.sample_type }}</span>
+        {% endif %}
       </div>
-      {% endif %}
     </div>
     <!-- 공구 신청 버튼 -->
     <div class="px-3.5 pb-3.5">
