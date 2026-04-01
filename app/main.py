@@ -95,7 +95,7 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
             path.startswith("/shop") or
             path.startswith("/public") or
             path.startswith("/catalog") or
-            path in ("/login", "/logout", "/robots.txt") or
+            path in ("/login", "/logout", "/robots.txt", "/sw.js", "/manifest.json") or
             path.startswith("/signup") or
             path.startswith("/verify-email") or
             path.startswith("/forgot-password") or
@@ -397,3 +397,15 @@ def _outreach_active_count() -> int:
 
 
 _setup_filters()
+
+
+# ── PWA 파일 서빙 ──────────────────────────────────────────────────────────────
+@app.get("/sw.js", include_in_schema=False)
+async def service_worker():
+    return FileResponse("static/sw.js", media_type="application/javascript",
+                        headers={"Service-Worker-Allowed": "/"})
+
+
+@app.get("/manifest.json", include_in_schema=False)
+async def web_manifest():
+    return FileResponse("static/manifest.json", media_type="application/manifest+json")

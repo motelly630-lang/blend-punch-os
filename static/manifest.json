@@ -1,0 +1,49 @@
+{
+  "name": "BLEND PUNCH OS",
+  "short_name": "BP OS",
+  "description": "인플루언서 커머스 운영 시스템",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "orientation": "portrait-primary",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "/static/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "대시보드",
+      "url": "/",
+      "description": "홈 대시보드"
+    },
+    {
+      "name": "제품 관리",
+      "url": "/products",
+      "description": "제품 목록"
+    },
+    {
+      "name": "캠페인",
+      "url": "/campaigns",
+      "description": "캠페인 관리"
+    }
+  ]
+}
