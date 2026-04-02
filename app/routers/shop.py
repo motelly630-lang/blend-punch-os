@@ -3,7 +3,9 @@ B2C 공개 판매 페이지 — 인증 불필요
 /shop/{slug}?seller=xxx
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+KST = timezone(timedelta(hours=9))
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -80,7 +82,7 @@ def shop_product(slug: str, request: Request,
             "request": request, "message": "페이지를 찾을 수 없습니다.",
         }, status_code=404)
 
-    today = datetime.now().date()
+    today = datetime.now(KST).date()
 
     # 판매 시작 전 → 대기중
     if page.starts_at and today < page.starts_at.date():

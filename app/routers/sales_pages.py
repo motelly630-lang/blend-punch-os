@@ -2,7 +2,9 @@ import json
 import re
 import shutil
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+KST = timezone(timedelta(hours=9))
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
@@ -59,7 +61,7 @@ def _parse_json_list(val: str) -> list | None:
 
 
 def _effective_status(page) -> str:
-    today = datetime.now().date()
+    today = datetime.now(KST).date()
     if page.starts_at and today < page.starts_at.date():
         return "waiting"
     sold_out = page.stock_quantity is not None and page.stock_quantity <= 0
