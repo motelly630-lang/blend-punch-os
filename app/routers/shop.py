@@ -80,21 +80,20 @@ def shop_product(slug: str, request: Request,
             "request": request, "message": "페이지를 찾을 수 없습니다.",
         }, status_code=404)
 
-    if page.status != "active":
-        return templates.TemplateResponse("shop/closed.html", {
-            "request": request, "message": "현재 판매가 종료된 페이지입니다.",
-            "page": page, "product": product,
+    today = datetime.now().date()
+
+    # 판매 시작 전 → 대기중
+    if page.starts_at and today < page.starts_at.date():
+        return templates.TemplateResponse("shop/waiting.html", {
+            "request": request, "page": page, "product": product,
         })
 
-    now = datetime.utcnow()
-    if page.starts_at and now < page.starts_at:
+    # 재고 소진 or 판매 기간 종료 → 자동 마감
+    sold_out = page.stock_quantity is not None and page.stock_quantity <= 0
+    expired = page.ends_at is not None and today > page.ends_at.date()
+    if sold_out or expired:
         return templates.TemplateResponse("shop/closed.html", {
-            "request": request, "message": "아직 판매 시작 전입니다.",
-            "page": page, "product": product,
-        })
-    if page.ends_at and now > page.ends_at:
-        return templates.TemplateResponse("shop/closed.html", {
-            "request": request, "message": "판매가 종료되었습니다.",
+            "request": request, "message": "마감되었습니다.",
             "page": page, "product": product,
         })
 

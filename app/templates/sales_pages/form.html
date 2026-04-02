@@ -226,18 +226,18 @@
 
   <!-- ── 판매 기간 ──────────────────────────────────────────── -->
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
-    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">판매 기간 (선택)</h3>
+    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">판매 기간</h3>
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label class="text-sm font-medium text-gray-700 block mb-1">시작일시</label>
-        <input name="starts_at" type="datetime-local"
-          value="{{ page.starts_at.strftime('%Y-%m-%dT%H:%M') if page and page.starts_at else '' }}"
+        <label class="text-sm font-medium text-gray-700 block mb-1">시작일 <span class="text-red-500">*</span></label>
+        <input name="starts_at" type="date" required
+          value="{{ page.starts_at.strftime('%Y-%m-%d') if page and page.starts_at else '' }}"
           class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
       </div>
       <div>
-        <label class="text-sm font-medium text-gray-700 block mb-1">종료일시</label>
-        <input name="ends_at" type="datetime-local"
-          value="{{ page.ends_at.strftime('%Y-%m-%dT%H:%M') if page and page.ends_at else '' }}"
+        <label class="text-sm font-medium text-gray-700 block mb-1">종료일</label>
+        <input name="ends_at" type="date"
+          value="{{ page.ends_at.strftime('%Y-%m-%d') if page and page.ends_at else '' }}"
           class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
       </div>
     </div>

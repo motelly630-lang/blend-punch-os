@@ -68,7 +68,7 @@ def login(
     response.set_cookie(
         key=_COOKIE_KEY, value=token,
         httponly=True, max_age=_COOKIE_MAX_AGE,
-        samesite="lax", domain=".blendpunch.com",
+        samesite="lax",
     )
     return response
 
@@ -76,7 +76,7 @@ def login(
 @router.get("/logout")
 def logout():
     response = RedirectResponse("/login", status_code=302)
-    response.delete_cookie(_COOKIE_KEY, domain=".blendpunch.com")
+    response.delete_cookie(_COOKIE_KEY)
     return response
 
 

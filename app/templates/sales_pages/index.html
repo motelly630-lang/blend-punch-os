@@ -20,12 +20,13 @@
   <div class="flex items-start justify-between gap-4">
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2 mb-1">
-        {% if p.status == 'active' %}
+        {% set es = effective_statuses.get(p.id, 'waiting') %}
+        {% if es == 'active' %}
         <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold">● 판매중</span>
-        {% elif p.status == 'closed' %}
-        <span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">마감</span>
+        {% elif es == 'waiting' %}
+        <span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">대기중</span>
         {% else %}
-        <span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">초안</span>
+        <span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">마감</span>
         {% endif %}
         <span class="text-xs text-gray-400">{{ order_counts.get(p.id, 0) }}건 결제완료</span>
         {% if page_revenue.get(p.id, 0) > 0 %}
@@ -54,16 +55,6 @@
       </div>
     </div>
     <div class="flex flex-col gap-1.5 flex-shrink-0">
-      {% if p.status != 'active' %}
-      <form method="post" action="/sales-pages/{{ p.id }}/activate">
-        <button class="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 w-full">오픈</button>
-      </form>
-      {% endif %}
-      {% if p.status == 'active' %}
-      <form method="post" action="/sales-pages/{{ p.id }}/close">
-        <button class="px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-lg hover:bg-gray-700 w-full">마감</button>
-      </form>
-      {% endif %}
       <a href="/sales-pages/{{ p.id }}/edit"
         class="px-3 py-1.5 border border-gray-200 text-gray-600 text-xs text-center rounded-lg hover:bg-gray-50 block">수정</a>
       <form method="post" action="/sales-pages/{{ p.id }}/delete"

@@ -58,6 +58,17 @@ def _parse_json_list(val: str) -> list | None:
         return None
 
 
+def _effective_status(page) -> str:
+    today = datetime.now().date()
+    if page.starts_at and today < page.starts_at.date():
+        return "waiting"
+    sold_out = page.stock_quantity is not None and page.stock_quantity <= 0
+    expired = page.ends_at is not None and today > page.ends_at.date()
+    if sold_out or expired:
+        return "closed"
+    return "active"
+
+
 @router.get("")
 def pages_list(request: Request, db: Session = Depends(get_db),
                user: User = Depends(get_current_user)):
@@ -79,11 +90,13 @@ def pages_list(request: Request, db: Session = Depends(get_db),
 
     order_counts = {r[0]: r[1] for r in rows}
     page_revenue = {r[0]: r[2] or 0 for r in rows}
+    effective_statuses = {p.id: _effective_status(p) for p in pages}
 
     base_url = str(request.base_url).rstrip("/")
     return templates.TemplateResponse("sales_pages/index.html", {
         "request": request, "pages": pages, "products": products,
         "order_counts": order_counts, "page_revenue": page_revenue,
+        "effective_statuses": effective_statuses,
         "base_url": base_url,
         "user": user, "active_page": "sales_pages",
     })
