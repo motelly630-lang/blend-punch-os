@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     smtp_from: str = ""                 # "BLEND PUNCH <admin@blendpunch.com>"
     smtp_use_ssl: bool = False          # True이면 SSL(465), False이면 STARTTLS(587)
     app_base_url: str = "https://os.blendpunch.com"   # 이메일 링크용 베이스 URL
+    cookie_domain: str = ""                            # 쿠키 도메인 (로컬: 빈값, 운영: .blendpunch.com)
     # Claw 연동 토큰 (Bearer 인증)
     claw_api_token: str = ""
 
