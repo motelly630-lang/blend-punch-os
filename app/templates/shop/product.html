@@ -415,6 +415,9 @@ function shopPage(optionsRaw, basePrice, sellerCode, addonsRaw, shippingCost) {
     },
 
     async pay() {
+      // [1] 유저가 "지금 결제하기" 버튼 클릭
+
+      // [2] 폼 유효성 검사
       const err = this.validate();
       if (err) {
         this.errorMsg = err;
@@ -433,6 +436,7 @@ function shopPage(optionsRaw, basePrice, sellerCode, addonsRaw, shippingCost) {
         .filter(a => a.qty > 0);
 
       try {
+        // [3] /shop/{slug}/prepare 호출 → pending 주문 생성, orderId/amount 반환
         const res = await fetch(`/shop/${slug}/prepare`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -452,6 +456,7 @@ function shopPage(optionsRaw, basePrice, sellerCode, addonsRaw, shippingCost) {
           return;
         }
 
+        // [4] 토스 SDK로 결제창 띄움 → 유저가 결제 완료하면 토스가 /shop/success로 리다이렉트
         const toss = TossPayments('{{ toss_client_key }}');
         await toss.requestPayment('카드', {
           amount:       data.amount,

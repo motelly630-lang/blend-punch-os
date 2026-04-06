@@ -172,7 +172,7 @@ async def pages_create(
         carrier=carrier or None,
         starts_at=_parse_dt(starts_at),
         ends_at=_parse_dt(ends_at),
-        status="draft",
+        status="active",
     )
     db.add(p)
     db.commit()

@@ -40,6 +40,7 @@ def _get_page_and_product(slug: str, db: Session):
 
 # ── 고정 경로 먼저 등록 ────────────────────────────────────────────────────
 
+# [5] 토스가 결제 완료 후 이 URL로 리다이렉트 (paymentKey, orderId, amount 쿼리파라미터 포함)
 @router.get("/success")
 async def shop_success(
     request: Request,
@@ -51,10 +52,12 @@ async def shop_success(
     if not paymentKey or not orderId or not amount:
         return RedirectResponse("/shop/fail?message=잘못된+접근입니다", status_code=302)
 
+    # [6] payments.py의 confirm_toss_payment() 호출
     result = await confirm_toss_payment(paymentKey, orderId, amount, db)
     if not result["ok"]:
         return RedirectResponse(f"/shop/fail?message={result['error']}", status_code=302)
 
+    # [12] 결제 완료 페이지 렌더링
     order = result["order"]
     page = db.query(SalesPage).filter(SalesPage.id == order.sales_page_id).first()
     product = db.query(Product).filter(Product.id == order.product_id).first() if order else None
@@ -155,11 +158,19 @@ class PrepareBody(BaseModel):
     addon_items: list[AddonItem] = []
 
 
+# [3] product.html의 pay()에서 호출 → DB에 pending 상태 주문 생성 후 orderId/amount 반환
 @router.post("/{slug}/prepare")
 async def shop_prepare(slug: str, body: PrepareBody,
                        db: Session = Depends(get_db)):
     page, product = _get_page_and_product(slug, db)
-    if not page or page.status != "active":
+    if not page:
+        return JSONResponse({"ok": False, "error": "판매 중인 페이지가 아닙니다."}, status_code=400)
+
+    today = datetime.now(KST).date()
+    sold_out = page.stock_quantity is not None and page.stock_quantity <= 0
+    expired = page.ends_at is not None and today > page.ends_at.date()
+    waiting = page.starts_at and today < page.starts_at.date()
+    if sold_out or expired or waiting:
         return JSONResponse({"ok": False, "error": "판매 중인 페이지가 아닙니다."}, status_code=400)
 
     qty = max(1, body.quantity)

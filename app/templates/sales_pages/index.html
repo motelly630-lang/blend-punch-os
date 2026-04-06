@@ -46,7 +46,10 @@
       <!-- 공유 링크 -->
       <div class="mt-2 flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5"
         x-data="{copied: false}">
-        <code class="text-xs text-gray-500 font-mono flex-1 truncate">{{ base_url }}/shop/{{ p.slug }}</code>
+        <a href="{{ base_url }}/shop/{{ p.slug }}" target="_blank"
+          class="text-xs text-gray-500 font-mono flex-1 truncate hover:text-blue-600 hover:underline">
+          {{ base_url }}/shop/{{ p.slug }}
+        </a>
         <button @click="navigator.clipboard.writeText('{{ base_url }}/shop/{{ p.slug }}'); copied=true; setTimeout(()=>copied=false,2000)"
           class="text-xs font-medium flex-shrink-0"
           :class="copied ? 'text-green-600' : 'text-blue-600 hover:text-blue-700'"
