@@ -30,8 +30,14 @@ def _get_login_bg(db: Session) -> str | None:
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, db: Session = Depends(get_db)):
-    if request.cookies.get(_COOKIE_KEY):
-        return RedirectResponse("/", status_code=302)
+    token = request.cookies.get(_COOKIE_KEY)
+    if token:
+        from app.auth.service import decode_token
+        payload = decode_token(token)
+        if payload:
+            user = db.query(User).filter(User.username == payload.get("sub"), User.is_active == True).first()
+            if user and user.current_token == token:
+                return RedirectResponse("/", status_code=302)
     return templates.TemplateResponse("auth/login.html", {
         "request": request,
         "login_bg_image": _get_login_bg(db),
@@ -64,7 +70,16 @@ def login(
             {"request": request, "error": "이메일 인증이 필요합니다. 가입 시 발송된 인증 메일을 확인해주세요.", "login_bg_image": bg},
             status_code=401,
         )
+    # 이미 다른 기기에서 로그인 중인 계정 차단
+    if user.current_token:
+        return templates.TemplateResponse(
+            "auth/login.html",
+            {"request": request, "error": "이미 사용 중인 계정입니다. 기존 접속을 먼저 로그아웃해주세요.", "login_bg_image": bg},
+            status_code=401,
+        )
     token = create_access_token(username=user.username, role=user.role)
+    user.current_token = token
+    db.commit()
     response = RedirectResponse("/", status_code=302)
     response.set_cookie(
         key=_COOKIE_KEY, value=token,
@@ -76,7 +91,16 @@ def login(
 
 
 @router.get("/logout")
-def logout():
+def logout(request: Request, db: Session = Depends(get_db)):
+    token = request.cookies.get(_COOKIE_KEY)
+    if token:
+        from app.auth.service import decode_token
+        payload = decode_token(token)
+        if payload:
+            user = db.query(User).filter(User.username == payload.get("sub")).first()
+            if user:
+                user.current_token = None
+                db.commit()
     response = RedirectResponse("/login", status_code=302)
     response.delete_cookie(_COOKIE_KEY, domain=settings.cookie_domain or None)
     return response

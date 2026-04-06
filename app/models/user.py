@@ -26,5 +26,7 @@ class User(Base):
     reset_token      = Column(String(100), nullable=True)
     reset_token_exp  = Column(DateTime, nullable=True)
 
+    current_token = Column(String(512), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

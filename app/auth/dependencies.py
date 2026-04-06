@@ -32,6 +32,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.query(User).filter(User.username == username, User.is_active == True).first()
     if not user:
         raise RequiresLogin()
+    if user.current_token != token:
+        raise RequiresLogin()
     return user
 
 
