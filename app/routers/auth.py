@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -10,9 +10,12 @@ from app.database import get_db
 from app.models.user import User
 from app.models.feature_flag import Company
 from app.models.business_info import BusinessInfo
+from app.models.attendance import AttendanceLog
 from app.auth.service import verify_password, create_access_token, hash_password
 from app.auth.dependencies import get_current_user, require_super_admin
 from app.config import settings
+
+KST = timezone(timedelta(hours=9))
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -79,6 +82,17 @@ def login(
         )
     token = create_access_token(username=user.username, role=user.role)
     user.current_token = token
+
+    # 출결 기록 — 당일 첫 로그인만 기록 (갱신 안 함)
+    now_kst = datetime.now(KST)
+    today = now_kst.date()
+    attendance = db.query(AttendanceLog).filter(
+        AttendanceLog.user_id == user.id,
+        AttendanceLog.date == today,
+    ).first()
+    if not attendance:
+        db.add(AttendanceLog(user_id=user.id, date=today, first_login_at=now_kst))
+
     db.commit()
     response = RedirectResponse("/", status_code=302)
     response.set_cookie(
@@ -100,6 +114,15 @@ def logout(request: Request, db: Session = Depends(get_db)):
             user = db.query(User).filter(User.username == payload.get("sub")).first()
             if user:
                 user.current_token = None
+                # 출결 기록 — 로그아웃 시각 갱신 (버튼 클릭만, 당일 기준)
+                now_kst = datetime.now(KST)
+                today = now_kst.date()
+                attendance = db.query(AttendanceLog).filter(
+                    AttendanceLog.user_id == user.id,
+                    AttendanceLog.date == today,
+                ).first()
+                if attendance:
+                    attendance.last_logout_at = now_kst
                 db.commit()
     response = RedirectResponse("/login", status_code=302)
     response.delete_cookie(_COOKIE_KEY, domain=settings.cookie_domain or None)

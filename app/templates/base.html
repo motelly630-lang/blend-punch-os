@@ -246,6 +246,14 @@
         </svg>
         사용자 관리
       </a>
+      <a href="/attendance"
+        class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
+          {% if active_page == 'attendance' %}bg-blue-600 text-white{% else %}text-gray-500 hover:bg-gray-800 hover:text-white{% endif %}">
+        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        출결 관리
+      </a>
     </div>
     {% endif %}
 

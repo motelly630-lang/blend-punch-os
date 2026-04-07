@@ -33,6 +33,7 @@ from app.routers import emails as emails_router
 from app.routers import backup as backup_router
 from app.routers import agent_pipeline as agent_pipeline_router
 from app.routers import transactions as transactions_router
+from app.routers import attendance as attendance_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions, FeatureDisabled
 
 
@@ -254,6 +255,7 @@ app.include_router(emails_router.router)
 app.include_router(backup_router.router)
 app.include_router(agent_pipeline_router.router)
 app.include_router(transactions_router.router)
+app.include_router(attendance_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────
