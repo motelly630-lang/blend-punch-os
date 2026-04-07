@@ -356,7 +356,8 @@ def _setup_filters():
     import app.routers.backup as bkp
     import app.routers.agent_pipeline as agp
 
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz, ff, comp, man, eml, bkp, agp]:
+    import app.routers.attendance as att
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz, ff, comp, man, eml, bkp, agp, att]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num
