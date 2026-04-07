@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.attendance import AttendanceLog
+from app.models.page_visit import PageVisitLog
 from app.models.user import User
 from app.auth.dependencies import get_current_user
 
@@ -47,5 +48,49 @@ def attendance_index(
         "user": user,
         "active_page": "attendance",
         "logs": logs,
+        "selected_date": selected_date,
+    })
+
+
+@router.get("/{user_id}/visits")
+def user_visits(
+    user_id: str,
+    request: Request,
+    target_date: str = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if user.role != "admin":
+        return RedirectResponse("/", status_code=302)
+
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        return RedirectResponse("/attendance", status_code=302)
+
+    if target_date:
+        try:
+            selected_date = date.fromisoformat(target_date)
+        except ValueError:
+            selected_date = datetime.now(KST).date()
+    else:
+        selected_date = datetime.now(KST).date()
+
+    visits = (
+        db.query(PageVisitLog)
+        .filter(
+            PageVisitLog.user_id == user_id,
+            PageVisitLog.visited_at >= datetime(selected_date.year, selected_date.month, selected_date.day, 0, 0, 0),
+            PageVisitLog.visited_at < datetime(selected_date.year, selected_date.month, selected_date.day + 1, 0, 0, 0),
+        )
+        .order_by(PageVisitLog.visited_at)
+        .all()
+    )
+
+    return templates.TemplateResponse("attendance/visits.html", {
+        "request": request,
+        "user": user,
+        "active_page": "attendance",
+        "target": target,
+        "visits": visits,
         "selected_date": selected_date,
     })

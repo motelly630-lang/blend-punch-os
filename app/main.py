@@ -135,6 +135,37 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
         # ── ContextVar 설정 (Jinja2 global에서 사용) ──────────────────
         set_request_context(company_id, is_super, enabled)
 
+        # ── 페이지 방문 로그 (GET, 인증된 사용자, 정적/API 제외) ─────────
+        _SKIP_LOG_PREFIXES = (
+            "/static", "/shop", "/public", "/catalog", "/api/",
+            "/sw.js", "/manifest.json", "/robots.txt", "/favicon",
+        )
+        if (
+            request.method == "GET" and
+            token and
+            payload and
+            not any(path.startswith(p) for p in _SKIP_LOG_PREFIXES)
+        ):
+            try:
+                from app.database import SessionLocal as _SL
+                from app.models.page_visit import PageVisitLog
+                from app.models.user import User as _User
+                from datetime import datetime, timedelta, timezone
+                _db = _SL()
+                try:
+                    _u = _db.query(_User).filter(_User.username == payload.get("sub")).first()
+                    if _u:
+                        _db.add(PageVisitLog(
+                            user_id=_u.id,
+                            path=path,
+                            visited_at=datetime.now(timezone(timedelta(hours=9))),
+                        ))
+                        _db.commit()
+                finally:
+                    _db.close()
+            except Exception:
+                pass
+
         # ── ALWAYS_ALLOW 경로는 feature gate 건너뜀 (사이드바는 필터됨) ──
         always_allow = (
             path == "/" or path == "" or

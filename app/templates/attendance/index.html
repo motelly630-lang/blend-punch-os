@@ -30,7 +30,10 @@
         {% set login_time = log.first_login_at %}
         {% set logout_time = log.last_logout_at %}
         <tr class="border-b border-gray-800 hover:bg-gray-800/50">
-          <td class="px-4 py-3 text-white font-medium">{{ u.username }}</td>
+          <td class="px-4 py-3 font-medium">
+            <a href="/attendance/{{ u.id }}/visits?target_date={{ selected_date }}"
+               class="text-blue-400 hover:underline">{{ u.username }}</a>
+          </td>
           <td class="px-4 py-3">
             <span class="px-2 py-0.5 rounded text-xs
               {% if u.role == 'admin' %}bg-blue-600/20 text-blue-400
