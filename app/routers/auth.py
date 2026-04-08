@@ -73,13 +73,6 @@ def login(
             {"request": request, "error": "이메일 인증이 필요합니다. 가입 시 발송된 인증 메일을 확인해주세요.", "login_bg_image": bg},
             status_code=401,
         )
-    # 이미 다른 기기에서 로그인 중인 계정 차단
-    if user.current_token:
-        return templates.TemplateResponse(
-            "auth/login.html",
-            {"request": request, "error": "이미 사용 중인 계정입니다. 기존 접속을 먼저 로그아웃해주세요.", "login_bg_image": bg},
-            status_code=401,
-        )
     token = create_access_token(username=user.username, role=user.role)
     user.current_token = token
 
