@@ -44,4 +44,5 @@ def init_db():
     import app.models.trigger_log  # noqa
     import app.models.human_review_queue  # noqa
     import app.models.pipeline_job  # noqa
+    import app.models.shop_user  # noqa
     Base.metadata.create_all(bind=engine)
