@@ -22,9 +22,15 @@
         </div>
         <div>
           <label class="block text-xs font-semibold text-gray-500 mb-1.5">발송일 <span class="text-red-400">*</span></label>
-          <input type="date" name="outreach_date" required
-            value="{{ log.outreach_date if log else today }}"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <div class="flex gap-2">
+            <input type="date" name="outreach_date" required
+              value="{{ log.outreach_date if log else today }}"
+              class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <input type="time" name="sent_time" id="sent_time"
+              value="{{ log.sent_at.strftime('%H:%M') if log and log.sent_at else '' }}"
+              class="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+          <p class="text-xs text-gray-400 mt-1">시간 입력 시 목록에 발송 시각 표시</p>
         </div>
       </div>
 
@@ -53,21 +59,13 @@
         </div>
       </div>
 
-      <!-- Row 3: DM 발송 일시 + 답장 일시 -->
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-xs font-semibold text-gray-500 mb-1.5">DM 발송 일시</label>
-          <input type="datetime-local" name="sent_at"
-            value="{{ log.sent_at.strftime('%Y-%m-%dT%H:%M') if log and log.sent_at else '' }}"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-500 mb-1.5">답장 받은 일시</label>
-          <input type="datetime-local" name="response_at"
-            value="{{ log.response_at.strftime('%Y-%m-%dT%H:%M') if log and log.response_at else '' }}"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-          <p class="text-xs text-gray-400 mt-1">상태를 '답장'으로 변경 시 자동 기록됩니다</p>
-        </div>
+      <!-- 답장 일시 -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 mb-1.5">답장 받은 일시</label>
+        <input type="datetime-local" name="response_at"
+          value="{{ log.response_at.strftime('%Y-%m-%dT%H:%M') if log and log.response_at else '' }}"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <p class="text-xs text-gray-400 mt-1">상태를 '답장'으로 변경 시 자동 기록됩니다</p>
       </div>
 
       <!-- 제품 -->

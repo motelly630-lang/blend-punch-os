@@ -231,7 +231,7 @@ def outreach_create(
     campaign_id: str = Form(""),
     outreach_date: str = Form(...),
     sample_status: str = Form("sent"),
-    sent_at: str = Form(""),
+    sent_time: str = Form(""),
     response_at: str = Form(""),
     status_detail: str = Form(""),
     notes: str = Form(""),
@@ -247,6 +247,14 @@ def outreach_create(
         except Exception:
             return None
 
+    # 날짜 + 시간 합쳐서 sent_at 생성
+    sent_at = None
+    if sent_time and outreach_date:
+        try:
+            sent_at = datetime.fromisoformat(f"{outreach_date}T{sent_time}")
+        except Exception:
+            pass
+
     log = OutreachLog(
         company_id=cid,
         operator=operator.strip(),
@@ -256,7 +264,7 @@ def outreach_create(
         campaign_id=campaign_id or None,
         outreach_date=outreach_date,
         sample_status=sample_status,
-        sent_at=_parse_dt(sent_at),
+        sent_at=sent_at,
         response_at=_parse_dt(response_at),
         status_detail=status_detail.strip() or None,
         notes=notes.strip() or None,
@@ -305,7 +313,7 @@ def outreach_update(
     campaign_id: str = Form(""),
     outreach_date: str = Form(...),
     sample_status: str = Form("sent"),
-    sent_at: str = Form(""),
+    sent_time: str = Form(""),
     response_at: str = Form(""),
     status_detail: str = Form(""),
     notes: str = Form(""),
@@ -323,6 +331,13 @@ def outreach_update(
         except Exception:
             return None
 
+    sent_at = None
+    if sent_time and outreach_date:
+        try:
+            sent_at = datetime.fromisoformat(f"{outreach_date}T{sent_time}")
+        except Exception:
+            pass
+
     log.operator          = operator.strip()
     log.influencer_handle = influencer_handle.lstrip("@").strip()
     log.influencer_id     = _get_or_create_influencer(db, influencer_handle)
@@ -330,7 +345,7 @@ def outreach_update(
     log.campaign_id       = campaign_id or None
     log.outreach_date     = outreach_date
     log.sample_status     = sample_status
-    log.sent_at           = _parse_dt(sent_at)
+    log.sent_at           = sent_at
     log.response_at       = _parse_dt(response_at)
     log.status_detail     = status_detail.strip() or None
     log.notes             = notes.strip() or None
