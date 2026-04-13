@@ -30,7 +30,7 @@
               value="{{ log.sent_at.strftime('%H:%M') if log and log.sent_at else '' }}"
               class="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
           </div>
-          <p class="text-xs text-gray-400 mt-1">시간 입력 시 목록에 발송 시각 표시</p>
+          <p class="text-xs text-gray-400 mt-1">목록에 발송 시각으로 표시됩니다</p>
         </div>
       </div>
 
@@ -125,4 +125,18 @@
     </form>
   </div>
 </div>
+
+{% if not log %}
+<script>
+(function() {
+  var el = document.getElementById('sent_time');
+  if (el && !el.value) {
+    var now = new Date();
+    var hh = String(now.getHours()).padStart(2,'0');
+    var mm = String(now.getMinutes()).padStart(2,'0');
+    el.value = hh + ':' + mm;
+  }
+})();
+</script>
+{% endif %}
 {% endblock %}
