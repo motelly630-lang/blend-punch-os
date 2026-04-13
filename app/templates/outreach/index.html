@@ -164,7 +164,12 @@
         'red':   'bg-red-100 text-red-600'
       } %}
       <tr class="hover:bg-gray-50 transition-colors">
-        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{{ log.outreach_date }}</td>
+        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+          <div>{{ log.outreach_date }}</div>
+          {% if log.sent_at %}
+          <div class="text-gray-400 mt-0.5">{{ log.sent_at.strftime('%H:%M') }}</div>
+          {% endif %}
+        </td>
         <td class="px-4 py-3 text-sm font-medium text-gray-700">{{ log.operator }}</td>
         <td class="px-4 py-3">
           <div class="font-medium text-gray-800 text-sm">@{{ log.influencer_handle }}</div>
