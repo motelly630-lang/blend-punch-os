@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Text, DateTime, JSON, ForeignKey, Integer
+from sqlalchemy import Column, String, Float, Text, DateTime, JSON, ForeignKey, Integer, Boolean
 from app.models.base import Base
 
 
@@ -24,9 +24,13 @@ class SalesPage(Base):
     shipping_type = Column(String(20), default="free")               # free/paid
     shipping_cost = Column(Float, default=0.0)
     carrier = Column(String(50), nullable=True)
-    status = Column(String(20), default="draft")                     # draft|active|closed
+    status = Column(String(20), default="draft")                     # draft|scheduled|active|ended|closed
     starts_at = Column(DateTime, nullable=True)
     ends_at = Column(DateTime, nullable=True)
+
+    # Commerce Upgrade — OS-SHOP 연결
+    campaign_id  = Column(String(36), ForeignKey("campaigns.id"), nullable=True)
+    is_published = Column(Boolean, default=False)                    # SHOP 노출 여부
     allowed_seller_codes = Column(JSON, nullable=True)               # null=모두허용, list=제한
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

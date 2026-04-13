@@ -60,6 +60,9 @@ class Product(Base):
     # 메모 (자유 입력, 내부 전용)
     notes = Column(Text, nullable=True)
 
+    # SHOP 노출
+    is_published = Column(Boolean, default=False)                    # SHOP 노출 여부
+
     # Data completeness
     is_complete = Column(Boolean, default=False)             # 필수 필드 모두 채워진 경우 True
     missing_fields = Column(JSON, nullable=True)             # list[str] 미입력 필드 레이블 목록

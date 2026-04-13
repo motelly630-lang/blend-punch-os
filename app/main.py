@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.database import init_db
@@ -34,6 +35,7 @@ from app.routers import backup as backup_router
 from app.routers import agent_pipeline as agent_pipeline_router
 from app.routers import transactions as transactions_router
 from app.routers import attendance as attendance_router
+from app.api import public_v1 as public_v1_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions, FeatureDisabled
 
 
@@ -49,6 +51,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="BLEND PUNCH OS", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://shop.blendpunch.com", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class NoIndexMiddleware(BaseHTTPMiddleware):
@@ -96,6 +106,7 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
             path.startswith("/shop") or
             path.startswith("/public") or
             path.startswith("/catalog") or
+            path.startswith("/api/v1") or
             path in ("/login", "/logout", "/robots.txt", "/sw.js", "/manifest.json") or
             path.startswith("/signup") or
             path.startswith("/verify-email") or
@@ -287,6 +298,7 @@ app.include_router(backup_router.router)
 app.include_router(agent_pipeline_router.router)
 app.include_router(transactions_router.router)
 app.include_router(attendance_router.router)
+app.include_router(public_v1_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────

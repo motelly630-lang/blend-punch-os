@@ -3,9 +3,11 @@
 {% block page_title %}{{ campaign.name }}{% endblock %}
 {% block header_actions %}
 <a href="/campaigns/{{ campaign.id }}/edit" class="text-sm font-medium px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">편집</a>
-<form method="post" action="/campaigns/{{ campaign.id }}/delete" class="inline" onsubmit="return confirm('삭제하시겠습니까?')">
+{% if current_user.role == "admin" %}
+          <form method="post" action="/campaigns/{{ campaign.id }}/delete" class="inline" onsubmit="return confirm('삭제하시겠습니까?')">
   <button type="submit" class="text-sm text-red-500 hover:text-red-700 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors">삭제</button>
 </form>
+          {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -72,6 +74,39 @@
     {% endif %}
   </div>
 
+  <!-- 연결된 판매 페이지 (공구) -->
+  {% if sales_pages %}
+  <div class="bg-white rounded-xl border border-blue-100 shadow-sm p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold text-gray-800">연결된 판매 페이지 (공구)</h3>
+      <a href="/sales-pages/new" class="text-xs text-blue-600 hover:text-blue-700 px-2.5 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50">+ 판매 페이지 추가</a>
+    </div>
+    <div class="space-y-2">
+      {% for sp in sales_pages %}
+      <a href="/sales-pages/{{ sp.id }}/edit" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors">
+        <div class="flex items-center gap-3">
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium
+            {% if sp.status == 'active' %}bg-green-100 text-green-700
+            {% elif sp.status == 'scheduled' %}bg-blue-100 text-blue-700
+            {% elif sp.status == 'ended' %}bg-gray-100 text-gray-500
+            {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+            {% if sp.status == 'active' %}진행중{% elif sp.status == 'scheduled' %}예정{% elif sp.status == 'ended' %}종료{% else %}초안{% endif %}
+          </span>
+          <span class="text-sm font-medium text-gray-800">{{ sp.title or '/shop/' + sp.slug }}</span>
+          {% if sp.is_published %}<span class="text-xs text-blue-500">SHOP 노출중</span>{% endif %}
+        </div>
+        <div class="text-sm font-semibold text-gray-700">{{ sp.price | won }}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="bg-white rounded-xl border border-dashed border-gray-200 p-5 text-center">
+    <p class="text-sm text-gray-400 mb-2">연결된 판매 페이지가 없습니다</p>
+    <a href="/sales-pages/new" class="text-xs text-blue-600 hover:underline">+ 판매 페이지 생성</a>
+  </div>
+  {% endif %}
+
   {% if campaign.notes %}
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
     <div class="text-xs text-gray-400 mb-2">메모</div>
@@ -128,10 +163,12 @@
           <span class="font-medium {% if t.type == 'revenue' %}text-blue-700{% else %}text-red-600{% endif %}">
             {% if t.type == 'cost' %}-{% endif %}{{ t.amount | won }}
           </span>
+          {% if current_user.role == "admin" %}
           <form method="post" action="/transactions/{{ t.id }}/delete" onsubmit="return confirm('삭제?')">
             <input type="hidden" name="redirect_to" value="/campaigns/{{ campaign.id }}">
             <button type="submit" class="text-gray-300 hover:text-red-400 text-xs">✕</button>
           </form>
+          {% endif %}
         </div>
       </div>
       {% endfor %}

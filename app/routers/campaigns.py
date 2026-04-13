@@ -11,8 +11,9 @@ from app.database import get_db
 from app.models import Campaign, Product, Influencer
 from app.models.settlement import Settlement
 from app.models.transaction import Transaction
+from app.models.sales_page import SalesPage
 from app.models.user import User
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_admin
 from app.auth.tenant import get_company_id
 
 KST = ZoneInfo("Asia/Seoul")
@@ -334,6 +335,11 @@ def campaign_detail(campaign_id: str, request: Request, db: Session = Depends(ge
         Transaction.campaign_id == campaign_id
     ).order_by(Transaction.transaction_date.desc()).all()
 
+    sales_pages = db.query(SalesPage).filter(
+        SalesPage.campaign_id == campaign_id,
+        SalesPage.company_id == cid,
+    ).order_by(SalesPage.created_at.desc()).all()
+
     return templates.TemplateResponse("campaigns/detail.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": campaign,
@@ -342,6 +348,7 @@ def campaign_detail(campaign_id: str, request: Request, db: Session = Depends(ge
         "camp_settle": settle_amt,
         "camp_net": camp_net,
         "camp_transactions": camp_transactions,
+        "sales_pages": sales_pages,
     })
 
 
@@ -523,7 +530,7 @@ def update_sales(
 
 @router.post("/{campaign_id}/delete")
 def campaign_delete(campaign_id: str, db: Session = Depends(get_db),
-                    current_user: User = Depends(get_current_user)):
+                    current_user: User = Depends(require_admin)):
     cid = get_company_id(current_user)
     campaign = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.id == campaign_id).first()
     if campaign:
@@ -537,7 +544,7 @@ def campaign_delete(campaign_id: str, db: Session = Depends(get_db),
 def campaign_bulk_delete(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     ids: str = Form(""),
 ):
     cid = get_company_id(current_user)

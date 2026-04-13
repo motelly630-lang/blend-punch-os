@@ -22,6 +22,9 @@ class User(Base):
     verify_token     = Column(String(100), nullable=True)
     verify_token_exp = Column(DateTime, nullable=True)
 
+    # 구독
+    subscription = Column(Boolean, default=False)
+
     # 비밀번호 재설정
     reset_token      = Column(String(100), nullable=True)
     reset_token_exp  = Column(DateTime, nullable=True)

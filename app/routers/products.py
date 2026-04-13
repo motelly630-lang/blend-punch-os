@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Request, Depends, Form, UploadFile, File
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models import Product, Influencer
 from app.models.brand import Brand as BrandModel
 from app.models.user import User
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_admin
 from app.auth.tenant import get_company_id
 from app.services.image_service import save_product_image
 from app.services.product_service import validate_product_completeness
@@ -184,6 +184,7 @@ def product_create(
     product_link: str = Form(""),
     product_type: str = Form("A"),
     notes: str = Form(""),
+    is_published: str = Form(""),
 ):
     cid = get_company_id(current_user)
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
@@ -229,6 +230,7 @@ def product_create(
         product_link=product_link or None,
         product_type=product_type or "A",
         notes=notes or None,
+        is_published=bool(is_published),
     )
     completeness = validate_product_completeness(product)
     product.is_complete = completeness["is_complete"]
@@ -348,6 +350,7 @@ def product_update(
     product_link: str = Form(""),
     product_type: str = Form("A"),
     notes: str = Form(""),
+    is_published: str = Form(""),
 ):
     cid = get_company_id(current_user)
     product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
@@ -409,6 +412,7 @@ def product_update(
     product.vendor_commission_rate = float(vendor_commission_rate) / 100.0 if vendor_commission_rate else 0.0
     product.product_link = product_link or None
     product.product_type = product_type or "A"
+    product.is_published = bool(is_published)
     if new_image:
         product.product_image = new_image
 
@@ -418,6 +422,64 @@ def product_update(
 
     db.commit()
     return RedirectResponse(f"/products/{product_id}?msg=수정되었습니다", status_code=302)
+
+
+@router.post("/{product_id}/upload-image")
+async def product_upload_image(
+    product_id: str,
+    request: Request,
+    product_image: UploadFile = File(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """이미지 파일만 독립 업로드 (AJAX multipart)"""
+    cid = get_company_id(current_user)
+    product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
+    if not product:
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+    new_image = _save_image(product_image)
+    if not new_image:
+        return JSONResponse({"ok": False, "error": "no valid image"})
+    product.product_image = new_image
+    completeness = validate_product_completeness(product)
+    product.is_complete = completeness["is_complete"]
+    product.missing_fields = completeness["missing_fields"] or None
+    db.commit()
+    return JSONResponse({"ok": True, "image_url": new_image})
+
+
+@router.patch("/{product_id}/json")
+async def product_patch_json(
+    product_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """탭 저장: JSON 복합 필드 (categories, set_options, key_benefits)"""
+    body = await request.json()
+    cid = get_company_id(current_user)
+    product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
+    if not product:
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+
+    if "categories" in body:
+        cats = body["categories"]
+        product.categories = [c for c in cats if isinstance(c, str) and c.strip()] or None
+
+    if "set_options" in body:
+        opts = body["set_options"]
+        if isinstance(opts, list):
+            product.set_options = opts or None
+
+    if "key_benefits_raw" in body:
+        kbs = [b.strip() for b in body["key_benefits_raw"].splitlines() if b.strip()]
+        product.key_benefits = kbs or None
+
+    completeness = validate_product_completeness(product)
+    product.is_complete = completeness["is_complete"]
+    product.missing_fields = completeness["missing_fields"] or None
+    db.commit()
+    return JSONResponse({"ok": True, "is_complete": product.is_complete})
 
 
 @router.patch("/{product_id}/field")
@@ -440,9 +502,9 @@ async def product_patch_field(
     TEXT_FIELDS = {
         "name", "description", "internal_notes", "notes", "unique_selling_point",
         "content_angle", "positioning", "group_buy_guideline", "source_url",
-        "product_link", "brand", "category", "status", "visibility_status",
-        "shipping_type", "carrier", "ship_origin", "dispatch_days",
-        "sample_type", "product_type", "key_benefits_raw",
+        "product_link", "product_image", "brand", "category", "status",
+        "visibility_status", "shipping_type", "carrier", "ship_origin",
+        "dispatch_days", "sample_type", "product_type", "key_benefits_raw",
     }
     NUM_FIELDS = {
         "price", "consumer_price", "lowest_price", "supplier_price",
@@ -514,10 +576,50 @@ def product_clone(product_id: str, db: Session = Depends(get_db),
 
 @router.post("/{product_id}/delete")
 def product_delete(product_id: str, db: Session = Depends(get_db),
-                   current_user: User = Depends(get_current_user)):
+                   current_user: User = Depends(require_admin)):
     cid = get_company_id(current_user)
     product = db.query(Product).filter(Product.company_id == cid, Product.id == product_id).first()
     if product:
         product.is_archived = True
         db.commit()
     return RedirectResponse("/products?msg=보관처리되었습니다", status_code=302)
+
+
+@router.post("/remove-bg-batch")
+def remove_bg_batch(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """외부 URL 이미지가 있는 모든 제품에 누끼 일괄 적용 (백그라운드)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    cid = get_company_id(current_user)
+    targets = db.query(Product.id, Product.product_image).filter(
+        Product.company_id == cid,
+        Product.is_archived.isnot(True),
+        Product.product_image.isnot(None),
+        Product.product_image.like("http%"),
+    ).all()
+    items = [(r.id, r.product_image) for r in targets]
+
+    def _batch(items: list):
+        from app.database import SessionLocal
+        from app.services.image_service import process_url_with_remove_bg, UPLOAD_DIR_PRODUCTS
+        bg_db = SessionLocal()
+        try:
+            for pid, img_url in items:
+                new_url = process_url_with_remove_bg(img_url, UPLOAD_DIR_PRODUCTS)
+                if new_url:
+                    prod = bg_db.query(Product).filter(Product.id == pid).first()
+                    if prod:
+                        prod.product_image = new_url
+                        bg_db.commit()
+        except Exception:
+            logger.exception("일괄 누끼 배치 오류")
+        finally:
+            bg_db.close()
+
+    background_tasks.add_task(_batch, items)
+    from urllib.parse import quote
+    return RedirectResponse(f"/products?msg={quote(f'{len(items)}개 제품 누끼 작업 시작 (백그라운드 처리 중)')}", status_code=302)

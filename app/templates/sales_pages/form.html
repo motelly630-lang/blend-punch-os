@@ -258,6 +258,51 @@
     <p class="text-xs text-gray-400">이미지 포함 HTML이 그대로 보존됩니다. 판매 페이지 하단에 표시됩니다.</p>
   </div>
 
+  <!-- ── SHOP 연동 ────────────────────────────────────────────── -->
+  <div class="bg-white rounded-xl border border-blue-100 shadow-sm p-6 space-y-4">
+    <h3 class="text-xs font-semibold text-blue-500 uppercase tracking-wider">SHOP 연동 (Blend Pick)</h3>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="text-sm font-medium text-gray-700 block mb-1">연결 캠페인</label>
+        <select name="campaign_id"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">-- 캠페인 없음 --</option>
+          {% for camp in campaigns %}
+          <option value="{{ camp.id }}" {% if page and page.campaign_id == camp.id %}selected{% endif %}>
+            {{ camp.name }}
+          </option>
+          {% endfor %}
+        </select>
+        <p class="text-xs text-gray-400 mt-1">연결 시 주문 → 캠페인 매출 자동 집계</p>
+      </div>
+
+      <div>
+        <label class="text-sm font-medium text-gray-700 block mb-1">공구 상태</label>
+        <select name="status"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="draft" {% if not page or page.status == 'draft' %}selected{% endif %}>초안</option>
+          <option value="scheduled" {% if page and page.status == 'scheduled' %}selected{% endif %}>예정</option>
+          <option value="active" {% if page and page.status == 'active' %}selected{% endif %}>진행중</option>
+          <option value="ended" {% if page and page.status == 'ended' %}selected{% endif %}>종료</option>
+          <option value="closed" {% if page and page.status == 'closed' %}selected{% endif %}>비공개</option>
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" name="is_published" value="1"
+          {% if page and page.is_published %}checked{% endif %}
+          class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+        <div>
+          <span class="text-sm font-medium text-gray-700">SHOP 노출 (shop.blendpunch.com)</span>
+          <p class="text-xs text-gray-400 mt-0.5">체크 시 Blend Pick에서 이 판매 페이지가 공개됩니다</p>
+        </div>
+      </label>
+    </div>
+  </div>
+
   <div class="flex gap-3 pb-8">
     <a href="/sales-pages"
       class="px-5 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50">취소</a>

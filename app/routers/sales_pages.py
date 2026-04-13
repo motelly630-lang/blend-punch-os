@@ -15,6 +15,7 @@ from app.database import get_db
 from app.models.sales_page import SalesPage
 from app.models.product import Product
 from app.models.order import Order
+from app.models.campaign import Campaign
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
 from app.models.user import User
@@ -109,8 +110,10 @@ def pages_new(request: Request, db: Session = Depends(get_db),
               user: User = Depends(get_current_user)):
     cid = get_company_id(user)
     products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
+    campaigns = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.is_archived == False).order_by(Campaign.created_at.desc()).all()
     return templates.TemplateResponse("sales_pages/form.html", {
         "request": request, "page": None, "products": products,
+        "campaigns": campaigns,
         "user": user, "active_page": "sales_pages",
     })
 
@@ -132,6 +135,9 @@ async def pages_create(
     carrier: str = Form(""),
     starts_at: str = Form(""),
     ends_at: str = Form(""),
+    campaign_id: str = Form(""),
+    status: str = Form("draft"),
+    is_published: str = Form(""),
     main_image_file: UploadFile = File(None),
     extra_image_files: list[UploadFile] = File(None),
     db: Session = Depends(get_db),
@@ -172,7 +178,9 @@ async def pages_create(
         carrier=carrier or None,
         starts_at=_parse_dt(starts_at),
         ends_at=_parse_dt(ends_at),
-        status="active",
+        campaign_id=campaign_id or None,
+        status=status or "draft",
+        is_published=bool(is_published),
     )
     db.add(p)
     db.commit()
@@ -187,8 +195,10 @@ def pages_edit(page_id: str, request: Request, db: Session = Depends(get_db),
     if not page:
         return RedirectResponse("/sales-pages?err=페이지를+찾을+수+없습니다", status_code=302)
     products = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
+    campaigns = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.is_archived == False).order_by(Campaign.created_at.desc()).all()
     return templates.TemplateResponse("sales_pages/form.html", {
         "request": request, "page": page, "products": products,
+        "campaigns": campaigns,
         "user": user, "active_page": "sales_pages",
     })
 
@@ -211,6 +221,9 @@ async def pages_update(
     carrier: str = Form(""),
     starts_at: str = Form(""),
     ends_at: str = Form(""),
+    campaign_id: str = Form(""),
+    status: str = Form("draft"),
+    is_published: str = Form(""),
     main_image_file: UploadFile = File(None),
     extra_image_files: list[UploadFile] = File(None),
     existing_extra_images: str = Form(""),
@@ -255,6 +268,9 @@ async def pages_update(
     page.carrier = carrier or None
     page.starts_at = _parse_dt(starts_at)
     page.ends_at = _parse_dt(ends_at)
+    page.campaign_id = campaign_id or None
+    page.status = status or "draft"
+    page.is_published = bool(is_published)
     db.commit()
     return RedirectResponse("/sales-pages?msg=수정됨", status_code=302)
 

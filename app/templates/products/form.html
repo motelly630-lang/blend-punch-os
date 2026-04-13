@@ -120,6 +120,16 @@
             </select>
           </div>
 
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">SHOP 노출</label>
+            <label class="flex items-center gap-2 cursor-pointer mt-2">
+              <input type="checkbox" name="is_published" value="1"
+                {% if product and product.is_published %}checked{% endif %}
+                class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+              <span class="text-sm text-gray-600">shop.blendpunch.com 에 노출</span>
+            </label>
+          </div>
+
           <div class="col-span-2">
             <label class="block text-sm font-medium text-gray-700 mb-1">제품 URL</label>
             <input type="url" name="source_url" id="field-source-url" value="{{ product.source_url or '' if product else '' }}" placeholder="https://"
@@ -861,11 +871,6 @@ const ACTION_SCOPE_TYPES = {
   options:  ['create_options'],
 };
 
-/**
- * Main entry point — run all (or scoped) actions from AI response.
- * @param {Array} actions - from API response
- * @param {string} scope  - 'all'|'basic'|'pricing'|'marketing'|'shipping'|'options'
- */
 function dispatchActions(actions, scope = 'all') {
   if (!Array.isArray(actions)) return;
   const allowed = ACTION_SCOPE_TYPES[scope] || ACTION_SCOPE_TYPES.all;
@@ -877,11 +882,9 @@ function dispatchActions(actions, scope = 'all') {
     updatedFields.push(...(fields || []));
   }
 
-  // Yellow flash on all updated fields
   _flashYellow(updatedFields);
 }
 
-/** Execute a single action. Returns list of field names that were updated. */
 function _runAction(action) {
   switch (action.type) {
     case 'set_product_type': return _doSetProductType(action.data);
@@ -890,7 +893,7 @@ function _runAction(action) {
     case 'update_marketing': return _doUpdateMarketing(action.data);
     case 'update_shipping':  return _doUpdateShipping(action.data);
     case 'create_options':   return _doCreateOptions(action.data);
-    case 'warning':          return []; // displayed in UI only
+    case 'warning':          return [];
     default:                 return [];
   }
 }
@@ -899,7 +902,7 @@ function _doSetProductType(val) {
   if (!['A','B','C','D'].includes(val)) return [];
   const radios = document.querySelectorAll('[name="product_type"]');
   for (const r of radios) r.checked = (r.value === val);
-  return [];  // radios don't flash
+  return [];
 }
 
 function _doSetField(data) {
@@ -1000,13 +1003,12 @@ function _doCreateOptions(data) {
   return [];
 }
 
-/** Yellow CSS animation flash on specified form field elements */
 function _flashYellow(fieldNames) {
   for (const name of fieldNames) {
     const el = document.querySelector(`[name="${name}"], [data-ai-field="${name}"]`);
     if (!el || el.type === 'radio' || el.type === 'hidden') continue;
     el.classList.remove('ai-flashed');
-    void el.offsetWidth; // reflow to restart animation
+    void el.offsetWidth;
     el.classList.add('ai-flashed');
     setTimeout(() => el.classList.remove('ai-flashed'), 2000);
   }
@@ -1092,7 +1094,7 @@ function productPage(initCats, initShippingType, initSampleType, initSets) {
     urlInput: '',
     imageFile: null,
     excelFile: null,
-    lastActions: [],     // last AI actions for quick-apply bar
+    lastActions: [],
 
     typeLabels: { A: '수량형', B: '옵션형', C: '세트형', D: '혼합형' },
 
@@ -1140,16 +1142,11 @@ function productPage(initCats, initShippingType, initSampleType, initSets) {
     actionIcon(t)   { return actionIcon(t); },
     actionSummary(a){ return actionSummary(a); },
 
-    // ── Dispatch actions from quick-apply bar ─────────────────────────────────
-    dispatch(actions, scope) {
-      dispatchActions(actions, scope);
-    },
+    dispatch(actions, scope) { dispatchActions(actions, scope); },
 
-    // ── Dispatch from message card + mark as done ─────────────────────────────
     dispatchAndMark(msg, scope) {
       dispatchActions(msg.actions, scope);
       msg.dispatched = true;
-      // If fully dispatched (all scope), mark for all scopes too
     },
 
     // ── Send text message ──────────────────────────────────────────────────────
@@ -1178,7 +1175,6 @@ function productPage(initCats, initShippingType, initSampleType, initSets) {
       this.$nextTick(() => this.scrollBottom());
     },
 
-    // ── URL analysis ──────────────────────────────────────────────────────────
     async analyzeUrl() {
       if (!this.urlInput.trim() || this.isLoading) return;
       const url = this.urlInput.trim();
@@ -1204,7 +1200,6 @@ function productPage(initCats, initShippingType, initSampleType, initSets) {
       this.$nextTick(() => this.scrollBottom());
     },
 
-    // ── Image OCR analysis ─────────────────────────────────────────────────────
     async analyzeImage() {
       if (!this.imageFile || this.isLoading) return;
       this.messages.push({ role: 'user', content: '📷 이미지 OCR 분석: ' + this.imageFile.name });
@@ -1228,7 +1223,6 @@ function productPage(initCats, initShippingType, initSampleType, initSets) {
       this.$nextTick(() => this.scrollBottom());
     },
 
-    // ── Excel analysis ────────────────────────────────────────────────────────
     async analyzeExcel() {
       if (!this.excelFile || this.isLoading) return;
       this.messages.push({ role: 'user', content: '📊 엑셀 분석: ' + this.excelFile.name });
@@ -1252,7 +1246,6 @@ function productPage(initCats, initShippingType, initSampleType, initSets) {
       this.$nextTick(() => this.scrollBottom());
     },
 
-    // ── Handle AI response (action protocol) ──────────────────────────────────
     _handleResponse(data) {
       const actions = Array.isArray(data.actions) ? data.actions : [];
       const msg = {
@@ -1266,17 +1259,12 @@ function productPage(initCats, initShippingType, initSampleType, initSets) {
       };
       this.messages.push(msg);
 
-      // Update product type badge in panel header
-      if (data.product_type) {
-        this.productType = data.product_type;
-      }
+      if (data.product_type) { this.productType = data.product_type; }
 
-      // Store last actions for quick-apply bar
       if (actions.filter(a => a.type !== 'warning').length > 0) {
         this.lastActions = actions;
       }
 
-      // Auto-dispatch ALL actions immediately on response
       if (actions.filter(a => a.type !== 'warning').length > 0) {
         dispatchActions(actions, 'all');
         msg.dispatched = true;

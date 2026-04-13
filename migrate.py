@@ -190,6 +190,12 @@ def migrate():
             except Exception:
                 pass
 
+        # ── Commerce Upgrade — OS-SHOP 연결 ─────────────────────────────────────
+        _add_column(conn, "sales_pages", "campaign_id VARCHAR(36) REFERENCES campaigns(id)")
+        _add_column(conn, "sales_pages", "is_published INTEGER DEFAULT 0")
+        _add_column(conn, "products",    "is_published INTEGER DEFAULT 0")
+        _add_column(conn, "users",       "subscription INTEGER DEFAULT 0")
+
         # ── 소프트 삭제 (archive) 컬럼 추가 ──────────────────────────────────────
         for tbl in ["products", "brands", "influencers"]:
             _add_column(conn, tbl, "is_archived INTEGER DEFAULT 0")
