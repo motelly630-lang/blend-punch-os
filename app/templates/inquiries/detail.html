@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}문의 상세 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}문의 상세{% endblock %}
+{% block header_actions %}
+<a href="/inquiries" class="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200">
+  ← 목록으로
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl space-y-4">
+
+  <!-- 문의 정보 -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-base font-semibold text-gray-900">문의 내용</h2>
+      {% if inquiry.status == 'pending' %}
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">미확인</span>
+      {% elif inquiry.status == 'read' %}
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-600">확인됨</span>
+      {% else %}
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-600">답변완료</span>
+      {% endif %}
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 text-sm">
+      <div>
+        <p class="text-xs text-gray-400 mb-1">이름</p>
+        <p class="font-medium text-gray-900">{{ inquiry.name }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 mb-1">연락처</p>
+        <p class="font-medium text-gray-900">{{ inquiry.contact }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 mb-1">카테고리</p>
+        <p class="font-medium text-gray-900">{{ inquiry.category }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 mb-1">접수일</p>
+        <p class="font-medium text-gray-900">
+          {{ inquiry.created_at.strftime('%Y.%m.%d %H:%M') if inquiry.created_at else '-' }}
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <p class="text-xs text-gray-400 mb-1">문의 내용</p>
+      <p class="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 rounded-lg p-4">{{ inquiry.message }}</p>
+    </div>
+  </div>
+
+  <!-- 기존 답변 -->
+  {% if inquiry.reply %}
+  <div class="bg-blue-50 rounded-xl border border-blue-100 p-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-base font-semibold text-blue-900">답변</h2>
+      <p class="text-xs text-blue-400">
+        {{ inquiry.replied_at.strftime('%Y.%m.%d %H:%M') if inquiry.replied_at else '' }}
+      </p>
+    </div>
+    <p class="text-sm text-blue-800 whitespace-pre-wrap">{{ inquiry.reply }}</p>
+  </div>
+  {% endif %}
+
+  <!-- 답변 입력 폼 -->
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <h2 class="text-base font-semibold text-gray-900 mb-4">
+      {% if inquiry.reply %}답변 수정{% else %}답변 작성{% endif %}
+    </h2>
+    <form method="POST" action="/inquiries/{{ inquiry.id }}/reply">
+      <textarea
+        name="reply"
+        rows="5"
+        placeholder="답변 내용을 입력하세요"
+        class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-400 resize-none"
+      >{{ inquiry.reply or '' }}</textarea>
+      <div class="mt-3 flex justify-end">
+        <button type="submit"
+          class="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+          답변 저장
+        </button>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

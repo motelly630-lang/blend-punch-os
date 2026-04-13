@@ -36,6 +36,7 @@ from app.routers import agent_pipeline as agent_pipeline_router
 from app.routers import transactions as transactions_router
 from app.routers import attendance as attendance_router
 from app.api import public_v1 as public_v1_router
+from app.routers import inquiry as inquiry_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions, FeatureDisabled
 
 
@@ -299,6 +300,7 @@ app.include_router(agent_pipeline_router.router)
 app.include_router(transactions_router.router)
 app.include_router(attendance_router.router)
 app.include_router(public_v1_router.router)
+app.include_router(inquiry_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────
@@ -400,7 +402,8 @@ def _setup_filters():
     import app.routers.agent_pipeline as agp
 
     import app.routers.attendance as att
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz, ff, comp, man, eml, bkp, agp, att]:
+    import app.routers.inquiry as inq
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz, ff, comp, man, eml, bkp, agp, att, inq]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num

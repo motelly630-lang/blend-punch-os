@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}문의 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}문의 관리{% endblock %}
+
+{% block content %}
+<!-- 탭 -->
+<div class="flex gap-1 mb-4 bg-white rounded-xl border border-gray-100 shadow-sm p-1 overflow-x-auto">
+  {% for key, label, cnt in [
+    ('', '전체', counts.all),
+    ('pending', '미확인', counts.pending),
+    ('read', '확인됨', counts.read),
+    ('replied', '답변완료', counts.replied),
+  ] %}
+  <a href="/inquiries?status={{ key }}"
+    class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium flex-shrink-0 transition-colors
+      {% if current_status == key %}bg-blue-600 text-white{% else %}text-gray-500 hover:bg-gray-50{% endif %}">
+    {{ label }}
+    {% if cnt > 0 %}
+    <span class="text-xs px-1.5 py-0.5 rounded-full
+      {% if current_status == key %}bg-white/20 text-white{% else %}bg-gray-100 text-gray-600{% endif %}">
+      {{ cnt }}
+    </span>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+<!-- 목록 -->
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+  {% if inquiries %}
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500">상태</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500">카테고리</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500">이름</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500">연락처</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500">문의 내용</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500">접수일</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for inq in inquiries %}
+      <tr class="hover:bg-gray-50 cursor-pointer" onclick="location.href='/inquiries/{{ inq.id }}'">
+        <td class="px-4 py-3">
+          {% if inq.status == 'pending' %}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">미확인</span>
+          {% elif inq.status == 'read' %}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-600">확인됨</span>
+          {% else %}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-600">답변완료</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-gray-600">{{ inq.category }}</td>
+        <td class="px-4 py-3 font-medium text-gray-900">{{ inq.name }}</td>
+        <td class="px-4 py-3 text-gray-500">{{ inq.contact }}</td>
+        <td class="px-4 py-3 text-gray-600 max-w-xs truncate">{{ inq.message }}</td>
+        <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
+          {{ inq.created_at.strftime('%Y.%m.%d %H:%M') if inq.created_at else '-' }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="py-20 text-center text-gray-300 text-sm">문의가 없습니다.</div>
+  {% endif %}
+</div>
+{% endblock %}
