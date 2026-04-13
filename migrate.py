@@ -190,6 +190,12 @@ def migrate():
             except Exception:
                 pass
 
+        # ── Outreach KPI Upgrade ─────────────────────────────────────────────────
+        _add_column(conn, "outreach_logs", "sent_at DATETIME")
+        _add_column(conn, "outreach_logs", "response_at DATETIME")
+        _add_column(conn, "outreach_logs", "status_detail TEXT")
+        _add_column(conn, "outreach_logs", "campaign_id VARCHAR(36) REFERENCES campaigns(id)")
+
         # ── Commerce Upgrade — OS-SHOP 연결 ─────────────────────────────────────
         _add_column(conn, "sales_pages", "campaign_id VARCHAR(36) REFERENCES campaigns(id)")
         _add_column(conn, "sales_pages", "is_published INTEGER DEFAULT 0")

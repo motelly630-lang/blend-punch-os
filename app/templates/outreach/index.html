@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}아웃리치 & 샘플 관리 | BLEND PUNCH OS{% endblock %}
-{% block page_title %}아웃리치 & 샘플 관리{% endblock %}
+{% block title %}아웃리치 KPI 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}아웃리치 KPI 관리{% endblock %}
 
 {% block header_actions %}
 <a href="/outreach/new"
@@ -14,34 +14,90 @@
 
 {% block content %}
 
-<!-- ── Stats row ──────────────────────────────────────────────────────────── -->
-<div class="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 col-span-2 lg:col-span-1">
-    <div class="text-2xl font-bold text-gray-900">{{ total }}</div>
-    <div class="text-xs text-gray-400 mt-0.5">전체 기록</div>
+<!-- ── 개인별 KPI 대시보드 ────────────────────────────────────────────────── -->
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm mb-6 overflow-hidden">
+  <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+    <h3 class="text-sm font-semibold text-gray-800">담당자별 KPI</h3>
+    <div class="flex items-center gap-4 text-xs text-gray-400">
+      <span>오늘 발송: <span class="font-bold text-blue-600">{{ today_count }}</span></span>
+      <span>전체: <span class="font-bold text-gray-700">{{ total }}</span></span>
+    </div>
   </div>
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-    <div class="text-2xl font-bold text-blue-600">{{ today_count }}</div>
-    <div class="text-xs text-gray-400 mt-0.5">오늘 발송</div>
+  {% if kpi_table %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">담당자</th>
+          <th class="text-center px-4 py-2.5 text-xs font-semibold text-blue-500">DM 발송</th>
+          <th class="text-center px-4 py-2.5 text-xs font-semibold text-amber-500">답장</th>
+          <th class="text-center px-4 py-2.5 text-xs font-semibold text-amber-500">답장률</th>
+          <th class="text-center px-4 py-2.5 text-xs font-semibold text-green-600">공구확정</th>
+          <th class="text-center px-4 py-2.5 text-xs font-semibold text-green-600">공구율</th>
+          <th class="px-4 py-2.5"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for kpi in kpi_table %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-5 py-3 font-semibold text-gray-800">{{ kpi.operator }}</td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-blue-600">{{ kpi.sent }}</span>
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-amber-600">{{ kpi.replied }}</span>
+          </td>
+          <td class="px-4 py-3 text-center">
+            <div class="flex items-center justify-center gap-2">
+              <div class="w-20 bg-gray-100 rounded-full h-1.5">
+                <div class="bg-amber-400 h-1.5 rounded-full" style="width:{{ kpi.reply_rate }}%"></div>
+              </div>
+              <span class="text-sm font-semibold {% if kpi.reply_rate >= 30 %}text-amber-600{% else %}text-gray-500{% endif %}">
+                {{ kpi.reply_rate }}%
+              </span>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-lg font-bold text-green-600">{{ kpi.deal }}</span>
+          </td>
+          <td class="px-4 py-3 text-center">
+            <div class="flex items-center justify-center gap-2">
+              <div class="w-20 bg-gray-100 rounded-full h-1.5">
+                <div class="bg-green-500 h-1.5 rounded-full" style="width:{{ kpi.deal_rate }}%"></div>
+              </div>
+              <span class="text-sm font-semibold {% if kpi.deal_rate >= 10 %}text-green-600{% else %}text-gray-500{% endif %}">
+                {{ kpi.deal_rate }}%
+              </span>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-right">
+            <a href="/outreach?operator={{ kpi.operator }}"
+              class="text-xs text-gray-400 hover:text-blue-600">상세 →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-  {% set color_classes = {
-    '제안발송': 'text-blue-600',
-    '샘플요청': 'text-amber-600',
-    '샘플발송': 'text-green-600',
-    '보류': 'text-gray-500',
-    '거절': 'text-red-500'
-  } %}
-  {% for status in sample_statuses %}
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-    <div class="text-2xl font-bold {{ color_classes.get(status, 'text-gray-700') }}">{{ status_counts[status] }}</div>
-    <div class="text-xs text-gray-400 mt-0.5">{{ status }}</div>
-  </div>
+  {% else %}
+  <div class="p-6 text-center text-sm text-gray-400">아직 데이터가 없습니다.</div>
+  {% endif %}
+</div>
+
+<!-- ── 상태별 카운트 ───────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-5 gap-3 mb-5">
+  {% set sc = {'sent':'blue','replied':'amber','deal':'green','hold':'gray','rejected':'red'} %}
+  {% set sl = {'sent':'DM 발송','replied':'답장','deal':'공구확정','hold':'보류','rejected':'거절'} %}
+  {% for s in outreach_statuses %}
+  <a href="/outreach?status={{ s }}" class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow">
+    <div class="text-2xl font-bold text-{{ sc.get(s,'gray') }}-600">{{ status_counts.get(s, 0) }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">{{ sl.get(s, s) }}</div>
+  </a>
   {% endfor %}
 </div>
 
-<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
+<!-- ── 필터 바 ────────────────────────────────────────────────────────────── -->
 <form method="get" action="/outreach" class="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-3 mb-4 flex flex-wrap items-center gap-3">
-  <!-- Operator filter -->
   <div class="flex items-center gap-2">
     <label class="text-xs text-gray-500 whitespace-nowrap">담당자</label>
     <select name="operator" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
@@ -51,17 +107,15 @@
       {% endfor %}
     </select>
   </div>
-  <!-- Status filter -->
   <div class="flex items-center gap-2">
     <label class="text-xs text-gray-500 whitespace-nowrap">상태</label>
     <select name="status" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
       <option value="">전체</option>
-      {% for s in sample_statuses %}
-      <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ s }}</option>
+      {% for s in outreach_statuses %}
+      <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ status_labels.get(s, s) }}</option>
       {% endfor %}
     </select>
   </div>
-  <!-- Product filter -->
   <div class="flex items-center gap-2">
     <label class="text-xs text-gray-500 whitespace-nowrap">제품</label>
     <select name="product_id" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
@@ -71,23 +125,25 @@
       {% endfor %}
     </select>
   </div>
-  <button type="submit" class="px-4 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors">필터 적용</button>
+  <button type="submit" class="px-4 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200">필터 적용</button>
   {% if filter_operator or filter_status or filter_product_id %}
-  <a href="/outreach" class="text-xs text-gray-400 hover:text-gray-600">필터 초기화</a>
+  <a href="/outreach" class="text-xs text-gray-400 hover:text-gray-600">초기화</a>
   {% endif %}
 </form>
 
-<!-- ── Log table ──────────────────────────────────────────────────────────── -->
+<!-- ── 로그 테이블 ────────────────────────────────────────────────────────── -->
 {% if enriched %}
 <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
   <table class="w-full text-sm">
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
-        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">날짜</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">날짜</th>
         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">담당자</th>
         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">인플루언서</th>
         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">제품</th>
-        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500">샘플 상태</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">캠페인</th>
+        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500">상태</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">답장일</th>
         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">메모</th>
         <th class="text-center px-3 py-3 text-xs font-semibold text-gray-500">이메일</th>
         <th class="px-3 py-3"></th>
@@ -98,16 +154,17 @@
       {% set log = item.log %}
       {% set product = item.product %}
       {% set influencer = item.influencer %}
-      {% set color = status_colors.get(log.sample_status, 'gray') %}
-      {% set badge_cls = {
-        'blue': 'bg-blue-100 text-blue-700',
+      {% set campaign = item.campaign %}
+      {% set color = item.status_color %}
+      {% set badge = {
+        'blue':  'bg-blue-100 text-blue-700',
         'amber': 'bg-amber-100 text-amber-700',
         'green': 'bg-green-100 text-green-700',
-        'gray': 'bg-gray-100 text-gray-600',
-        'red': 'bg-red-100 text-red-600'
+        'gray':  'bg-gray-100 text-gray-600',
+        'red':   'bg-red-100 text-red-600'
       } %}
       <tr class="hover:bg-gray-50 transition-colors">
-        <td class="px-5 py-3 text-xs text-gray-500 whitespace-nowrap">{{ log.outreach_date }}</td>
+        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{{ log.outreach_date }}</td>
         <td class="px-4 py-3 text-sm font-medium text-gray-700">{{ log.operator }}</td>
         <td class="px-4 py-3">
           <div class="font-medium text-gray-800 text-sm">@{{ log.influencer_handle }}</div>
@@ -127,20 +184,42 @@
           <span class="text-xs text-gray-400">—</span>
           {% endif %}
         </td>
+        <td class="px-4 py-3">
+          {% if campaign %}
+          <a href="/campaigns/{{ campaign.id }}" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+            {{ campaign.name | truncate(20) }}
+          </a>
+          {% else %}
+          <span class="text-xs text-gray-300">—</span>
+          {% endif %}
+        </td>
         <td class="px-4 py-3 text-center" id="status-cell-{{ log.id }}">
           <select name="sample_status"
             hx-post="/outreach/{{ log.id }}/status"
             hx-target="#status-cell-{{ log.id }}"
             hx-swap="innerHTML"
             hx-trigger="change"
-            class="text-xs font-semibold border-0 rounded-full px-2 py-1 cursor-pointer {{ badge_cls.get(color, 'bg-gray-100 text-gray-600') }}">
-            {% for s in sample_statuses %}
-            <option value="{{ s }}" {% if log.sample_status == s %}selected{% endif %}>{{ s }}</option>
+            class="text-xs font-semibold border-0 rounded-full px-2 py-1 cursor-pointer {{ badge.get(color, 'bg-gray-100 text-gray-600') }}">
+            {% for s in outreach_statuses %}
+            <option value="{{ s }}" {% if log.sample_status == s %}selected{% endif %}>{{ status_labels.get(s, s) }}</option>
             {% endfor %}
           </select>
         </td>
-        <td class="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">
-          {{ log.notes or "—" }}
+        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+          {% if log.response_at %}
+          {{ log.response_at.strftime('%m/%d %H:%M') }}
+          {% else %}—{% endif %}
+        </td>
+        <td class="px-4 py-3 max-w-[160px]">
+          {% if log.status_detail %}
+          <div class="text-xs text-gray-700 truncate">{{ log.status_detail }}</div>
+          {% endif %}
+          {% if log.notes %}
+          <div class="text-xs text-gray-400 truncate">{{ log.notes }}</div>
+          {% endif %}
+          {% if not log.status_detail and not log.notes %}
+          <span class="text-xs text-gray-300">—</span>
+          {% endif %}
         </td>
         <td class="px-3 py-3 text-center whitespace-nowrap">
           {% set ecnt = email_counts.get(log.id, 0) %}
@@ -154,21 +233,23 @@
           </button>
         </td>
         <td class="px-3 py-3 whitespace-nowrap">
-          {% if item.crm_pipeline_id %}
-          <a href="/crm/{{ item.crm_pipeline_id }}"
-            class="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50 transition-colors">
-            CRM 보기 →
-          </a>
-          {% elif log.influencer_id and log.sample_status in ['샘플요청', '샘플발송', '보류'] %}
-          <form method="post" action="/outreach/{{ log.id }}/to-crm" class="inline">
-            <button type="submit"
-              class="text-xs text-indigo-500 hover:text-indigo-700 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50 transition-colors">
-              CRM 등록
-            </button>
-          </form>
-          {% else %}
-          <span class="text-xs text-gray-200">—</span>
-          {% endif %}
+          <div class="flex items-center gap-1">
+            <a href="/outreach/{{ log.id }}/edit"
+              class="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">편집</a>
+            {% if item.crm_pipeline_id %}
+            <a href="/crm/{{ item.crm_pipeline_id }}"
+              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50">
+              CRM →
+            </a>
+            {% elif log.influencer_id and log.sample_status in ['replied', 'deal', '샘플요청', '샘플발송'] %}
+            <form method="post" action="/outreach/{{ log.id }}/to-crm" class="inline">
+              <button type="submit"
+                class="text-xs text-indigo-500 hover:text-indigo-700 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50">
+                CRM 등록
+              </button>
+            </form>
+            {% endif %}
+          </div>
         </td>
       </tr>
       {% endfor %}
@@ -180,13 +261,13 @@
   <div class="text-3xl mb-3">📭</div>
   <div class="text-sm text-gray-500 mb-4">아직 기록된 아웃리치가 없습니다.</div>
   <a href="/outreach/new"
-    class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+    class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700">
     첫 번째 아웃리치 기록하기
   </a>
 </div>
 {% endif %}
 
-<!-- ── 이메일 모달 ──────────────────────────────────────────────────────────── -->
+<!-- ── 이메일 모달 ─────────────────────────────────────────────────────────── -->
 <div id="email-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
   <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between p-5 border-b border-gray-100">
@@ -197,7 +278,6 @@
         </svg>
       </button>
     </div>
-
     <div class="p-5 space-y-4">
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">템플릿</label>
@@ -210,19 +290,16 @@
           <option value="thank_you">감사 인사</option>
         </select>
       </div>
-
       <form id="email-form"
         hx-post="/emails/send"
         hx-target="#outreach-email-result"
         hx-swap="innerHTML"
         hx-on::after-request="onEmailSent()"
         class="space-y-3">
-
         <input type="hidden" name="related_type" value="outreach">
         <input type="hidden" id="email-related-id" name="related_id" value="">
         <input type="hidden" id="email-template-name" name="template_name" value="">
         <input type="hidden" id="email-template-vars" name="template_vars" value="{}">
-
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">수신자 이름</label>
@@ -235,34 +312,24 @@
               class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           </div>
         </div>
-
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">제목 <span class="text-red-400">*</span></label>
           <input type="text" id="email-subject" name="subject" required placeholder="이메일 제목"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
-
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">내용 <span class="text-red-400">*</span></label>
-          <textarea id="email-body" name="body" required rows="7" placeholder="이메일 내용..."
+          <textarea id="email-body" name="body" required rows="7"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono"></textarea>
         </div>
-
         <div class="flex justify-end">
-          <button type="submit"
-            class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
-            발송
-          </button>
+          <button type="submit" class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">발송</button>
         </div>
       </form>
-
       <div id="outreach-email-result"></div>
-
       <div class="border-t border-gray-100 pt-4">
         <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">발송 이력</div>
-        <div id="outreach-email-history">
-          <div class="text-center py-3 text-xs text-gray-300">불러오는 중...</div>
-        </div>
+        <div id="outreach-email-history"><div class="text-center py-3 text-xs text-gray-300">불러오는 중...</div></div>
       </div>
     </div>
   </div>
@@ -275,11 +342,7 @@ let _currentTplVars = {};
 
 function openEmailModal(logId, toEmail, toName, productName) {
   _currentOutreachId = logId;
-  _currentTplVars = {
-    influencer_name: toName,
-    product_name: productName,
-    sender_name: '{{ current_user.username }}',
-  };
+  _currentTplVars = { influencer_name: toName, product_name: productName, sender_name: '{{ current_user.username }}' };
   document.getElementById('email-related-id').value = logId;
   document.getElementById('email-to-email').value = toEmail;
   document.getElementById('email-to-name').value = toName;
@@ -289,18 +352,10 @@ function openEmailModal(logId, toEmail, toName, productName) {
   document.getElementById('email-template-name').value = '';
   document.getElementById('email-template-vars').value = JSON.stringify(_currentTplVars);
   document.getElementById('outreach-email-result').innerHTML = '';
-
-  htmx.ajax('GET', '/emails/history?related_type=outreach&related_id=' + logId, {
-    target: '#outreach-email-history', swap: 'innerHTML'
-  });
-
+  htmx.ajax('GET', '/emails/history?related_type=outreach&related_id=' + logId, { target: '#outreach-email-history', swap: 'innerHTML' });
   document.getElementById('email-modal').classList.remove('hidden');
 }
-
-function closeEmailModal() {
-  document.getElementById('email-modal').classList.add('hidden');
-}
-
+function closeEmailModal() { document.getElementById('email-modal').classList.add('hidden'); }
 function applyOutreachTemplate() {
   const tpl = document.getElementById('email-tpl').value;
   document.getElementById('email-template-name').value = tpl;
@@ -309,23 +364,15 @@ function applyOutreachTemplate() {
     document.getElementById('email-body').value = '';
     return;
   }
-  function replaceTpl(str, vars) {
-    return str.replace(/\{(\w+)\}/g, (m, k) => vars[k] !== undefined ? vars[k] : m);
-  }
+  function replaceTpl(str, vars) { return str.replace(/\{(\w+)\}/g, (m, k) => vars[k] !== undefined ? vars[k] : m); }
   document.getElementById('email-subject').value = replaceTpl(EMAIL_TEMPLATES_DATA[tpl].subject, _currentTplVars);
   document.getElementById('email-body').value    = replaceTpl(EMAIL_TEMPLATES_DATA[tpl].body,    _currentTplVars);
 }
-
 function onEmailSent() {
   setTimeout(function() {
-    htmx.ajax('GET', '/emails/history?related_type=outreach&related_id=' + _currentOutreachId, {
-      target: '#outreach-email-history', swap: 'innerHTML'
-    });
+    htmx.ajax('GET', '/emails/history?related_type=outreach&related_id=' + _currentOutreachId, { target: '#outreach-email-history', swap: 'innerHTML' });
   }, 300);
 }
-
-document.getElementById('email-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeEmailModal();
-});
+document.getElementById('email-modal').addEventListener('click', function(e) { if (e.target === this) closeEmailModal(); });
 </script>
 {% endblock %}
