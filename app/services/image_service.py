@@ -243,6 +243,38 @@ def save_sales_page_image(file: UploadFile, remove_bg: bool = False) -> str | No
     return save_upload(file, UPLOAD_DIR_SALES_PAGES, remove_bg=remove_bg)
 
 
+def process_url_with_remove_bg(url: str, dest_dir: Path) -> str | None:
+    """
+    외부 URL 이미지를 다운로드 → 누끼 제거 → S3 또는 로컬 저장.
+    성공 시 새 URL 반환, 실패 시 None.
+    """
+    if not url or not url.startswith("http"):
+        return None
+    try:
+        headers = _INSTAGRAM_HEADERS if _is_instagram_url(url) else {}
+        resp = httpx.get(url, headers=headers, timeout=20, follow_redirects=True)
+        if resp.status_code != 200:
+            return None
+        img = Image.open(BytesIO(resp.content))
+        img = _process_image(img, remove_bg=True)
+        use_alpha = img.mode == "RGBA"
+        img_bytes, ext = _pil_to_bytes(img, use_alpha=use_alpha)
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        content_type = "image/png" if ext == "png" else "image/webp"
+
+        s3_prefix = _S3_PREFIX_MAP.get(str(dest_dir), f"uploads/{dest_dir.name}")
+        s3_key = f"{s3_prefix}/{filename}"
+        s3_url = _upload_bytes_to_s3(img_bytes, s3_key, content_type)
+        if s3_url:
+            return s3_url
+
+        dest = dest_dir / filename
+        dest.write_bytes(img_bytes)
+        return f"/{dest}"
+    except Exception:
+        return None
+
+
 def cache_external_image(url: str) -> str | None:
     """
     외부 이미지(인스타그램 등)를 서버에 다운로드하여 /static/cache/ 에 저장.

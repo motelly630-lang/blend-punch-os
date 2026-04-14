@@ -600,6 +600,7 @@ def remove_bg_batch(
         Product.is_archived.isnot(True),
         Product.product_image.isnot(None),
         Product.product_image.like("http%"),
+        ~Product.product_image.like("%amazonaws.com%"),  # S3 처리완료 제외
     ).all()
     items = [(r.id, r.product_image) for r in targets]
 
