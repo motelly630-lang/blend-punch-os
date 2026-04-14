@@ -4,7 +4,8 @@
 import csv
 import io
 import logging
-from datetime import datetime
+import os
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -25,6 +26,55 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/orders")
 templates = Jinja2Templates(directory="app/templates")
 
+
+# ── 공개 API (SHOP → OS) ────────────────────────────────────────────────────
+
+@router.post("/api/create")
+async def order_create_api(request: Request, db: Session = Depends(get_db)):
+    """결제 완료 후 blend-pick에서 호출하는 주문 생성 API"""
+    import random, string
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid body"}, status_code=400)
+
+    secret_key = os.environ.get("TOSS_SECRET_KEY", "")
+    is_test = secret_key.startswith("test_")
+
+    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    suffix = "".join(random.choices(string.digits, k=6))
+    order_number = f"BP-{date_str}-{suffix}"
+
+    order = Order(
+        order_number=order_number,
+        product_id=body.get("product_id"),
+        sales_page_id=body.get("sales_page_id"),
+        customer_name=body.get("customer_name"),
+        customer_phone=body.get("customer_phone"),
+        customer_email=body.get("customer_email"),
+        shipping_name=body.get("shipping_name"),
+        shipping_phone=body.get("shipping_phone"),
+        shipping_address=body.get("shipping_address"),
+        shipping_address2=body.get("shipping_address2"),
+        shipping_zipcode=body.get("shipping_zipcode"),
+        shipping_memo=body.get("shipping_memo"),
+        option_name=body.get("option_name"),
+        quantity=body.get("quantity", 1),
+        unit_price=body.get("unit_price", 0),
+        total_price=body.get("total_price", 0),
+        payment_key=body.get("payment_key"),
+        payment_method=body.get("payment_method"),
+        payment_status="paid",
+        paid_at=datetime.now(timezone.utc),
+        order_status="confirmed",
+        is_test=is_test,
+    )
+    db.add(order)
+    db.commit()
+    return {"ok": True, "order_id": order.id, "order_number": order.order_number}
+
+
+# ── 어드민 내부 헬퍼 ─────────────────────────────────────────────────────────
 
 def _get_orders(db: Session, status: str = "", seller_code: str = "",
                 page_id: str = "", search: str = "", company_id: int = 1):

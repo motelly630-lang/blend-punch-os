@@ -108,6 +108,8 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
             path.startswith("/public") or
             path.startswith("/catalog") or
             path.startswith("/api/v1") or
+            path.startswith("/orders/api/") or
+            path.startswith("/inquiries/api/") or
             path in ("/login", "/logout", "/robots.txt", "/sw.js", "/manifest.json") or
             path.startswith("/signup") or
             path.startswith("/verify-email") or

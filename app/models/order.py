@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Text, DateTime, Integer, ForeignKey, JSON
+from sqlalchemy import Column, String, Float, Text, DateTime, Integer, ForeignKey, JSON, Boolean
 from app.models.base import Base
 
 
@@ -12,7 +12,7 @@ class Order(Base):
     order_number = Column(String(50), unique=True, nullable=False)   # BP-YYYYMMDD-XXXXXX
 
     # 판매 페이지 / 상품
-    sales_page_id = Column(String(36), ForeignKey("sales_pages.id"), nullable=False)
+    sales_page_id = Column(String(36), ForeignKey("sales_pages.id"), nullable=True)
     product_id = Column(String(36), ForeignKey("products.id"), nullable=False)
 
     # 셀러 추적 (핵심)
@@ -50,6 +50,9 @@ class Order(Base):
     carrier_name = Column(String(50), nullable=True)
     tracking_number = Column(String(100), nullable=True)
     shipped_at = Column(DateTime, nullable=True)
+
+    # 테스트 결제 여부
+    is_test = Column(Boolean, default=False)  # test_sk_ 키로 결제된 주문
 
     # 관리자 메모
     notes = Column(Text, nullable=True)
