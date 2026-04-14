@@ -67,7 +67,7 @@
         <img src="{{ product.product_image }}" alt="{{ product.name }}"
           loading="lazy"
           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
-          class="w-full object-cover max-h-72">
+          class="w-full object-contain max-h-72 p-4">
         {% endif %}
         <div class="{% if product.product_image %}hidden{% else %}flex{% endif %} p-8 items-center justify-center">
           <svg class="w-16 h-16 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
