@@ -85,10 +85,12 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
     cid = get_company_id(current_user)
     _run_archiving(db)
     # Backfill: create settlements for existing completed campaigns that have none
+    from sqlalchemy import and_
     completed_no_settlement = db.query(Campaign).filter(
         Campaign.company_id == cid,
         Campaign.status == "completed",
         Campaign.influencer_id.isnot(None),
+        Campaign.actual_revenue > 0,
         ~Campaign.id.in_(db.query(Settlement.campaign_id).filter(Settlement.campaign_id.isnot(None)))
     ).all()
     if completed_no_settlement:
@@ -173,30 +175,57 @@ def _parse_date(s):
 
 
 def _auto_settle(db: Session, campaign: Campaign):
-    """Create a draft Settlement when campaign completes (if none exists yet)."""
+    """캠페인 완료 시 정산 자동 생성 또는 pending 상태 정산 재계산.
+
+    - influencer_id 없으면 스킵
+    - actual_revenue = 0 이면 스킵 (0원 정산 방지)
+    - seller_type 우선순위: campaign.seller_type > influencer.business_type > '사업자'
+    - 기존 pending 정산이 있으면 금액 재계산, confirmed/paid는 건드리지 않음
+    """
     if not campaign.influencer_id:
         return
-    existing = db.query(Settlement).filter_by(campaign_id=campaign.id).first()
-    if existing:
+    if not (campaign.actual_revenue or 0):
         return
+
     from app.routers.settlements import calc_settlement
     inf = db.query(Influencer).filter_by(id=campaign.influencer_id).first()
-    seller_type = (inf.business_type if inf and inf.business_type else "사업자")
+
+    # seller_type: 캠페인 설정 우선, 없으면 인플루언서 사업자 유형, 최종 fallback 사업자
+    seller_type = (
+        campaign.seller_type
+        or (inf.business_type if inf and inf.business_type else None)
+        or "사업자"
+    )
     seller_rate = campaign.seller_commission_rate or campaign.commission_rate or 0.0
     calc = calc_settlement(campaign.actual_revenue or 0, seller_rate, seller_type)
     period = (campaign.end_date.strftime("%Y년 %m월") if campaign.end_date else datetime.now().strftime("%Y년 %m월"))
-    s = Settlement(
-        influencer_id=campaign.influencer_id,
-        campaign_id=campaign.id,
-        period_label=period,
-        seller_type=seller_type,
-        sales_amount=campaign.actual_revenue or 0,
-        commission_rate=seller_rate,
-        status="pending",
-        notes="캠페인 완료 시 자동 생성",
-        **calc,
-    )
-    db.add(s)
+
+    existing = db.query(Settlement).filter_by(campaign_id=campaign.id).first()
+    if existing:
+        # pending 상태만 재계산 (confirmed/paid는 건드리지 않음)
+        if existing.status == "pending":
+            existing.sales_amount      = campaign.actual_revenue or 0
+            existing.commission_rate   = seller_rate
+            existing.seller_type       = seller_type
+            existing.period_label      = period
+            existing.commission_amount = calc["commission_amount"]
+            existing.vat_amount        = calc["vat_amount"]
+            existing.tax_rate          = calc["tax_rate"]
+            existing.tax_amount        = calc["tax_amount"]
+            existing.final_payment     = calc["final_payment"]
+    else:
+        s = Settlement(
+            influencer_id=campaign.influencer_id,
+            campaign_id=campaign.id,
+            period_label=period,
+            seller_type=seller_type,
+            sales_amount=campaign.actual_revenue or 0,
+            commission_rate=seller_rate,
+            status="pending",
+            notes="캠페인 완료 시 자동 생성",
+            **calc,
+        )
+        db.add(s)
 
 
 def _parse_form_fields(
@@ -431,7 +460,7 @@ def campaign_update(
     campaign.external_url = external_url.strip() or None
     db.commit()
 
-    if status == "completed" and prev_status != "completed":
+    if status == "completed":
         _auto_settle(db, campaign)
         db.commit()
 
@@ -485,7 +514,7 @@ async def campaign_inline_update(
         campaign.vendor_commission_amount = round(rev * (campaign.vendor_commission_rate or 0))
         db.commit()
 
-        if campaign.status == "completed" and prev_status != "completed":
+        if campaign.status == "completed":
             _auto_settle(db, campaign)
             db.commit()
     except Exception as e:

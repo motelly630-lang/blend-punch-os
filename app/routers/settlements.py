@@ -82,27 +82,6 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
         Settlement.company_id == cid, Settlement.status == "paid"
     ).scalar() or 0
 
-    # Sync seller_type from influencer.business_type if mismatched
-    pending_settlements = db.query(Settlement).filter(
-        Settlement.company_id == cid,
-        Settlement.status.in_(["pending", "confirmed"]),
-        Settlement.influencer_id.isnot(None),
-    ).all()
-    synced = False
-    for st in pending_settlements:
-        inf = st.influencer
-        if inf and inf.business_type and inf.business_type != st.seller_type:
-            calc = calc_settlement(st.sales_amount or 0, st.commission_rate or 0, inf.business_type)
-            st.seller_type = inf.business_type
-            st.vat_amount = calc["vat_amount"]
-            st.tax_rate = calc["tax_rate"]
-            st.tax_amount = calc["tax_amount"]
-            st.commission_amount = calc["commission_amount"]
-            st.final_payment = calc["final_payment"]
-            synced = True
-    if synced:
-        db.commit()
-
     # Load only the active tab's rows
     settlements = (
         db.query(Settlement)
