@@ -115,7 +115,7 @@ def outreach_list(
             "date": d,
             "count": len(items),
             "operators": sorted({i.operator for i in items}),
-            "items": [
+            "entries": [
                 {
                     "log": i,
                     "product_name": _all_product_map[i.product_id].name if i.product_id and i.product_id in _all_product_map else None,
