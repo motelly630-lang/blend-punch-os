@@ -9,6 +9,7 @@ Routes:
   POST /outreach/{id}/status — 상태 변경 (htmx)
   POST /outreach/{id}/to-crm — CRM 등록
 """
+import json
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -102,6 +103,31 @@ def outreach_list(
     all_logs = db.query(OutreachLog).filter(OutreachLog.company_id == cid).all()
     kpi_table = _calc_kpi(all_logs)
 
+    # 날짜별 그룹 (전체 기준)
+    from collections import defaultdict
+    _all_product_ids = {l.product_id for l in all_logs if l.product_id}
+    _all_product_map = {p.id: p for p in db.query(Product).filter(Product.id.in_(_all_product_ids)).all()} if _all_product_ids else {}
+    _date_buckets: dict[str, list] = defaultdict(list)
+    for l in sorted(all_logs, key=lambda x: (x.outreach_date or "", x.created_at or ""), reverse=False):
+        _date_buckets[l.outreach_date or "날짜없음"].append(l)
+    date_groups = [
+        {
+            "date": d,
+            "count": len(items),
+            "operators": sorted({i.operator for i in items}),
+            "items": [
+                {
+                    "log": i,
+                    "product_name": _all_product_map[i.product_id].name if i.product_id and i.product_id in _all_product_map else None,
+                    "status_label": STATUS_LABELS.get(i.sample_status, i.sample_status),
+                    "status_color": STATUS_COLORS.get(i.sample_status, "gray"),
+                }
+                for i in items
+            ],
+        }
+        for d, items in sorted(_date_buckets.items(), reverse=True)
+    ]
+
     # 필터 적용
     q = db.query(OutreachLog).filter(OutreachLog.company_id == cid)
     if operator:
@@ -110,7 +136,7 @@ def outreach_list(
         q = q.filter(OutreachLog.sample_status == status)
     if product_id:
         q = q.filter(OutreachLog.product_id == product_id)
-    logs = q.order_by(OutreachLog.outreach_date.desc(), OutreachLog.created_at.desc()).limit(500).all()
+    logs = q.order_by(OutreachLog.outreach_date.desc(), OutreachLog.created_at.desc()).all()
 
     # 관련 데이터 조회
     product_ids    = {log.product_id    for log in logs if log.product_id}
@@ -186,7 +212,8 @@ def outreach_list(
         "filter_status":   status,
         "filter_product_id": product_id,
         "today_count":     today_count,
-        "total":           len(logs),
+        "total":           len(all_logs),
+        "date_groups":     date_groups,
         "today":           date.today().isoformat(),
         "email_counts":    email_counts,
         "email_templates_json": json.dumps(
@@ -207,6 +234,10 @@ def outreach_new_form(
     cid = get_company_id(current_user)
     products  = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
     campaigns = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.is_archived == False).order_by(Campaign.name).all()
+    products_json = json.dumps(
+        [{"id": p.id, "label": f"{p.name}{' — ' + p.brand if p.brand else ''}"} for p in products],
+        ensure_ascii=False,
+    )
     return templates.TemplateResponse("outreach/form.html", {
         "request": request,
         "active_page": "outreach",
@@ -217,6 +248,8 @@ def outreach_new_form(
         "status_labels": STATUS_LABELS,
         "today": date.today().isoformat(),
         "log": None,
+        "products_json": products_json,
+        "current_product_label": "",
     })
 
 
@@ -289,6 +322,16 @@ def outreach_edit_form(
         return RedirectResponse("/outreach?err=기록을+찾을+수+없습니다", status_code=302)
     products  = db.query(Product).filter(Product.company_id == cid, Product.status == "active").order_by(Product.name).all()
     campaigns = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.is_archived == False).order_by(Campaign.name).all()
+    products_json = json.dumps(
+        [{"id": p.id, "label": f"{p.name}{' — ' + p.brand if p.brand else ''}"} for p in products],
+        ensure_ascii=False,
+    )
+    current_product_label = ""
+    if log and log.product_id:
+        for p in products:
+            if p.id == log.product_id:
+                current_product_label = f"{p.name}{' — ' + p.brand if p.brand else ''}"
+                break
     return templates.TemplateResponse("outreach/form.html", {
         "request": request,
         "active_page": "outreach",
@@ -299,6 +342,8 @@ def outreach_edit_form(
         "status_labels": STATUS_LABELS,
         "today": date.today().isoformat(),
         "log": log,
+        "products_json": products_json,
+        "current_product_label": current_product_label,
     })
 
 
