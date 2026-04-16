@@ -272,6 +272,8 @@ def campaign_create(
     brand_name_manual: str = Form(""),
     category_manual: str = Form(""),
     seller_type: str = Form(""),
+    campaign_type: str = Form("internal"),
+    external_url: str = Form(""),
 ):
     cid = get_company_id(current_user)
     commission_rate_f, seller_rate, vendor_rate, seller_amt, vendor_amt = _parse_form_fields(
@@ -300,6 +302,8 @@ def campaign_create(
         brand_name_manual=brand_name_manual or None,
         category_manual=category_manual or None,
         seller_type=seller_type or None,
+        campaign_type=campaign_type or "internal",
+        external_url=external_url.strip() or None,
     )
     db.add(campaign)
     db.commit()
@@ -390,6 +394,8 @@ def campaign_update(
     brand_name_manual: str = Form(""),
     category_manual: str = Form(""),
     seller_type: str = Form(""),
+    campaign_type: str = Form("internal"),
+    external_url: str = Form(""),
 ):
     cid = get_company_id(current_user)
     campaign = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.id == campaign_id).first()
@@ -421,6 +427,8 @@ def campaign_update(
     campaign.brand_name_manual = brand_name_manual or None
     campaign.category_manual = category_manual or None
     campaign.seller_type = seller_type or None
+    campaign.campaign_type = campaign_type or "internal"
+    campaign.external_url = external_url.strip() or None
     db.commit()
 
     if status == "completed" and prev_status != "completed":
@@ -466,6 +474,10 @@ async def campaign_inline_update(
         campaign.vendor_commission_rate = float(data["vendor_commission_rate_pct"] or 0) / 100
     if "status" in data:
         campaign.status = str(data["status"])
+    if "campaign_type" in data:
+        campaign.campaign_type = data["campaign_type"] or "internal"
+    if "external_url" in data:
+        campaign.external_url = (data["external_url"] or "").strip() or None
 
     try:
         rev = campaign.actual_revenue or 0

@@ -36,6 +36,9 @@ class Campaign(Base):
     category_manual = Column(String(100), nullable=True)
     # 셀러 유형
     seller_type = Column(String(30), nullable=True)  # 사업자/간이사업자/프리랜서
+    # 내부/외부 구분
+    campaign_type = Column(String(20), default="internal")  # internal|external
+    external_url = Column(Text, nullable=True)               # 외부 링크 (external일 때)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

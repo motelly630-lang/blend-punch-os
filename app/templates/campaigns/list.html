@@ -590,8 +590,10 @@ var CAMP_DATA = {
     spct:     {{ ((c.seller_commission_rate or 0) * 100) | round(1) }},
     vpct:     {{ ((c.vendor_commission_rate or 0) * 100) | round(1) }},
     st:       {{ c.status | tojson }},
-    prodId:   {{ (c.product_id if c.product_id else '') | tojson }},
-    prodName: {{ (c.product.name if c.product else (c.product_name_manual or '')) | tojson }}
+    prodId:    {{ (c.product_id if c.product_id else '') | tojson }},
+    prodName:  {{ (c.product.name if c.product else (c.product_name_manual or '')) | tojson }},
+    campType:  {{ (c.campaign_type or 'internal') | tojson }},
+    extUrl:    {{ (c.external_url or '') | tojson }}
   }{% if not loop.last %},{% endif %}
 
   {% endfor %}
@@ -631,6 +633,8 @@ function campCard(opts) {
     prodName:  opts.prodName || '',
     prodSearch: opts.prodName || '',
     showProdList: false,
+    campType:  opts.campType  || 'internal',
+    extUrl:    opts.extUrl    || '',
     _orig: null,
 
     get sa() { return Math.round(this.rev * this.spct / 100); },
@@ -657,7 +661,8 @@ function campCard(opts) {
     openEdit() {
       this._orig = { sd: this.sd, ed: this.ed, up: this.up, aq: this.aq,
                      rev: this.rev, spct: this.spct, vpct: this.vpct, st: this.st,
-                     prodId: this.prodId, prodName: this.prodName, prodSearch: this.prodSearch };
+                     prodId: this.prodId, prodName: this.prodName, prodSearch: this.prodSearch,
+                     campType: this.campType, extUrl: this.extUrl };
       this.editing = true;
       this.$dispatch('camp-edit-opened', { id: this.cid });
       this.$nextTick(function() {
@@ -686,6 +691,8 @@ function campCard(opts) {
             seller_commission_rate_pct: this.spct,
             vendor_commission_rate_pct: this.vpct,
             status: this.st,
+            campaign_type: this.campType,
+            external_url:  this.extUrl || '',
           })
         });
         if (r.status === 401) { window.location.href = '/login'; return; }
