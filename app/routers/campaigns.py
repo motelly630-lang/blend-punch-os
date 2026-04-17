@@ -213,8 +213,13 @@ def _auto_settle(db: Session, campaign: Campaign):
             existing.tax_rate          = calc["tax_rate"]
             existing.tax_amount        = calc["tax_amount"]
             existing.final_payment     = calc["final_payment"]
+            if inf and not existing.bank_name_snapshot:
+                existing.bank_name_snapshot       = inf.bank_name
+                existing.account_number_snapshot  = inf.account_number
+                existing.account_holder_snapshot  = inf.account_holder
     else:
         s = Settlement(
+            company_id=campaign.company_id,
             influencer_id=campaign.influencer_id,
             campaign_id=campaign.id,
             period_label=period,
@@ -223,6 +228,9 @@ def _auto_settle(db: Session, campaign: Campaign):
             commission_rate=seller_rate,
             status="pending",
             notes="캠페인 완료 시 자동 생성",
+            bank_name_snapshot=inf.bank_name if inf else None,
+            account_number_snapshot=inf.account_number if inf else None,
+            account_holder_snapshot=inf.account_holder if inf else None,
             **calc,
         )
         db.add(s)
