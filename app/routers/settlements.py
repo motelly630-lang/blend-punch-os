@@ -1,4 +1,5 @@
 import io
+import json
 from datetime import date
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -98,6 +99,50 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
         reverse=True,
     )
 
+    # 정산 등록 모달용 드롭다운 데이터
+    influencers_for_modal = (
+        db.query(Influencer)
+        .filter(Influencer.company_id == cid, Influencer.is_archived == False)
+        .order_by(Influencer.name)
+        .limit(300).all()
+    )
+    campaigns_for_modal = (
+        db.query(Campaign)
+        .filter(Campaign.company_id == cid, Campaign.is_archived == False)
+        .order_by(Campaign.created_at.desc())
+        .limit(200).all()
+    )
+    influencers_json = json.dumps([{
+        "id": i.id, "name": i.name,
+        "business_type": i.business_type or "사업자",
+    } for i in influencers_for_modal], ensure_ascii=False)
+    campaigns_json = json.dumps([{
+        "id": c.id, "name": c.name,
+        "start_date": str(c.start_date) if c.start_date else "",
+        "end_date": str(c.end_date) if c.end_date else "",
+        "influencer_id": c.influencer_id or "",
+        "actual_revenue": c.actual_revenue or 0,
+        "commission_rate": c.commission_rate or 0,
+        "seller_type": c.seller_type or "",
+    } for c in campaigns_for_modal], ensure_ascii=False)
+
+    # 완료됐지만 정산 미등록 캠페인
+    settled_campaign_ids = {
+        r[0] for r in db.query(Settlement.campaign_id)
+        .filter(Settlement.campaign_id.isnot(None), Settlement.company_id == cid).all()
+    }
+    unsettled_campaigns = (
+        db.query(Campaign)
+        .filter(
+            Campaign.company_id == cid,
+            Campaign.status == "completed",
+            Campaign.is_archived == False,
+            Campaign.id.notin_(settled_campaign_ids) if settled_campaign_ids else True,
+        )
+        .order_by(Campaign.end_date.desc())
+        .limit(20).all()
+    )
+
     # ── 손익계산기 탭 전용 집계 ─────────────────────────────────────────────────
     calc_data = {}
     if tab == "calc":
@@ -175,6 +220,11 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
         "pending_count": pending_count, "confirmed_count": confirmed_count, "paid_count": paid_count,
         "tab": tab, "periods": periods,
         "seller_types": SELLER_TYPES,
+        "influencers_for_modal": influencers_for_modal,
+        "campaigns_for_modal": campaigns_for_modal,
+        "influencers_json": influencers_json,
+        "campaigns_json": campaigns_json,
+        "unsettled_campaigns": unsettled_campaigns,
         **calc_data,
     })
 
@@ -279,6 +329,16 @@ def settlement_create(
     if final_payment_manual and final_payment_manual != calc["final_payment"]:
         calc["final_payment"] = round(final_payment_manual)
     cid = get_company_id(current_user)
+
+    # 인플루언서 계좌 정보 스냅샷
+    bank_snap = account_snap = holder_snap = None
+    if influencer_id:
+        inf = db.query(Influencer).filter(Influencer.id == influencer_id).first()
+        if inf:
+            bank_snap = inf.bank_name
+            account_snap = inf.account_number
+            holder_snap = inf.account_holder
+
     s = Settlement(
         company_id=cid,
         influencer_id=influencer_id or None,
@@ -287,6 +347,9 @@ def settlement_create(
         seller_type=seller_type,
         sales_amount=sales_amount,
         commission_rate=commission_rate,
+        bank_name_snapshot=bank_snap,
+        account_number_snapshot=account_snap,
+        account_holder_snapshot=holder_snap,
         **calc,
         notes=notes or None,
     )

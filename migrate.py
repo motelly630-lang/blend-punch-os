@@ -82,6 +82,9 @@ def migrate():
 
         # --- settlements ---
         _add_column(conn, "settlements", "vat_amount FLOAT DEFAULT 0")
+        _add_column(conn, "settlements", "bank_name_snapshot VARCHAR(100)")
+        _add_column(conn, "settlements", "account_number_snapshot VARCHAR(100)")
+        _add_column(conn, "settlements", "account_holder_snapshot VARCHAR(100)")
 
         # --- sales_pages (Commerce Upgrade) ---
         _add_column(conn, "sales_pages", "editor_content TEXT")

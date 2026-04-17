@@ -23,6 +23,10 @@ class Settlement(Base):
     final_payment = Column(Float, default=0.0)             # 최종 지급액
     status = Column(String(20), default="pending")         # pending|confirmed|paid
     notes = Column(Text, nullable=True)
+    # 정산 생성 시점 스냅샷 (인플루언서 정보 변경 대비)
+    bank_name_snapshot = Column(String(100), nullable=True)
+    account_number_snapshot = Column(String(100), nullable=True)
+    account_holder_snapshot = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

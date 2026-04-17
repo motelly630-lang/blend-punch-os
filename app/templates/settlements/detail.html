@@ -84,6 +84,11 @@
     <div style="text-align:right;">
       <div style="font-size:13px;color:#64748b;margin-bottom:6px;">정산 기간</div>
       <div style="font-size:20px;font-weight:700;color:#e2e8f0;">{{ s.period_label or '-' }}</div>
+      {% if s.campaign and s.campaign.start_date %}
+      <div style="font-size:12px;color:#64748b;margin-top:4px;">
+        공구 기간: {{ s.campaign.start_date }}{% if s.campaign.end_date %} ~ {{ s.campaign.end_date }}{% endif %}
+      </div>
+      {% endif %}
       <div style="margin-top:12px;">
         {% if s.status == 'paid' %}
         <span style="background:#16a34a;color:#fff;font-size:12px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.05em;">지급완료</span>
@@ -159,16 +164,22 @@
     <!-- 계좌 정보 -->
     <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:24px;">
       <div style="font-size:11px;font-weight:700;letter-spacing:0.12em;color:#6366f1;text-transform:uppercase;margin-bottom:16px;">입금 계좌</div>
-      {% if s.influencer %}
+      {% set bank = s.bank_name_snapshot or (s.influencer.bank_name if s.influencer else None) %}
+      {% set holder = s.account_holder_snapshot or (s.influencer.account_holder if s.influencer else None) %}
+      {% set acct = s.account_number_snapshot or (s.influencer.account_number if s.influencer else None) %}
+      {% if bank or holder or acct %}
       {% macro acct_row(label, value) %}
       <div style="margin-bottom:10px;">
         <div style="font-size:11px;color:#64748b;margin-bottom:2px;">{{ label }}</div>
         <div style="font-size:14px;font-weight:600;color:#e2e8f0;">{{ value or '-' }}</div>
       </div>
       {% endmacro %}
-      {{ acct_row("은행", s.influencer.bank_name) }}
-      {{ acct_row("예금주", s.influencer.account_holder) }}
-      {{ acct_row("계좌번호", s.influencer.account_number) }}
+      {{ acct_row("은행", bank) }}
+      {{ acct_row("예금주", holder) }}
+      {{ acct_row("계좌번호", acct) }}
+      {% if s.bank_name_snapshot %}
+      <div style="font-size:10px;color:#475569;margin-top:8px;">* 등록 시점 저장된 정보</div>
+      {% endif %}
       {% else %}
       <div style="font-size:13px;color:#475569;">계좌 정보 없음</div>
       {% endif %}
