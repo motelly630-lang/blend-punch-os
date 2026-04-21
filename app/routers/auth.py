@@ -77,7 +77,8 @@ def login(
     user.current_token = token
 
     # 출결 기록 — 당일 첫 로그인만 기록 (갱신 안 함)
-    now_kst = datetime.now(KST)
+    # replace(tzinfo=None): psycopg2가 tz-aware → UTC 변환하는 것 방지, KST 값 그대로 저장
+    now_kst = datetime.now(KST).replace(tzinfo=None)
     today = now_kst.date()
     attendance = db.query(AttendanceLog).filter(
         AttendanceLog.user_id == user.id,
@@ -108,7 +109,7 @@ def logout(request: Request, db: Session = Depends(get_db)):
             if user:
                 user.current_token = None
                 # 출결 기록 — 로그아웃 시각 갱신 (버튼 클릭만, 당일 기준)
-                now_kst = datetime.now(KST)
+                now_kst = datetime.now(KST).replace(tzinfo=None)
                 today = now_kst.date()
                 attendance = db.query(AttendanceLog).filter(
                     AttendanceLog.user_id == user.id,

@@ -75,12 +75,13 @@ def user_visits(
     else:
         selected_date = datetime.now(KST).date()
 
+    next_day = selected_date + timedelta(days=1)
     visits = (
         db.query(PageVisitLog)
         .filter(
             PageVisitLog.user_id == user_id,
             PageVisitLog.visited_at >= datetime(selected_date.year, selected_date.month, selected_date.day, 0, 0, 0),
-            PageVisitLog.visited_at < datetime(selected_date.year, selected_date.month, selected_date.day + 1, 0, 0, 0),
+            PageVisitLog.visited_at < datetime(next_day.year, next_day.month, next_day.day, 0, 0, 0),
         )
         .order_by(PageVisitLog.visited_at)
         .all()

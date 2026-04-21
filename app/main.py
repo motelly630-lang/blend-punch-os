@@ -1,11 +1,26 @@
+import logging
+import time
 from contextlib import asynccontextmanager
+import uuid
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse, FileResponse, JSONResponse
+from fastapi.responses import RedirectResponse, FileResponse, JSONResponse, HTMLResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from app.database import init_db
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("blendpunch")
+
+limiter = Limiter(key_func=get_remote_address)
 from app.routers import dashboard, products, influencers, proposals
 from app.routers import auth as auth_router
 from app.routers import campaigns, trends, settlements
@@ -51,15 +66,43 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="BLEND PUNCH OS", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://shop.blendpunch.com", "http://localhost:3000"],
+    allow_origins=["https://shop.blendpunch.com", "https://os.blendpunch.com"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
+
+
+class AIRateLimitMiddleware(BaseHTTPMiddleware):
+    """AI API 엔드포인트 — IP당 분당 20회 제한."""
+    _calls: dict = {}
+
+    async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith("/api/ai"):
+            return await call_next(request)
+
+        ip = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        window = 60.0
+        limit = 20
+
+        history = self._calls.get(ip, [])
+        history = [t for t in history if now - t < window]
+        if len(history) >= limit:
+            logger.warning("AI Rate limit 초과: %s", ip)
+            return JSONResponse(
+                {"error": "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."},
+                status_code=429,
+            )
+        history.append(now)
+        self._calls[ip] = history
+        return await call_next(request)
 
 
 class NoIndexMiddleware(BaseHTTPMiddleware):
@@ -72,6 +115,10 @@ class NoIndexMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(NoIndexMiddleware)
+app.add_middleware(AIRateLimitMiddleware)
+
+
+_user_context_cache: dict = {}  # username → {company_id, is_super, enabled, expires}
 
 
 class FeatureGateMiddleware(BaseHTTPMiddleware):
@@ -120,7 +167,7 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
             set_request_context(1, False, frozenset())
             return await call_next(request)
 
-        # ── JWT에서 user 컨텍스트 추출 ────────────────────────────────
+        # ── JWT에서 user 컨텍스트 추출 (캐시 적용으로 DB 조회 최소화) ──
         company_id = 1
         is_super   = False
         enabled    = frozenset()
@@ -132,82 +179,104 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
                 if payload:
                     username = payload.get("sub", "")
                     if username:
-                        from app.database import SessionLocal
-                        db = SessionLocal()
-                        try:
-                            company_id, is_super = get_user_company(db, username)
-                            if is_super:
-                                from app.services.feature_flags import ALL_FEATURES
-                                enabled = frozenset(set(ALL_FEATURES.keys()) | ALWAYS_ON)
-                            else:
-                                enabled = get_enabled_features(db, company_id)
-                        finally:
-                            db.close()
-            except Exception:
-                pass
+                        cached = _user_context_cache.get(username)
+                        now = time.monotonic()
+                        if cached and now < cached["expires"]:
+                            company_id = cached["company_id"]
+                            is_super   = cached["is_super"]
+                            enabled    = cached["enabled"]
+                        else:
+                            from app.database import SessionLocal
+                            db = SessionLocal()
+                            try:
+                                company_id, is_super = get_user_company(db, username)
+                                if is_super:
+                                    from app.services.feature_flags import ALL_FEATURES
+                                    enabled = frozenset(set(ALL_FEATURES.keys()) | ALWAYS_ON)
+                                else:
+                                    enabled = get_enabled_features(db, company_id)
+                            finally:
+                                db.close()
+                            _user_context_cache[username] = {
+                                "company_id": company_id,
+                                "is_super": is_super,
+                                "enabled": enabled,
+                                "expires": now + 60.0,
+                            }
+            except Exception as e:
+                logger.warning("FeatureGateMiddleware 인증 오류: %s", e)
 
         # ── ContextVar 설정 (Jinja2 global에서 사용) ──────────────────
         set_request_context(company_id, is_super, enabled)
 
-        # ── 페이지 방문 로그 (GET, 인증된 사용자, 정적/API 제외) ─────────
-        _SKIP_LOG_PREFIXES = (
-            "/static", "/shop", "/public", "/catalog", "/api/",
-            "/sw.js", "/manifest.json", "/robots.txt", "/favicon",
-        )
-        if (
-            request.method == "GET" and
-            token and
-            payload and
-            not any(path.startswith(p) for p in _SKIP_LOG_PREFIXES)
-        ):
-            try:
-                from app.database import SessionLocal as _SL
-                from app.models.page_visit import PageVisitLog
-                from app.models.user import User as _User
-                from datetime import datetime, timedelta, timezone
-                _db = _SL()
-                try:
-                    _u = _db.query(_User).filter(_User.username == payload.get("sub")).first()
-                    if _u:
-                        _db.add(PageVisitLog(
-                            user_id=_u.id,
-                            path=path,
-                            visited_at=datetime.now(timezone(timedelta(hours=9))),
-                        ))
-                        _db.commit()
-                finally:
-                    _db.close()
-            except Exception:
-                pass
-
-        # ── ALWAYS_ALLOW 경로는 feature gate 건너뜀 (사이드바는 필터됨) ──
+        # ── ALWAYS_ALLOW 경로는 feature gate 건너뜀 ───────────────────
         always_allow = (
             path == "/" or path == "" or
             path.startswith("/companies") or
             path.startswith("/settings") or
             path.startswith("/users") or
             path.startswith("/api/manual") or
-            path.startswith("/trends/api/")  # Claw 외부 API
+            path.startswith("/trends/api/")
         )
-        if always_allow:
-            return await call_next(request)
 
         # ── URL prefix 기능 차단 ───────────────────────────────────────
-        feature_key = get_path_feature(path)
-        if feature_key and feature_key not in ALWAYS_ON and not is_super:
-            if feature_key not in enabled:
-                accept = request.headers.get("accept", "")
-                if "application/json" in accept or request.headers.get("x-requested-with"):
-                    return JSONResponse(
-                        {"error": f"'{feature_key}' 기능이 비활성화되어 있습니다."},
-                        status_code=403,
-                    )
-                return RedirectResponse("/?err=비활성화된+기능입니다", status_code=302)
+        if not always_allow:
+            feature_key = get_path_feature(path)
+            if feature_key and feature_key not in ALWAYS_ON and not is_super:
+                if feature_key not in enabled:
+                    accept = request.headers.get("accept", "")
+                    if "application/json" in accept or request.headers.get("x-requested-with"):
+                        return JSONResponse(
+                            {"error": f"'{feature_key}' 기능이 비활성화되어 있습니다."},
+                            status_code=403,
+                        )
+                    return RedirectResponse("/?err=비활성화된+기능입니다", status_code=302)
 
-        return await call_next(request)
+        # ── 응답 처리 후 페이지 방문 로그 백그라운드 저장 ────────────────
+        _SKIP_LOG_PREFIXES = (
+            "/static", "/shop", "/public", "/catalog", "/api/",
+            "/sw.js", "/manifest.json", "/robots.txt", "/favicon",
+        )
+        should_log = (
+            request.method == "GET" and token and payload and
+            not any(path.startswith(p) for p in _SKIP_LOG_PREFIXES)
+        )
+        response = await call_next(request)
+        if should_log:
+            try:
+                import asyncio
+                asyncio.get_event_loop().run_in_executor(
+                    None, _log_page_visit, payload.get("sub"), path
+                )
+            except Exception:
+                pass
+        return response
 
 
 app.add_middleware(FeatureGateMiddleware)
+
+
+def _log_page_visit(username: str, path: str) -> None:
+    """페이지 방문 로그 — 별도 스레드에서 실행되어 요청 응답 지연 없음."""
+    try:
+        from app.database import SessionLocal
+        from app.models.page_visit import PageVisitLog
+        from app.models.user import User as _User
+        from datetime import datetime, timedelta, timezone
+        db = SessionLocal()
+        try:
+            u = db.query(_User).filter(_User.username == username).first()
+            if u:
+                db.add(PageVisitLog(
+                    user_id=u.id,
+                    path=path,
+                    visited_at=datetime.now(timezone(timedelta(hours=9))).replace(tzinfo=None),
+                ))
+                db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.debug("페이지 방문 로그 실패: %s", e)
 
 
 @app.get("/robots.txt", include_in_schema=False)
@@ -251,11 +320,30 @@ async def feature_disabled_handler(request: Request, exc: FeatureDisabled):
     return RedirectResponse(url="/?err=비활성화된+기능입니다", status_code=302)
 
 
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if _is_api_request(request):
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+    if exc.status_code == 404:
+        html = templates.get_template("errors/404.html").render()
+        return HTMLResponse(content=html, status_code=404)
+    if exc.status_code == 403:
+        return RedirectResponse(url="/?err=권한이+없습니다", status_code=302)
+    html = templates.get_template("errors/500.html").render(error_id=None)
+    return HTMLResponse(content=html, status_code=exc.status_code)
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     if _is_api_request(request):
         return JSONResponse({"error": f"서버 오류: {type(exc).__name__}"}, status_code=500)
-    raise exc
+    error_id = str(uuid.uuid4())[:8].upper()
+    logger.error(f"[{error_id}] Unhandled exception on {request.url}: {exc}", exc_info=True)
+    try:
+        html = templates.get_template("errors/500.html").render(error_id=error_id)
+        return HTMLResponse(content=html, status_code=500)
+    except Exception:
+        return HTMLResponse(content="<h1>500 서버 오류</h1>", status_code=500)
 
 
 # ── Routers ───────────────────────────────────────────────────────────────────
