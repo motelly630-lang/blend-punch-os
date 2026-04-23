@@ -161,6 +161,9 @@ def _parse_file(content: bytes, filename: str) -> tuple[list[str], list[list]]:
         return [], []
     headers = rows[0]
     data = [r for r in rows[1:] if any(c for c in r)]
+    # 블랜드펀치 템플릿 힌트행 감지 후 제거 (2행에 "필수" 또는 "draft/active/archived" 포함)
+    if data and any(cell in ("필수", "draft/active/archived", "active/hidden") for cell in data[0]):
+        data = data[1:]
     return headers, data
 
 
@@ -330,6 +333,17 @@ async def import_confirm(
             if ai_data:
                 ai_enriched += 1
 
+        # VARCHAR(20) 필드 검증 — 허용값 외 입력은 기본값으로 fallback
+        _status = row_data.get("status", "draft")
+        if _status not in ("draft", "active", "archived"):
+            _status = "draft"
+        _vis = row_data.get("visibility_status", "active")
+        if _vis not in ("active", "hidden"):
+            _vis = "active"
+
+        def _trunc20(v):
+            return v[:20] if isinstance(v, str) and len(v) > 20 else v
+
         try:
             product = Product(
                 company_id=cid,
@@ -337,8 +351,8 @@ async def import_confirm(
                 brand=row_data.get("brand", ""),
                 category=row_data.get("category", "기타"),
                 description=row_data.get("description"),
-                status=row_data.get("status", "draft"),
-                visibility_status=row_data.get("visibility_status", "active"),
+                status=_status,
+                visibility_status=_vis,
                 # 가격
                 consumer_price=row_data.get("consumer_price", 0.0),
                 lowest_price=row_data.get("lowest_price", 0.0),
@@ -362,12 +376,12 @@ async def import_confirm(
                 ai_analysis_raw=json.dumps(ai_data, ensure_ascii=False) if ai_data else None,
                 # 배송
                 shipping_cost=row_data.get("shipping_cost"),
-                shipping_type=row_data.get("shipping_type"),
-                carrier=row_data.get("carrier"),
-                ship_origin=row_data.get("ship_origin"),
-                dispatch_days=row_data.get("dispatch_days"),
+                shipping_type=_trunc20(row_data.get("shipping_type")),
+                carrier=_trunc20(row_data.get("carrier")),
+                ship_origin=_trunc20(row_data.get("ship_origin")),
+                dispatch_days=_trunc20(row_data.get("dispatch_days")),
                 # 샘플
-                sample_type=row_data.get("sample_type"),
+                sample_type=_trunc20(row_data.get("sample_type")),
                 sample_price=row_data.get("sample_price"),
             )
             db.add(product)
