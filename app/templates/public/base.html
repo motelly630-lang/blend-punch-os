@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <title>{% block title %}BLEND PUNCH 셀러 카탈로그{% endblock %}</title>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BLEND PUNCH">
+  {% block og_tags %}
+  <meta property="og:title" content="BLEND PUNCH 셀러 카탈로그">
+  <meta property="og:description" content="블랜드펀치 공구 제품 카탈로그">
+  {% endblock %}
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
