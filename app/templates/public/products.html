@@ -67,7 +67,7 @@
     <div class="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
       {% if p.product_image %}
       <img src="{{ p.product_image }}" alt="{{ p.name }}" loading="lazy"
-        onerror="this.style.display='none'" class="w-full h-full object-cover">
+        onerror="this.style.display='none'" class="w-full h-full object-contain p-2">
       {% else %}
       <svg class="w-10 h-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
         <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
@@ -118,7 +118,7 @@
     <div class="w-full h-20 bg-gray-50 overflow-hidden">
       <img src="{{ b.first_image }}" alt="{{ b.name }}" loading="lazy"
         onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center px-3\'><span class=\'text-sm font-semibold text-gray-700 text-center leading-tight line-clamp-2\'>{{ b.name }}</span></div>'"
-        class="w-full h-full object-cover">
+        class="w-full h-full object-contain p-2">
     </div>
     {% else %}
     <div class="w-full h-20 bg-gray-50 flex items-center justify-center px-3 group-hover:bg-blue-50 transition-colors">
