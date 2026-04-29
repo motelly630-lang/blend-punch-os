@@ -4,7 +4,7 @@
 
 {% block content %}
 <!-- ── Row 1: Entity counts ───────────────────────────────────────────────── -->
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
   {% set cards = [
     ('제품', product_count, '/products', '#3B82F6',
      'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'),
@@ -16,64 +16,64 @@
      'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'),
   ] %}
   {% for label, count, href, color, icon_path in cards %}
-  <a href="{{ href }}" class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow">
-    <div class="flex items-center justify-between mb-3">
+  <a href="{{ href }}" class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 hover:shadow-md transition-shadow">
+    <div class="flex items-center justify-between mb-2">
       <span class="text-xs font-medium text-gray-500">{{ label }}</span>
-      <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:{{ color }}20">
-        <svg class="w-4 h-4" style="color:{{ color }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:{{ color }}20">
+        <svg class="w-3.5 h-3.5" style="color:{{ color }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="{{ icon_path }}"/>
         </svg>
       </div>
     </div>
-    <div class="text-3xl font-bold text-gray-900">{{ count }}</div>
+    <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ count }}</div>
   </a>
   {% endfor %}
 </div>
 
 <!-- ── Row 2: Revenue KPIs ────────────────────────────────────────────────── -->
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5">
     <div class="text-xs font-medium text-gray-500 mb-1">총 누적 매출</div>
-    <div class="text-2xl font-bold text-gray-900">{{ total_revenue | won }}</div>
-    <div class="text-xs text-gray-400 mt-1">완료 캠페인 합계</div>
+    <div class="text-base sm:text-2xl font-bold text-gray-900 truncate">{{ total_revenue | won }}</div>
+    <div class="text-xs text-gray-400 mt-1 hidden sm:block">완료 캠페인 합계</div>
   </div>
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5">
     <div class="text-xs font-medium text-gray-500 mb-1">이번달 매출</div>
-    <div class="text-2xl font-bold text-blue-600">{{ monthly_revenue | won }}</div>
-    <div class="text-xs text-gray-400 mt-1">이번달 완료 기준</div>
+    <div class="text-base sm:text-2xl font-bold text-blue-600 truncate">{{ monthly_revenue | won }}</div>
+    <div class="text-xs text-gray-400 mt-1 hidden sm:block">이번달 완료 기준</div>
   </div>
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5">
     <div class="text-xs font-medium text-gray-500 mb-1">진행 중 매출</div>
-    <div class="text-2xl font-bold text-green-600">{{ active_revenue | won }}</div>
-    <div class="text-xs text-gray-400 mt-1">현재 활성 캠페인</div>
+    <div class="text-base sm:text-2xl font-bold text-green-600 truncate">{{ active_revenue | won }}</div>
+    <div class="text-xs text-gray-400 mt-1 hidden sm:block">현재 활성 캠페인</div>
   </div>
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-    <div class="text-xs font-medium text-gray-500 mb-1">셀러 커미션 지급</div>
-    <div class="text-2xl font-bold text-purple-600">{{ total_seller_commission | won }}</div>
-    <div class="text-xs text-gray-400 mt-1">완료 캠페인 기준</div>
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5">
+    <div class="text-xs font-medium text-gray-500 mb-1">셀러 커미션</div>
+    <div class="text-base sm:text-2xl font-bold text-purple-600 truncate">{{ total_seller_commission | won }}</div>
+    <div class="text-xs text-gray-400 mt-1 hidden sm:block">완료 캠페인 기준</div>
   </div>
 </div>
 
 <!-- ── Row 3: Settlement status ───────────────────────────────────────────── -->
-<div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-5">
-  <div class="flex items-center justify-between mb-4">
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-5 mb-4">
+  <div class="flex items-center justify-between mb-3">
     <h2 class="text-sm font-semibold text-gray-800">정산 현황</h2>
     <a href="/settlements" class="text-xs text-blue-600 hover:text-blue-700 font-medium">전체 보기 →</a>
   </div>
-  <div class="grid grid-cols-3 gap-4">
-    <a href="/settlements?tab=pending" class="group p-4 rounded-xl bg-amber-50 border border-amber-100 hover:border-amber-300 transition-colors">
+  <div class="grid grid-cols-3 gap-2 sm:gap-4">
+    <a href="/settlements?tab=pending" class="group p-2.5 sm:p-4 rounded-xl bg-amber-50 border border-amber-100 hover:border-amber-300 transition-colors">
       <div class="text-xs font-medium text-amber-700 mb-1">미확정</div>
-      <div class="text-xl font-bold text-amber-800">{{ pending_amount | won }}</div>
+      <div class="text-sm sm:text-xl font-bold text-amber-800 truncate">{{ pending_amount | won }}</div>
       <div class="text-xs text-amber-600 mt-1">{{ pending_count }}건</div>
     </a>
-    <a href="/settlements?tab=confirmed" class="group p-4 rounded-xl bg-blue-50 border border-blue-100 hover:border-blue-300 transition-colors">
+    <a href="/settlements?tab=confirmed" class="group p-2.5 sm:p-4 rounded-xl bg-blue-50 border border-blue-100 hover:border-blue-300 transition-colors">
       <div class="text-xs font-medium text-blue-700 mb-1">확정됨</div>
-      <div class="text-xl font-bold text-blue-800">{{ confirmed_amount | won }}</div>
+      <div class="text-sm sm:text-xl font-bold text-blue-800 truncate">{{ confirmed_amount | won }}</div>
       <div class="text-xs text-blue-600 mt-1">{{ confirmed_count }}건</div>
     </a>
-    <a href="/settlements?tab=paid" class="group p-4 rounded-xl bg-green-50 border border-green-100 hover:border-green-300 transition-colors">
+    <a href="/settlements?tab=paid" class="group p-2.5 sm:p-4 rounded-xl bg-green-50 border border-green-100 hover:border-green-300 transition-colors">
       <div class="text-xs font-medium text-green-700 mb-1">지급완료</div>
-      <div class="text-xl font-bold text-green-800">{{ paid_amount | won }}</div>
+      <div class="text-sm sm:text-xl font-bold text-green-800 truncate">{{ paid_amount | won }}</div>
       <div class="text-xs text-green-600 mt-1">누적</div>
     </a>
   </div>
@@ -84,31 +84,13 @@
 
   <!-- Monthly trend chart -->
   <div class="lg:col-span-3 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-    <h2 class="text-sm font-semibold text-gray-800 mb-4">월별 매출 추이 (최근 6개월)</h2>
-    {% if monthly_trend %}
-    <div class="flex items-end gap-3 h-32">
-      {% for m in monthly_trend %}
-      {% set bar_pct = (m.revenue / max_trend_rev * 100) | int %}
-      <div class="flex-1 flex flex-col items-center gap-1 min-w-0">
-        {% if m.revenue > 0 %}
-        <div class="text-xs text-gray-500 truncate w-full text-center" style="font-size:10px">
-          {{ (m.revenue / 10000) | int }}만
-        </div>
-        {% else %}
-        <div style="height:12px"></div>
-        {% endif %}
-        <div class="w-full rounded-t-md transition-all"
-          style="height: {{ [bar_pct, 4] | max }}%;
-                 background: {% if bar_pct > 60 %}#3B82F6{% elif bar_pct > 0 %}#93C5FD{% else %}#E5E7EB{% endif %};
-                 min-height: 4px; max-height: 96px;">
-        </div>
-        <div class="text-xs text-gray-400 mt-1 truncate" style="font-size:10px">{{ m.month }}</div>
-      </div>
-      {% endfor %}
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold text-gray-800">월별 매출 추이 (최근 6개월)</h2>
+      <span class="text-xs text-gray-400">완료 캠페인 기준</span>
     </div>
-    {% else %}
-    <div class="h-32 flex items-center justify-center text-sm text-gray-400">데이터 없음</div>
-    {% endif %}
+    <div class="relative h-52">
+      <canvas id="revenueChart"></canvas>
+    </div>
   </div>
 
   <!-- Top products -->
@@ -205,4 +187,67 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const labels = {{ monthly_trend | map(attribute='month') | list | tojson }};
+  const data   = {{ monthly_trend | map(attribute='revenue') | list | tojson }};
+
+  function fmtWon(v) {
+    if (v >= 100000000) return (v / 100000000).toFixed(1).replace(/\.0$/, '') + '억';
+    if (v >= 10000)     return Math.round(v / 10000) + '만';
+    return v.toLocaleString() + '원';
+  }
+
+  const ctx = document.getElementById('revenueChart');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: '매출',
+        data,
+        backgroundColor: data.map((v, i) =>
+          i === data.length - 1 ? '#3B82F6' : '#93C5FD'
+        ),
+        borderRadius: 6,
+        borderSkipped: false,
+        maxBarThickness: 52,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' ' + ctx.parsed.y.toLocaleString() + '원'
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 12 }, color: '#9CA3AF' }
+        },
+        y: {
+          grid: { color: '#F3F4F6' },
+          border: { display: false },
+          ticks: {
+            font: { size: 11 },
+            color: '#9CA3AF',
+            callback: v => fmtWon(v)
+          }
+        }
+      }
+    }
+  });
+})();
+</script>
 {% endblock %}
