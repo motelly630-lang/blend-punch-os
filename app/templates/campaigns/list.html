@@ -12,13 +12,13 @@
       선택 삭제 (<span id="bulk-count">0</span>)
     </button>
   </form>
-  <a href="/campaigns/import" class="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+  <a href="/campaigns/import" class="hidden sm:inline-flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
     Excel 일괄 등록
   </a>
-  <a href="/campaigns/new" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+  <a href="/campaigns/new" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-    캠페인 생성
+    <span class="hidden sm:inline">캠페인 생성</span>
   </a>
 </div>
 {% endblock %}
@@ -71,11 +71,34 @@
   {% endif %}
 </div>
 
+<!-- ── 모바일 전용: 현황 요약 + 단축키 ───────────────────────────── -->
+{% if tab != 'archive' %}
+<div class="lg:hidden grid grid-cols-2 gap-3 mb-4">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">현황 요약</div>
+    <div class="space-y-1.5">
+      <div><div class="text-xs text-gray-400">진행중 매출</div><div class="text-base font-bold text-green-700">{{ total_revenue | won }}</div></div>
+      <div><div class="text-xs text-gray-400">셀러 정산</div><div class="text-sm font-bold text-blue-600">{{ total_seller_amt | won }}</div></div>
+      <div><div class="text-xs text-gray-400">벤더 수익</div><div class="text-sm font-bold text-orange-500">{{ total_vendor_amt | won }}</div></div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">캠페인 현황</div>
+    <div class="space-y-1.5">
+      <div class="flex justify-between"><span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>진행중</span><span class="text-sm font-bold text-green-700">{{ active_count }}</span></div>
+      <div class="flex justify-between"><span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>예정</span><span class="text-sm font-bold text-blue-600">{{ planning_count }}</span></div>
+      <div class="flex justify-between"><span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-300 inline-block"></span>완료</span><span class="text-sm font-bold text-gray-500">{{ done_count }}</span></div>
+    </div>
+    <div class="mt-2 pt-2 border-t border-gray-50 text-xs text-gray-400">✏️인라인편집 &nbsp; ↵저장 &nbsp; ⎋취소</div>
+  </div>
+</div>
+{% endif %}
+
 <!-- ── MAIN LAYOUT ─────────────────────────────────────────────────── -->
 <div class="flex gap-4 items-start">
 
 <!-- ── LIST VIEW ─────────────────────────────────────────────────── -->
-<div id="view-list" class="flex-1 min-w-0 space-y-2">
+<div id="view-list" class="flex-1 min-w-0 space-y-2 w-full">
 
   {% if tab == 'archive' %}
   <!-- Archive -->
@@ -124,7 +147,7 @@
       </div>
 
       <!-- Row 1: Product + Influencer dropdowns -->
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <!-- Product dropdown -->
         <div class="relative" @click.outside="showProdList = false">
           <label class="text-xs text-gray-500 block mb-1">제품 선택</label>
@@ -169,7 +192,7 @@
       </div>
 
       <!-- Row 2: Campaign name (auto-filled) + Status -->
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div class="col-span-2">
           <label class="text-xs text-gray-500 block mb-1">캠페인명 <span class="text-red-400">*</span></label>
           <input type="text" x-model="name"
@@ -188,7 +211,7 @@
       </div>
 
       <!-- Row 3: Dates + Unit price -->
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div>
           <label class="text-xs text-gray-500 block mb-1">시작일</label>
           <input type="date" x-model="sd" class="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
@@ -241,29 +264,29 @@
       <div
         x-data="campCard(CAMP_DATA['{{ c.id }}'])"
         @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()"
-        class="bg-white rounded-xl border shadow-sm transition-all"
+        class="bg-white rounded-xl border shadow-sm transition-all w-full overflow-hidden"
         :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200' : 'border-green-100 hover:shadow-md hover:border-green-300'">
 
         <!-- Header -->
-        <div class="flex items-center gap-3 px-4 pt-3 pb-2 border-b border-gray-50">
+        <div class="flex items-center gap-2 px-3 sm:px-4 pt-3 pb-2 border-b border-gray-50 w-full">
           <input type="checkbox" class="camp-check w-4 h-4 rounded border-gray-300 flex-shrink-0" value="{{ c.id }}" onchange="updateBulkDelete()">
           <div class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></div>
           <a href="/campaigns/{{ c.id }}" class="flex-1 min-w-0 font-medium text-sm text-gray-700 hover:text-green-700 truncate" x-show="!editing">{{ c.name }}</a>
           <span class="flex-1 min-w-0 font-medium text-sm text-gray-800 truncate" x-show="editing" x-cloak>{{ c.name }}</span>
           <template x-if="!editing">
-            <div class="flex items-center gap-2 flex-shrink-0">
+            <div class="flex items-center gap-1.5 flex-shrink-0">
               {% if dday is not none %}
               <span class="text-xs font-semibold
                 {% if dday < 0 %}text-gray-400{% elif dday == 0 %}text-red-600{% elif dday <= 3 %}text-orange-500{% else %}text-green-600{% endif %}">
                 {% if dday < 0 %}D+{{ dday | abs }}{% elif dday == 0 %}D-Day{% else %}D-{{ dday }}{% endif %}
               </span>
               {% endif %}
-              <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">진행중</span>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 whitespace-nowrap">진행중</span>
               <button @click="openEdit()" type="button" title="인라인 편집"
-                class="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors">
+                class="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors flex-shrink-0">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
               </button>
-              <a href="/campaigns/{{ c.id }}/edit" title="전체 편집" class="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors">
+              <a href="/campaigns/{{ c.id }}/edit" title="전체 편집" class="hidden sm:block p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
               </a>
             </div>
@@ -282,8 +305,8 @@
         </div>
 
         <!-- VIEW MODE body -->
-        <a href="/campaigns/{{ c.id }}" x-show="!editing" class="grid grid-cols-3 gap-0 divide-x divide-gray-50">
-          <div class="px-4 py-3 space-y-1.5">
+        <a href="/campaigns/{{ c.id }}" x-show="!editing" class="grid grid-cols-2 sm:grid-cols-3 gap-0 divide-x divide-gray-50">
+          <div class="px-3 sm:px-4 py-3 space-y-1.5">
             {% if prod_name %}<div class="text-sm font-bold text-gray-900 leading-tight truncate">{{ prod_name }}</div>
             {% else %}<div class="text-sm text-gray-300 italic">제품 미연결</div>{% endif %}
             <div class="flex items-center gap-1 flex-wrap">
@@ -300,12 +323,12 @@
             </div>
             {% endif %}
           </div>
-          <div class="px-4 py-3">
+          <div class="px-3 sm:px-4 py-3">
             <div class="text-xs text-gray-400 mb-1">매출</div>
-            <div class="text-base font-bold text-green-700">{% if c.actual_revenue %}{{ c.actual_revenue | won }}{% else %}₩0{% endif %}</div>
+            <div class="text-sm sm:text-base font-bold text-green-700">{% if c.actual_revenue %}{{ c.actual_revenue | won }}{% else %}₩0{% endif %}</div>
             <div class="text-xs text-gray-400 mt-1">실 {{ c.actual_sales or 0 }} / 예상 {{ c.expected_sales or 0 }}</div>
           </div>
-          <div class="px-4 py-3">
+          <div class="hidden sm:block px-4 py-3">
             <div class="text-xs text-gray-400 mb-1">정산</div>
             {% if c.seller_commission_amount %}
             <div class="text-xs mb-0.5"><span class="text-gray-400">셀러 </span><span class="font-semibold text-blue-600">{{ c.seller_commission_amount | won }}</span></div>
@@ -484,7 +507,7 @@
 
 <!-- ── RIGHT PANEL ─────────────────────────────────────────────────── -->
 {% if tab != 'archive' %}
-<div class="w-56 flex-shrink-0 sticky top-4 space-y-3">
+<div class="hidden lg:block w-56 flex-shrink-0 sticky top-4 space-y-3">
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
     <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">현황 요약</div>
     <div class="space-y-3">

@@ -71,15 +71,20 @@
       <!-- 제품 -->
       <div>
         <label class="block text-xs font-semibold text-gray-500 mb-1.5">제품 (선택)</label>
-        <select name="product_id"
-          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-          <option value="">— 제품 선택 안 함 —</option>
-          {% for p in products %}
-          <option value="{{ p.id }}" {% if log and log.product_id == p.id %}selected{% endif %}>
-            {{ p.name }}{% if p.brand %} — {{ p.brand }}{% endif %}
-          </option>
-          {% endfor %}
-        </select>
+        <div class="relative" id="ps-wrap">
+          <input type="text" id="ps-input"
+            placeholder="제품명 또는 브랜드 검색..."
+            autocomplete="off"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <button type="button" id="ps-clear"
+            style="display:none"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-base leading-none">✕</button>
+          <input type="hidden" name="product_id" id="ps-hidden">
+          <div id="ps-dropdown"
+            style="display:none"
+            class="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+          </div>
+        </div>
       </div>
 
       <!-- 캠페인 연결 -->
@@ -126,17 +131,100 @@
   </div>
 </div>
 
-{% if not log %}
 <script>
 (function() {
-  var el = document.getElementById('sent_time');
-  if (el && !el.value) {
-    var now = new Date();
-    var hh = String(now.getHours()).padStart(2,'0');
-    var mm = String(now.getMinutes()).padStart(2,'0');
-    el.value = hh + ':' + mm;
+  // 제품 데이터: JS 객체 배열로 직접 저장 (JSON 파싱 없음)
+  var PRODUCTS = {{ products_json | safe }};
+  var input    = document.getElementById('ps-input');
+  var hidden   = document.getElementById('ps-hidden');
+  var dropdown = document.getElementById('ps-dropdown');
+  var clearBtn = document.getElementById('ps-clear');
+
+  if (!input) return; // 안전 가드
+
+  // 초기값 (수정 폼일 때)
+  {% if log and log.product_id %}
+  hidden.value = {{ log.product_id | tojson }};
+  input.value  = {{ current_product_label | tojson }};
+  clearBtn.style.display = '';
+  {% endif %}
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+
+  function buildList(q) {
+    var items = q
+      ? PRODUCTS.filter(function(p){ return p.label.toLowerCase().indexOf(q.toLowerCase()) >= 0; }).slice(0,30)
+      : PRODUCTS.slice(0,30);
+
+    var frag = document.createDocumentFragment();
+
+    // "선택 안 함" 항목
+    var none = document.createElement('div');
+    none.textContent = '— 제품 선택 안 함 —';
+    none.style.cssText = 'padding:8px 12px;font-size:13px;color:#9ca3af;cursor:pointer;border-bottom:1px solid #f3f4f6';
+    none.addEventListener('mousedown', function(e){
+      e.preventDefault();
+      input.value = ''; hidden.value = '';
+      clearBtn.style.display = 'none';
+      dropdown.style.display = 'none';
+    });
+    frag.appendChild(none);
+
+    if (items.length === 0) {
+      var empty = document.createElement('div');
+      empty.textContent = '검색 결과 없음';
+      empty.style.cssText = 'padding:8px 12px;font-size:13px;color:#9ca3af';
+      frag.appendChild(empty);
+    } else {
+      items.forEach(function(p) {
+        var row = document.createElement('div');
+        row.textContent = p.label;
+        row.style.cssText = 'padding:8px 12px;font-size:13px;cursor:pointer';
+        if (p.id === hidden.value) {
+          row.style.background = '#eff6ff';
+          row.style.color = '#1d4ed8';
+          row.style.fontWeight = '600';
+        }
+        row.addEventListener('mouseover', function(){ row.style.background='#eff6ff'; });
+        row.addEventListener('mouseout',  function(){ row.style.background = (p.id===hidden.value)?'#eff6ff':''; });
+        row.addEventListener('mousedown', function(e){
+          e.preventDefault();
+          input.value  = p.label;
+          hidden.value = p.id;
+          clearBtn.style.display = '';
+          dropdown.style.display = 'none';
+        });
+        frag.appendChild(row);
+      });
+    }
+
+    dropdown.innerHTML = '';
+    dropdown.appendChild(frag);
+    dropdown.style.display = '';
+  }
+
+  input.addEventListener('input',  function(){ buildList(input.value.trim()); });
+  input.addEventListener('focus',  function(){ buildList(input.value.trim()); });
+  input.addEventListener('blur',   function(){ setTimeout(function(){ dropdown.style.display='none'; }, 150); });
+  input.addEventListener('keydown', function(e){ if(e.key==='Escape'){ dropdown.style.display='none'; input.blur(); }});
+
+  clearBtn.addEventListener('click', function(){
+    input.value=''; hidden.value='';
+    clearBtn.style.display='none';
+    dropdown.style.display='none';
+    input.focus();
+  });
+
+  // 발송 시각 초기화
+  {% if not log %}
+  var timeEl = document.getElementById('sent_time');
+  if (timeEl && !timeEl.value) {
+    var now = new Date();
+    timeEl.value = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  }
+  {% endif %}
 })();
 </script>
-{% endif %}
 {% endblock %}

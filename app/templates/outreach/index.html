@@ -15,16 +15,44 @@
 {% block content %}
 
 <!-- ── 개인별 KPI 대시보드 ────────────────────────────────────────────────── -->
-<div class="bg-white rounded-xl border border-gray-100 shadow-sm mb-6 overflow-hidden">
-  <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm mb-4 overflow-hidden">
+  <div class="px-4 sm:px-5 py-3 border-b border-gray-100 flex items-center justify-between">
     <h3 class="text-sm font-semibold text-gray-800">담당자별 KPI</h3>
-    <div class="flex items-center gap-4 text-xs text-gray-400">
-      <span>오늘 발송: <span class="font-bold text-blue-600">{{ today_count }}</span></span>
+    <div class="flex items-center gap-3 text-xs text-gray-400">
+      <span>오늘: <span class="font-bold text-blue-600">{{ today_count }}</span></span>
       <span>전체: <span class="font-bold text-gray-700">{{ total }}</span></span>
     </div>
   </div>
   {% if kpi_table %}
-  <div class="overflow-x-auto">
+
+  <!-- Mobile KPI cards -->
+  <div class="sm:hidden divide-y divide-gray-50">
+    {% for kpi in kpi_table %}
+    <div class="px-4 py-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="font-semibold text-gray-800 text-sm">{{ kpi.operator }}</span>
+        <a href="/outreach?operator={{ kpi.operator }}" class="text-xs text-gray-400 hover:text-blue-600">상세 →</a>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div>
+          <div class="text-lg font-bold text-blue-600">{{ kpi.sent }}</div>
+          <div class="text-xs text-gray-400">DM 발송</div>
+        </div>
+        <div>
+          <div class="text-lg font-bold text-amber-600">{{ kpi.replied }}</div>
+          <div class="text-xs text-gray-400">답장 {{ kpi.reply_rate }}%</div>
+        </div>
+        <div>
+          <div class="text-lg font-bold text-green-600">{{ kpi.deal }}</div>
+          <div class="text-xs text-gray-400">확정 {{ kpi.deal_rate }}%</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop KPI table -->
+  <div class="hidden sm:block overflow-x-auto">
     <table class="w-full text-sm">
       <thead class="bg-gray-50">
         <tr>
@@ -41,63 +69,53 @@
         {% for kpi in kpi_table %}
         <tr class="hover:bg-gray-50">
           <td class="px-5 py-3 font-semibold text-gray-800">{{ kpi.operator }}</td>
-          <td class="px-4 py-3 text-center">
-            <span class="text-lg font-bold text-blue-600">{{ kpi.sent }}</span>
-          </td>
-          <td class="px-4 py-3 text-center">
-            <span class="text-lg font-bold text-amber-600">{{ kpi.replied }}</span>
-          </td>
+          <td class="px-4 py-3 text-center"><span class="text-lg font-bold text-blue-600">{{ kpi.sent }}</span></td>
+          <td class="px-4 py-3 text-center"><span class="text-lg font-bold text-amber-600">{{ kpi.replied }}</span></td>
           <td class="px-4 py-3 text-center">
             <div class="flex items-center justify-center gap-2">
               <div class="w-20 bg-gray-100 rounded-full h-1.5">
                 <div class="bg-amber-400 h-1.5 rounded-full" style="width:{{ kpi.reply_rate }}%"></div>
               </div>
-              <span class="text-sm font-semibold {% if kpi.reply_rate >= 30 %}text-amber-600{% else %}text-gray-500{% endif %}">
-                {{ kpi.reply_rate }}%
-              </span>
+              <span class="text-sm font-semibold {% if kpi.reply_rate >= 30 %}text-amber-600{% else %}text-gray-500{% endif %}">{{ kpi.reply_rate }}%</span>
             </div>
           </td>
-          <td class="px-4 py-3 text-center">
-            <span class="text-lg font-bold text-green-600">{{ kpi.deal }}</span>
-          </td>
+          <td class="px-4 py-3 text-center"><span class="text-lg font-bold text-green-600">{{ kpi.deal }}</span></td>
           <td class="px-4 py-3 text-center">
             <div class="flex items-center justify-center gap-2">
               <div class="w-20 bg-gray-100 rounded-full h-1.5">
                 <div class="bg-green-500 h-1.5 rounded-full" style="width:{{ kpi.deal_rate }}%"></div>
               </div>
-              <span class="text-sm font-semibold {% if kpi.deal_rate >= 10 %}text-green-600{% else %}text-gray-500{% endif %}">
-                {{ kpi.deal_rate }}%
-              </span>
+              <span class="text-sm font-semibold {% if kpi.deal_rate >= 10 %}text-green-600{% else %}text-gray-500{% endif %}">{{ kpi.deal_rate }}%</span>
             </div>
           </td>
           <td class="px-4 py-3 text-right">
-            <a href="/outreach?operator={{ kpi.operator }}"
-              class="text-xs text-gray-400 hover:text-blue-600">상세 →</a>
+            <a href="/outreach?operator={{ kpi.operator }}" class="text-xs text-gray-400 hover:text-blue-600">상세 →</a>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+
   {% else %}
   <div class="p-6 text-center text-sm text-gray-400">아직 데이터가 없습니다.</div>
   {% endif %}
 </div>
 
 <!-- ── 상태별 카운트 ───────────────────────────────────────────────────────── -->
-<div class="grid grid-cols-5 gap-3 mb-5">
-  {% set sc = {'sent':'blue','replied':'amber','deal':'green','hold':'gray','rejected':'red'} %}
-  {% set sl = {'sent':'DM 발송','replied':'답장','deal':'공구확정','hold':'보류','rejected':'거절'} %}
+{% set sc = {'sent':'blue','replied':'amber','deal':'green','hold':'gray','rejected':'red'} %}
+{% set sl = {'sent':'DM 발송','replied':'답장','deal':'공구확정','hold':'보류','rejected':'거절'} %}
+<div class="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 mb-4">
   {% for s in outreach_statuses %}
-  <a href="/outreach?status={{ s }}" class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow">
-    <div class="text-2xl font-bold text-{{ sc.get(s,'gray') }}-600">{{ status_counts.get(s, 0) }}</div>
+  <a href="/outreach?status={{ s }}" class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4 hover:shadow-md transition-shadow">
+    <div class="text-xl sm:text-2xl font-bold text-{{ sc.get(s,'gray') }}-600">{{ status_counts.get(s, 0) }}</div>
     <div class="text-xs text-gray-400 mt-0.5">{{ sl.get(s, s) }}</div>
   </a>
   {% endfor %}
 </div>
 
 <!-- ── 뷰 토글 ──────────────────────────────────────────────────────────────── -->
-<div class="flex items-center gap-1 mb-4">
+<div class="flex items-center gap-1 mb-3">
   <button id="btn-list" onclick="switchView('list')"
     class="text-sm font-medium px-4 py-1.5 rounded-lg transition-colors bg-blue-600 text-white">
     목록 보기
@@ -120,18 +138,42 @@
   } %}
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
     <button onclick="toggleDate('dg-{{ loop.index }}')"
-      class="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors text-left">
-      <div class="flex items-center gap-3">
-        <span class="font-semibold text-gray-800 text-sm">{{ dg.date }}</span>
-        <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-semibold">{{ dg.count }}건</span>
-        <span class="text-xs text-gray-400">{{ dg.operators | join(', ') }}</span>
+      class="w-full flex items-center justify-between px-4 sm:px-5 py-3 hover:bg-gray-50 transition-colors text-left">
+      <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+        <span class="font-semibold text-gray-800 text-sm flex-shrink-0">{{ dg.date }}</span>
+        <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-semibold flex-shrink-0">{{ dg.count }}건</span>
+        <span class="text-xs text-gray-400 truncate hidden sm:inline">{{ dg.operators | join(', ') }}</span>
       </div>
-      <svg id="dg-{{ loop.index }}-icon" class="w-4 h-4 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <svg id="dg-{{ loop.index }}-icon" class="w-4 h-4 text-gray-400 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
       </svg>
     </button>
     <div id="dg-{{ loop.index }}" class="hidden border-t border-gray-100">
-      <table class="w-full text-xs">
+      <!-- Mobile date entries -->
+      <div class="sm:hidden divide-y divide-gray-50">
+        {% for item in dg.entries %}
+        {% set log = item.log %}
+        <div class="px-4 py-3">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <span class="font-medium text-gray-800 text-sm">@{{ log.influencer_handle }}</span>
+              <span class="ml-2 text-xs text-gray-400">{{ log.operator }}</span>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ badge.get(item.status_color, 'bg-gray-100 text-gray-600') }}">
+              {{ item.status_label }}
+            </span>
+          </div>
+          {% if item.product_name %}
+          <div class="text-xs text-gray-500 mt-0.5">{{ item.product_name }}</div>
+          {% endif %}
+          {% if log.notes or log.status_detail %}
+          <div class="text-xs text-gray-400 mt-0.5 truncate">{{ log.notes or log.status_detail }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <!-- Desktop date table -->
+      <table class="hidden sm:table w-full text-xs">
         <thead class="bg-gray-50">
           <tr>
             <th class="text-left px-4 py-2 text-gray-500 font-medium">담당자</th>
@@ -165,44 +207,134 @@
 
 <!-- ── 필터 바 ────────────────────────────────────────────────────────────── -->
 <div id="list-view">
-<form method="get" action="/outreach" class="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-3 mb-4 flex flex-wrap items-center gap-3">
-
-  <div class="flex items-center gap-2">
-    <label class="text-xs text-gray-500 whitespace-nowrap">담당자</label>
-    <select name="operator" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
-      <option value="">전체</option>
-      {% for op in operators %}
-      <option value="{{ op }}" {% if filter_operator == op %}selected{% endif %}>{{ op }}</option>
-      {% endfor %}
-    </select>
+<form method="get" action="/outreach" class="bg-white rounded-xl border border-gray-100 shadow-sm px-4 sm:px-5 py-3 mb-4">
+  <div class="flex flex-wrap items-center gap-2">
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-gray-500 whitespace-nowrap">담당자</label>
+      <select name="operator" class="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <option value="">전체</option>
+        {% for op in operators %}
+        <option value="{{ op }}" {% if filter_operator == op %}selected{% endif %}>{{ op }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-gray-500 whitespace-nowrap">상태</label>
+      <select name="status" class="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <option value="">전체</option>
+        {% for s in outreach_statuses %}
+        <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ status_labels.get(s, s) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-gray-500 whitespace-nowrap">제품</label>
+      <select name="product_id" class="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-[130px] sm:max-w-none">
+        <option value="">전체</option>
+        {% for p in products %}
+        <option value="{{ p.id }}" {% if filter_product_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200">적용</button>
+    {% if filter_operator or filter_status or filter_product_id %}
+    <a href="/outreach" class="text-xs text-gray-400 hover:text-gray-600">초기화</a>
+    {% endif %}
   </div>
-  <div class="flex items-center gap-2">
-    <label class="text-xs text-gray-500 whitespace-nowrap">상태</label>
-    <select name="status" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
-      <option value="">전체</option>
-      {% for s in outreach_statuses %}
-      <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ status_labels.get(s, s) }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="flex items-center gap-2">
-    <label class="text-xs text-gray-500 whitespace-nowrap">제품</label>
-    <select name="product_id" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400">
-      <option value="">전체</option>
-      {% for p in products %}
-      <option value="{{ p.id }}" {% if filter_product_id == p.id %}selected{% endif %}>{{ p.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <button type="submit" class="px-4 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200">필터 적용</button>
-  {% if filter_operator or filter_status or filter_product_id %}
-  <a href="/outreach" class="text-xs text-gray-400 hover:text-gray-600">초기화</a>
-  {% endif %}
 </form>
 
-<!-- ── 로그 테이블 ────────────────────────────────────────────────────────── -->
+<!-- ── 로그 목록 ──────────────────────────────────────────────────────────── -->
 {% if enriched %}
-<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+
+<!-- Mobile log cards -->
+<div class="sm:hidden space-y-2 mb-3">
+  {% for item in enriched %}
+  {% set log = item.log %}
+  {% set product = item.product %}
+  {% set influencer = item.influencer %}
+  {% set campaign = item.campaign %}
+  {% set color = item.status_color %}
+  {% set badge = {
+    'blue':  'bg-blue-100 text-blue-700',
+    'amber': 'bg-amber-100 text-amber-700',
+    'green': 'bg-green-100 text-green-700',
+    'gray':  'bg-gray-100 text-gray-600',
+    'red':   'bg-red-100 text-red-600'
+  } %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
+    <!-- header row -->
+    <div class="flex items-start justify-between gap-2 mb-2">
+      <div class="min-w-0 flex-1">
+        <div class="font-medium text-gray-800 text-sm">@{{ log.influencer_handle }}</div>
+        {% if influencer %}
+        <a href="/influencers/{{ influencer.id }}" class="text-xs text-blue-500">{{ influencer.name }} →</a>
+        {% else %}
+        <span class="text-xs text-gray-400 italic">DB 미등록</span>
+        {% endif %}
+      </div>
+      <div id="status-cell-{{ log.id }}">
+        <select name="sample_status"
+          hx-post="/outreach/{{ log.id }}/status"
+          hx-target="#status-cell-{{ log.id }}"
+          hx-swap="innerHTML"
+          hx-trigger="change"
+          class="text-xs font-semibold border-0 rounded-full px-2 py-1 cursor-pointer {{ badge.get(color, 'bg-gray-100 text-gray-600') }}">
+          {% for s in outreach_statuses %}
+          <option value="{{ s }}" {% if log.sample_status == s %}selected{% endif %}>{{ status_labels.get(s, s) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <!-- meta row -->
+    <div class="text-xs text-gray-500 space-y-0.5">
+      {% if product %}
+      <div>
+        <a href="/products/{{ product.id }}" class="text-gray-700 hover:text-blue-600">{{ product.name }}</a>
+        {% if product.brand %}<span class="text-gray-400"> · {{ product.brand }}</span>{% endif %}
+      </div>
+      {% endif %}
+      <div class="flex items-center gap-3 flex-wrap">
+        <span>{{ log.operator }}</span>
+        <span>{{ log.outreach_date }}</span>
+        {% if campaign %}
+        <a href="/campaigns/{{ campaign.id }}" class="text-indigo-600 font-medium">{{ campaign.name | truncate(16) }}</a>
+        {% endif %}
+      </div>
+      {% if log.status_detail or log.notes %}
+      <div class="text-gray-400 truncate">{{ log.status_detail or log.notes }}</div>
+      {% endif %}
+    </div>
+    <!-- actions row -->
+    <div class="mt-2 flex items-center gap-1 flex-wrap">
+      <a href="/outreach/{{ log.id }}/edit" class="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">편집</a>
+      {% set ecnt = email_counts.get(log.id, 0) %}
+      <button onclick="openEmailModal('{{ log.id }}', '{{ (influencer.contact_email if influencer and influencer.contact_email else '') }}', '{{ (influencer.name if influencer else log.influencer_handle) | replace("'", "") }}', '{{ (product.name if product else '') | replace("'", "") }}')"
+        class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors
+          {% if ecnt > 0 %}text-blue-600 border-blue-200 hover:bg-blue-50{% else %}text-gray-400 border-gray-200 hover:bg-gray-50 hover:text-blue-500{% endif %}">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        이메일{% if ecnt > 0 %} {{ ecnt }}{% endif %}
+      </button>
+      {% if item.crm_pipeline_id %}
+      <a href="/crm/{{ item.crm_pipeline_id }}"
+        class="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50">
+        CRM →
+      </a>
+      {% elif log.influencer_id and log.sample_status in ['replied', 'deal', '샘플요청', '샘플발송'] %}
+      <form method="post" action="/outreach/{{ log.id }}/to-crm" class="inline">
+        <button type="submit" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50">
+          CRM 등록
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Desktop log table -->
+<div class="hidden sm:block bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
   <table class="w-full text-sm">
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
@@ -243,9 +375,7 @@
         <td class="px-4 py-3">
           <div class="font-medium text-gray-800 text-sm">@{{ log.influencer_handle }}</div>
           {% if influencer %}
-          <a href="/influencers/{{ influencer.id }}" class="text-xs text-blue-500 hover:text-blue-700">
-            {{ influencer.name }} →
-          </a>
+          <a href="/influencers/{{ influencer.id }}" class="text-xs text-blue-500 hover:text-blue-700">{{ influencer.name }} →</a>
           {% else %}
           <span class="text-xs text-gray-400 italic">DB 미등록</span>
           {% endif %}
@@ -280,20 +410,12 @@
           </select>
         </td>
         <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-          {% if log.response_at %}
-          {{ log.response_at.strftime('%m/%d %H:%M') }}
-          {% else %}—{% endif %}
+          {% if log.response_at %}{{ log.response_at.strftime('%m/%d %H:%M') }}{% else %}—{% endif %}
         </td>
         <td class="px-4 py-3 max-w-[160px]">
-          {% if log.status_detail %}
-          <div class="text-xs text-gray-700 truncate">{{ log.status_detail }}</div>
-          {% endif %}
-          {% if log.notes %}
-          <div class="text-xs text-gray-400 truncate">{{ log.notes }}</div>
-          {% endif %}
-          {% if not log.status_detail and not log.notes %}
-          <span class="text-xs text-gray-300">—</span>
-          {% endif %}
+          {% if log.status_detail %}<div class="text-xs text-gray-700 truncate">{{ log.status_detail }}</div>{% endif %}
+          {% if log.notes %}<div class="text-xs text-gray-400 truncate">{{ log.notes }}</div>{% endif %}
+          {% if not log.status_detail and not log.notes %}<span class="text-xs text-gray-300">—</span>{% endif %}
         </td>
         <td class="px-3 py-3 text-center whitespace-nowrap">
           {% set ecnt = email_counts.get(log.id, 0) %}
@@ -308,8 +430,7 @@
         </td>
         <td class="px-3 py-3 whitespace-nowrap">
           <div class="flex items-center gap-1">
-            <a href="/outreach/{{ log.id }}/edit"
-              class="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">편집</a>
+            <a href="/outreach/{{ log.id }}/edit" class="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">편집</a>
             {% if item.crm_pipeline_id %}
             <a href="/crm/{{ item.crm_pipeline_id }}"
               class="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50">
@@ -317,8 +438,7 @@
             </a>
             {% elif log.influencer_id and log.sample_status in ['replied', 'deal', '샘플요청', '샘플발송'] %}
             <form method="post" action="/outreach/{{ log.id }}/to-crm" class="inline">
-              <button type="submit"
-                class="text-xs text-indigo-500 hover:text-indigo-700 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50">
+              <button type="submit" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium px-2 py-1 rounded border border-indigo-100 hover:bg-indigo-50">
                 CRM 등록
               </button>
             </form>
@@ -330,6 +450,7 @@
     </tbody>
   </table>
 </div>
+
 {% else %}
 <div class="bg-white rounded-xl border border-gray-100 p-12 text-center">
   <div class="text-3xl mb-3">📭</div>
@@ -411,7 +532,6 @@
 </div>
 
 <script>
-// ── 뷰 전환 ──────────────────────────────────────────────────────────────────
 function switchView(v) {
   const listView = document.getElementById('list-view');
   const dateView = document.getElementById('date-view');
@@ -430,7 +550,6 @@ function switchView(v) {
   }
 }
 
-// ── 날짜 그룹 펼치기 ─────────────────────────────────────────────────────────
 function toggleDate(id) {
   const el   = document.getElementById(id);
   const icon = document.getElementById(id + '-icon');

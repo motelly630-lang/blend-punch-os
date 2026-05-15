@@ -19,28 +19,43 @@
       </svg>
     </a>
   </div>
-  <!-- Template download -->
-  <a href="/products/import/template" class="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors">
+  <!-- 데스크탑에서만 표시 -->
+  <a href="/products/import/template" class="hidden sm:inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors">
     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
       <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
     </svg>
     샘플 템플릿
   </a>
-  <!-- Excel bulk import -->
-  <button type="button" id="btn-open-import" class="inline-flex items-center gap-1.5 bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
+  <button type="button" id="btn-open-import" class="hidden sm:inline-flex items-center gap-1.5 bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
       <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
     </svg>
-    Excel 일괄 업로드
+    Excel 업로드
   </button>
-  <a href="/products/new" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+  <a href="/products/new" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-    직접 등록
+    <span class="hidden sm:inline">직접 등록</span>
   </a>
 </div>
 {% endblock %}
 
 {% block content %}
+
+<!-- 모바일 전용 액션 버튼 -->
+<div class="flex sm:hidden gap-2 mb-4">
+  <a href="/products/import/template" class="flex-1 inline-flex items-center justify-center gap-1.5 bg-gray-100 text-gray-700 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+    </svg>
+    템플릿
+  </a>
+  <button type="button" id="btn-open-import-mobile" class="flex-1 inline-flex items-center justify-center gap-1.5 bg-green-600 text-white text-sm font-medium px-3 py-2 rounded-lg hover:bg-green-700 transition-colors">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+    </svg>
+    Excel 업로드
+  </button>
+</div>
 
 <!-- 검색창 -->
 <form method="get" class="mb-4 flex gap-2">
@@ -267,6 +282,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   document.getElementById('btn-open-import').addEventListener('click', openModal);
+  document.getElementById('btn-open-import-mobile').addEventListener('click', openModal);
   document.getElementById('btn-close-import').addEventListener('click', closeModal);
 
   // Close on backdrop click
