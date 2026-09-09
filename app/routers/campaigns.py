@@ -24,6 +24,30 @@ def _kst_today() -> date:
     return datetime.now(KST).date()
 
 
+def _scoped_partner_id(db: Session, cid: int, product_id: str, form_partner_id: str):
+    """캠페인에 붙일 협력사 id를 테넌트 스코프 안에서만 결정한다.
+
+    제품에 배정된 협력사가 있으면 우선(제품은 이미 cid로 조회됨), 없으면 폼에서 고른 값을 쓴다.
+    폼 값은 드롭다운이 cid로 스코프돼 있어도 POST 본문으로 임의 id를 넣을 수 있으므로
+    반드시 소속을 확인해야 한다. 검증 없이 저장하면 협력사 포털(portal.py)이 그 캠페인을
+    남의 회사 협력사에게 보여준다.
+    """
+    prod = (
+        db.query(Product).filter(Product.id == product_id, Product.company_id == cid).first()
+        if product_id else None
+    )
+    if prod and prod.partner_id:
+        return prod.partner_id
+    if not form_partner_id:
+        return None
+    owned = (
+        db.query(Partner.id)
+        .filter(Partner.id == form_partner_id, Partner.company_id == cid)
+        .first()
+    )
+    return form_partner_id if owned else None
+
+
 def _auto_status(c: Campaign, today: date) -> str:
     """Compute KST-based status from dates. Cancelled is never overridden."""
     if c.status == "cancelled":
@@ -201,7 +225,23 @@ def _auto_settle(db: Session, campaign: Campaign):
         return
 
     from app.routers.settlements import calc_settlement
-    inf = db.query(Influencer).filter_by(id=campaign.influencer_id).first()
+    # 반드시 캠페인과 같은 회사의 인플루언서만 — 계좌정보를 스냅샷하므로 스코프가 빠지면
+    # 타사 인플루언서의 실계좌번호가 이 회사 정산 레코드에 저장된다.
+    # (수동 생성 경로 settlements.py 는 이미 cid 스코프. 자동 경로가 누락돼 있었다)
+    #
+    # `or 1`: 레거시 캠페인의 company_id 가 NULL 이면 `company_id == NULL` 은 SQL 에서
+    # 절대 참이 아니므로 inf=None → 계좌 스냅샷 없이 정산이 생기고, 아래에서 NULL 이
+    # 그대로 전파돼 /settlements 목록에 안 보이는 고아 정산이 된다(d92cb06 증상 재현).
+    # migrate.py 가 NULL 을 1로 백필하지만 실행 순서에 의존하지 않도록 여기서도 막는다.
+    settle_cid = campaign.company_id or 1
+    inf = (
+        db.query(Influencer)
+        .filter(
+            Influencer.company_id == settle_cid,
+            Influencer.id == campaign.influencer_id,
+        )
+        .first()
+    )
 
     # seller_type: 캠페인 설정 우선, 없으면 인플루언서 사업자 유형, 최종 fallback 사업자
     seller_type = (
@@ -232,7 +272,7 @@ def _auto_settle(db: Session, campaign: Campaign):
                 existing.account_holder_snapshot  = inf.account_holder
     else:
         s = Settlement(
-            company_id=campaign.company_id,
+            company_id=settle_cid,
             influencer_id=campaign.influencer_id,
             campaign_id=campaign.id,
             period_label=period,
@@ -331,9 +371,7 @@ def campaign_create(
         product_id, influencer_id, commission_rate,
         unit_price, seller_commission_rate_pct, vendor_commission_rate_pct, actual_revenue,
     )
-    # 제품에 배정된 협력사가 있으면 우선 스냅샷, 없으면 폼에서 직접 선택한 협력사
-    prod = db.query(Product).filter(Product.id == product_id, Product.company_id == cid).first() if product_id else None
-    partner_val = (prod.partner_id if prod and prod.partner_id else (partner_id or None))
+    partner_val = _scoped_partner_id(db, cid, product_id, partner_id)
     campaign = Campaign(
         company_id=cid,
         name=name,
@@ -421,7 +459,12 @@ def campaign_edit(campaign_id: str, request: Request, db: Session = Depends(get_
     products = db.query(Product).filter(Product.company_id == cid, Product.status != "archived").order_by(Product.name).limit(300).all()
     influencers = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.status == "active").order_by(Influencer.name).limit(300).all()
     partners = db.query(Partner).filter(Partner.company_id == cid, Partner.is_active == True).order_by(Partner.name).all()
-    sel = db.query(Partner).filter(Partner.id == campaign.partner_id).first() if campaign.partner_id else None
+    sel = (
+        db.query(Partner)
+        .filter(Partner.company_id == cid, Partner.id == campaign.partner_id)
+        .first()
+        if campaign.partner_id else None
+    )
     return templates.TemplateResponse("campaigns/form.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": campaign, "products": products, "influencers": influencers, "statuses": STATUSES,
@@ -470,9 +513,7 @@ def campaign_update(
     campaign.name = name
     campaign.product_id = product_id or None
     campaign.influencer_id = influencer_id or None
-    # 제품에 배정된 협력사 우선, 없으면 직접 선택
-    _prod = db.query(Product).filter(Product.id == product_id, Product.company_id == cid).first() if product_id else None
-    campaign.partner_id = (_prod.partner_id if _prod and _prod.partner_id else (partner_id or None))
+    campaign.partner_id = _scoped_partner_id(db, cid, product_id, partner_id)
     campaign.status = status
     campaign.start_date = _parse_date(start_date)
     campaign.end_date = _parse_date(end_date)

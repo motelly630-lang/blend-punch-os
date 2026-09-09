@@ -15,6 +15,13 @@ templates = Jinja2Templates(directory="app/templates")
 
 PAGE_SIZE = 24
 
+# 공개 카탈로그의 소속 회사.
+# /public 은 "블렌드펀치 전용 카탈로그"로 확정(2026-09-08). 멀티테넌트 공개몰이 아니므로
+# 회사별 분기 없이 1번 회사(블렌드펀치)만 노출한다. 인증이 없는 경로여서 스코프가 빠지면
+# 두 번째 회사가 제품을 등록하는 순간 그 제품이 외부에 그대로 공개된다.
+# 멀티테넌트 공개몰로 방향이 바뀌면 호스트/서브도메인 → company 매핑으로 대체할 것.
+PUBLIC_COMPANY_ID = 1
+
 # 정렬 옵션: (key, 표시라벨)
 SORT_OPTIONS = [
     ("newest", "신상품순"),
@@ -31,6 +38,7 @@ def _eff_price():
 # visibility_status = 'hidden' 제품은 절대 노출 금지
 def _public_filter(query):
     return query.filter(
+        Product.company_id == PUBLIC_COMPANY_ID,  # 전용 카탈로그 — 타사 제품 노출 금지
         Product.status == "active",
         (Product.visibility_status == "active") | (Product.visibility_status == None),
         Product.is_archived.isnot(True),  # 보관(삭제) 제품 노출 금지
@@ -45,7 +53,12 @@ def _brand_list(db: Session) -> list[dict]:
         .order_by(Product.brand)
         .all()
     )
-    brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.logo.isnot(None)).all()}
+    brand_logos = {
+        b.name: b.logo
+        for b in db.query(BrandModel)
+        .filter(BrandModel.company_id == PUBLIC_COMPANY_ID, BrandModel.logo.isnot(None))
+        .all()
+    }
     first_imgs = {
         r.brand: r.img
         for r in _public_filter(
@@ -151,7 +164,11 @@ def public_brand_products(brand_name: str, request: Request, db: Session = Depen
     )
     products = [PublicProduct.from_orm(p) for p in db_products]
     brands = _brand_list(db)
-    brand_obj = db.query(BrandModel).filter(BrandModel.name == brand_name).first()
+    brand_obj = (
+        db.query(BrandModel)
+        .filter(BrandModel.company_id == PUBLIC_COMPANY_ID, BrandModel.name == brand_name)
+        .first()
+    )
     return templates.TemplateResponse(
         "public/brand.html",
         {"request": request, "brand_name": brand_name,
@@ -187,7 +204,14 @@ def submit_application(
     message: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    # 신청 레코드는 신청 대상 제품의 소속 회사로 귀속시킨다.
+    # 모델 default(=1)에 맡기면 타사 제품에 들어온 신청이 1번 회사 받은함으로 섞인다.
+    target = (
+        _public_filter(db.query(Product)).filter(Product.id == product_id).first()
+        if product_id else None
+    )
     app = GroupBuyApplication(
+        company_id=target.company_id if target else PUBLIC_COMPANY_ID,
         product_id=product_id or None,
         product_name=product_name,
         brand=brand or None,

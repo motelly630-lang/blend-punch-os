@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Product
+from app.services.product_service import normalize_status, normalize_visibility
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
 from app.models.user import User
@@ -333,13 +334,10 @@ async def import_confirm(
             if ai_data:
                 ai_enriched += 1
 
-        # VARCHAR(20) 필드 검증 — 허용값 외 입력은 기본값으로 fallback
-        _status = row_data.get("status", "draft")
-        if _status not in ("draft", "active", "archived"):
-            _status = "draft"
-        _vis = row_data.get("visibility_status", "active")
-        if _vis not in ("active", "hidden"):
-            _vis = "active"
+        # VARCHAR(20) 필드 검증 — 허용값 외 입력은 기본값으로 fallback.
+        # 정규화 규칙은 product_service 에 단일화 (엑셀에 한글로 "공개"가 들어오는 경우 포함)
+        _status = normalize_status(row_data.get("status", "draft"))
+        _vis = normalize_visibility(row_data.get("visibility_status", "active"))
 
         def _trunc20(v):
             return v[:20] if isinstance(v, str) and len(v) > 20 else v

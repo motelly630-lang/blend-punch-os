@@ -297,6 +297,55 @@ def migrate():
         except Exception:
             conn.rollback()
 
+        # --- 코드값 정규화: 한글로 저장된 status / visibility_status ---
+        # 운영에서 visibility_status = "공개" 인 제품 4건이 공개 카탈로그에서 누락돼 있었다.
+        # /public 은 "active" 또는 NULL 만 노출하므로, 화면상 "공개"인데 실제로는 안 보였다.
+        # 재실행 안전: 이미 정규화된 행은 WHERE 에 걸리지 않는다.
+        try:
+            # 별칭 정의는 product_service 가 단일 출처 — 런타임 정규화와 어긋나면
+            # 임포트가 다시 한글 값을 넣는 사고가 반복된다.
+            # 비교는 LOWER() 로 — 런타임 정규화가 소문자 기준이므로 SQL도 맞춰야
+            # 'Hidden'/'Active' 같은 입력에서 두 경로의 동작이 갈리지 않는다.
+            from app.services.product_service import (
+                _VISIBILITY_ALIASES, _STATUS_ALIASES,
+                VISIBILITY_VALUES, STATUS_VALUES,
+            )
+            for col, aliases in (("visibility_status", _VISIBILITY_ALIASES),
+                                 ("status", _STATUS_ALIASES)):
+                for ko, en in aliases.items():
+                    r = conn.execute(
+                        text(f"UPDATE products SET {col} = :en WHERE LOWER({col}) = :ko"),
+                        {"en": en, "ko": ko.lower()},
+                    )
+                    if r.rowcount:
+                        print(f"  ~ products.{col} '{ko}' -> '{en}': {r.rowcount}건")
+                # 정식값의 대소문자 변형도 정규화 ('Active' -> 'active')
+                for v in (VISIBILITY_VALUES if col == "visibility_status" else STATUS_VALUES):
+                    r = conn.execute(
+                        text(f"UPDATE products SET {col} = :v WHERE LOWER({col}) = :v AND {col} <> :v"),
+                        {"v": v},
+                    )
+                    if r.rowcount:
+                        print(f"  ~ products.{col} 대소문자 정규화 -> '{v}': {r.rowcount}건")
+            conn.commit()
+
+            # 별칭에 없는 잔여 이상값은 조용히 남아 /public 에서 영구 누락된다 — 반드시 보고.
+            for col, allowed in (("visibility_status", VISIBILITY_VALUES),
+                                 ("status", STATUS_VALUES)):
+                rows = conn.execute(text(
+                    f"SELECT DISTINCT {col} FROM products "
+                    f"WHERE {col} IS NOT NULL AND {col} NOT IN :allowed"
+                ).bindparams(allowed=tuple(allowed))).all()
+                for (bad,) in rows:
+                    n = conn.execute(
+                        text(f"SELECT count(*) FROM products WHERE {col} = :bad"), {"bad": bad}
+                    ).scalar()
+                    print(f"  ! products.{col} 미등록 값 '{bad}': {n}건 — "
+                          f"product_service 별칭에 추가하거나 데이터를 수정하세요")
+        except Exception as e:
+            conn.rollback()
+            print(f"  ! 코드값 정규화 건너뜀: {e}")
+
         # --- 인스타 프로필 자동수집 ---
         _add_column(conn, "influencers", "enriched_at TIMESTAMP")
         _add_column(conn, "influencers", "enrich_error VARCHAR(200)")

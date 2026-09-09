@@ -12,7 +12,11 @@ from app.models.user import User
 from app.auth.dependencies import get_current_user, require_admin
 from app.auth.tenant import get_company_id
 from app.services.image_service import save_product_image
-from app.services.product_service import validate_product_completeness
+from app.services.product_service import (
+    validate_product_completeness,
+    normalize_status,
+    normalize_visibility,
+)
 
 router = APIRouter(prefix="/products")
 templates = Jinja2Templates(directory="app/templates")
@@ -234,7 +238,7 @@ def product_create(
         key_benefits=key_benefits or None,
         unique_selling_point=unique_selling_point or None,
         recommended_commission_rate=commission,
-        visibility_status=visibility_status,
+        visibility_status=normalize_visibility(visibility_status),
         content_angle=content_angle or None,
         positioning=positioning or None,
         set_options=set_opts,
@@ -242,7 +246,7 @@ def product_create(
         recommended_inf_categories=rec_inf,
         group_buy_guideline=group_buy_guideline or None,
         product_image=image_path,
-        status=status,
+        status=normalize_status(status),
         shipping_type=shipping_type or None,
         shipping_cost=float(shipping_cost) if shipping_cost else None,
         carrier=carrier or None,
@@ -434,8 +438,8 @@ def product_update(
     product.content_angle = content_angle or None
     product.positioning = positioning or None
     product.group_buy_guideline = group_buy_guideline or None
-    product.status = status
-    product.visibility_status = visibility_status
+    product.status = normalize_status(status, default=product.status or "draft")
+    product.visibility_status = normalize_visibility(visibility_status)
     product.shipping_type = shipping_type or None
     product.shipping_cost = float(shipping_cost) if shipping_cost else None
     product.carrier = carrier or None

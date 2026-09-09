@@ -188,9 +188,15 @@ def portal_home(
         })
 
     # ── 내 제품 ────────────────────────────────────────────────────────────────
+    # partner_id 만으로 필터하지 않고 협력사의 소속 회사까지 확인한다 — 어딘가에서
+    # 크로스 테넌트 partner_id 가 저장되더라도 포털에는 새지 않도록 하는 2차 방어.
     products = (
         db.query(Product)
-        .filter(Product.partner_id == partner.id, Product.is_archived == False)
+        .filter(
+            Product.company_id == partner.company_id,
+            Product.partner_id == partner.id,
+            Product.is_archived == False,
+        )
         .order_by(Product.created_at.desc())
         .all()
     )
@@ -207,7 +213,11 @@ def portal_home(
         conds.append(Campaign.product_id.in_(product_ids))
     campaigns = (
         db.query(Campaign)
-        .filter(Campaign.is_archived == False, or_(*conds))
+        .filter(
+            Campaign.company_id == partner.company_id,
+            Campaign.is_archived == False,
+            or_(*conds),
+        )
         .order_by(nullslast(Campaign.start_date.desc()))
         .all()
     )
