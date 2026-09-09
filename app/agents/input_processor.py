@@ -12,6 +12,7 @@ from typing import Optional
 
 import anthropic
 from app.config import settings
+from app.agents.base import _extract_text
 
 _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
@@ -61,7 +62,7 @@ def process_image(image_path: str) -> dict:
         }],
     )
 
-    text = resp.content[0].text.strip()
+    text = _extract_text(resp).strip()
     if text.startswith("```"):
         text = text.split("```")[1]
         if text.startswith("json"):
@@ -113,7 +114,7 @@ def process_excel(excel_path: str) -> dict:
                 ),
             }],
         )
-        text = resp.content[0].text.strip()
+        text = _extract_text(resp).strip()
         if text.startswith("```"):
             text = text.split("```")[1]
             if text.startswith("json"):

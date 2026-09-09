@@ -27,19 +27,29 @@ from app.models.agent_log import AgentLog
 
 _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
+# 전 역할 Opus 5 (2026-09-09 결정).
+# 이 에이전트들이 쓰는 문구가 공개 카탈로그·셀러 제안서에 그대로 나가는데, 이전에는
+# 정작 콘텐츠를 쓰는 대리(assistant)가 가장 싼 Haiku 였다. 제품 248건 전량을 Opus 5 로
+# 돌려도 대략 $12 수준이어서 비용이 제약이 아니다 — 품질을 기준으로 고른다.
+# (직전 구성의 claude-sonnet-4-6 은 $3/$15 인데 후속 claude-sonnet-5 가 $2/$10 로
+#  더 새롭고 더 싸다. 구세대를 더 비싸게 쓰고 있었다.)
 ROLE_MODELS = {
-    "staff":     "claude-haiku-4-5-20251001",
-    "assistant": "claude-haiku-4-5-20251001",
-    "manager":   "claude-sonnet-4-6",
-    "lead":      "claude-sonnet-4-6",
-    "director":  "claude-sonnet-4-6",   # 기본값 Sonnet; HIGH risk 시 Opus로 승격
+    "staff":     "claude-opus-5",
+    "assistant": "claude-opus-5",
+    "manager":   "claude-opus-5",
+    "lead":      "claude-opus-5",
+    "director":  "claude-opus-5",
 }
 
 # 모델 폴백 체인: 실패 시 하위 모델로 내려간다
 FALLBACK_MODELS = {
+    "claude-opus-5":            "claude-sonnet-5",
+    "claude-sonnet-5":          "claude-haiku-4-5",
+    "claude-haiku-4-5":         None,   # 더 이상 내려갈 수 없음
+    # 구 설정 호환 (ROLE_MODELS 를 되돌리거나 --model 로 강제하는 경우)
     "claude-opus-4-6":          "claude-sonnet-4-6",
-    "claude-sonnet-4-6":        "claude-haiku-4-5-20251001",
-    "claude-haiku-4-5-20251001": None,   # 더 이상 내려갈 수 없음
+    "claude-sonnet-4-6":        "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001": None,
 }
 
 ROLE_LABELS = {
@@ -53,6 +63,18 @@ ROLE_LABELS = {
 MAX_RETRIES = 3
 
 
+def _extract_text(resp) -> str:
+    """응답에서 텍스트 블록만 이어붙인다.
+
+    ⚠️ `resp.content[0].text` 로 쓰면 안 된다. content 는 블록 리스트이고 첫 블록이
+    TextBlock 이 아닐 수 있다 — Opus 5 는 thinking 이 기본 on 이라 ThinkingBlock 이
+    먼저 오고, `'ThinkingBlock' object has no attribute 'text'` 로 터진다.
+    thinking 여부는 요청마다 적응적으로 결정되므로 간헐적으로만 실패해 더 찾기 어렵다.
+    (Sonnet 4.6 / Haiku 4.5 에서는 thinking 을 켜지 않아 우연히 동작했다)
+    """
+    return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+
+
 class BaseAgent:
     role: str = ""
     target_type: str = ""
@@ -60,16 +82,8 @@ class BaseAgent:
     output_schema: str = ""
 
     def _select_model(self, context: dict) -> str:
-        """
-        이사 역할: lead의 risk_level이 HIGH이면 Opus, 그 외엔 Sonnet.
-        나머지 역할: ROLE_MODELS 기본값 사용.
-        """
-        base_model = ROLE_MODELS[self.role]
-        if self.role == "director":
-            lead_risk = context.get("lead_result", {}).get("risk_level", "LOW")
-            if lead_risk == "HIGH":
-                return "claude-opus-4-6"
-        return base_model
+        """역할별 모델. 전 역할이 Opus 5 이므로 승격 로직은 남겨두되 실질 효과는 없다."""
+        return ROLE_MODELS[self.role]
 
     def run(
         self,
@@ -117,7 +131,7 @@ class BaseAgent:
                         system=self.system_prompt,
                         messages=[{"role": "user", "content": user_message}],
                     )
-                    response_text = resp.content[0].text
+                    response_text = _extract_text(resp)
                     tokens = resp.usage.input_tokens + resp.usage.output_tokens
                     result = self._parse_response(response_text)
                     model = current_model   # 실제 사용된 모델 기록

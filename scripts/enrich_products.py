@@ -79,6 +79,9 @@ def _select(db, limit, ids, company_id):
     q = q.filter(
         Product.product_image.isnot(None),
         Product.product_image != "",
+        # 가격이 없는 제품은 대리 단계에서 "필수 정보 부재"로 반려된다 — API 비용만 나가므로 제외.
+        # 이 제품들은 문구 생성 전에 가격 데이터가 먼저 채워져야 한다.
+        or_(Product.consumer_price > 0, Product.groupbuy_price > 0),
         or_(
             Product.description.is_(None), Product.description == "",
             Product.usage_scenes.is_(None), Product.usage_scenes == "",
@@ -89,9 +92,21 @@ def _select(db, limit, ids, company_id):
     return q.order_by(Product.created_at.desc()).limit(limit).all()
 
 
+# 생성 문구가 지켜야 할 규칙. 에이전트 system_prompt 는 신규생성 경로와 공유되므로
+# 건드리지 않고, 컨텍스트로 전달한다(_build_user_message 가 컨텍스트를 그대로 넘긴다).
+WRITING_RULES = [
+    "가격·금액·할인율을 문구에 절대 넣지 마라. 가격은 수시로 바뀌므로 문구가 거짓이 된다.",
+    "제공된 정보에 없는 스펙(용량, 소재, 인증, 원산지, 연령대 등)을 지어내지 마라.",
+    "'최고', '1위', '유일' 같은 검증 불가한 최상급 표현을 쓰지 마라.",
+    "description 은 제품이 무엇이고 누구에게 왜 좋은지를 담백하게. 과장된 감탄사로 시작하지 마라.",
+    "usage_scenes 는 실제 사용 장면 2~3개를 줄바꿈으로 구분해 쓰라.",
+]
+
+
 def _context(p):
     """에이전트에 넘길 컨텍스트 — 기존에 있는 정보만 담는다(없는 걸 지어내지 않게)."""
     return {
+        "작성_규칙": WRITING_RULES,
         "product_id": p.id,
         "name": p.name,
         "brand": p.brand,
@@ -201,35 +216,62 @@ def main():
         )
         print(f"실행 전 스냅샷: {snap_path}\n")
 
-        ok = fail = 0
+        ok = fail = rejected = 0
         for i, p in enumerate(targets, 1):
             print(f"[{i}/{len(targets)}] {p.name[:50]}")
             context = _context(p)
+            halted = None
             for label, agent in stages:
                 try:
                     res = agent.run(db, p.id, p.name, context, company_id=p.company_id)
                     dec = res.get("decision")
                     print(f"    {label}: {dec} score={res.get('score')} "
                           f"risk={res.get('risk_level')}")
+                    # 반려는 체인을 멈춘다. 계속 돌리면 다음 단계가 "정보 부족"으로 반려된
+                    # 데이터 위에 전략 필드를 써버린다(Decision Engine 의미와도 어긋남).
                     if dec == "reject":
                         print(f"      반려사유: {res.get('reject_reason')}")
+                        halted = "reject"
+                        break
                     # 다음 단계가 앞 단계 결과를 볼 수 있게 컨텍스트 누적
                     context[f"{agent.role}_result"] = res.get("output")
                 except Exception as e:
-                    fail += 1
                     print(f"    {label}: ✗ 실패 — {type(e).__name__}: {e}")
+                    halted = "error"
                     break
+
+            # ── 기존 값 보존 ──────────────────────────────────────────────────
+            # 에이전트 db_action 은 `output.get(x) or product.x` 라서 output 에 값이 있으면
+            # 기존 값을 덮어쓴다. 이 스크립트의 목적은 "빈 칸 채우기"이므로, 원래 값이
+            # 있던 필드는 되돌린다. (실제 사고: categories 가 ["육아"] → ["맥포머스",
+            # "자석블록", ...] 로 바뀌어 소비자 대분류가 SEO 키워드로 오염됐다)
+            db.refresh(p)
+            restored = []
+            for f in ASSISTANT_FIELDS + LEAD_FIELDS:
+                before = snapshots[p.id][f]
+                if not _empty(before) and getattr(p, f, None) != before:
+                    setattr(p, f, before)
+                    restored.append(f)
+            if restored:
+                db.commit()
+                db.refresh(p)
+                print(f"    기존값 보존: {', '.join(restored)}")
+
+            if halted == "reject":
+                rejected += 1
+            elif halted == "error":
+                fail += 1
             else:
                 ok += 1
-                db.refresh(p)
-                after = _snapshot(p)
-                for f in ASSISTANT_FIELDS + LEAD_FIELDS:
-                    b, a = snapshots[p.id][f], after[f]
-                    if b != a:
-                        print(f"      {f}: {_fmt(b, 30)} → {_fmt(a)}")
+
+            after = _snapshot(p)
+            for f in ASSISTANT_FIELDS + LEAD_FIELDS:
+                b, a = snapshots[p.id][f], after[f]
+                if b != a:
+                    print(f"      {f}: {_fmt(b, 30)} → {_fmt(a)}")
             print()
 
-        print(f"완료 — 성공 {ok}건 / 실패 {fail}건")
+        print(f"완료 — 성공 {ok}건 / 반려 {rejected}건 / 실패 {fail}건")
         print(f"되돌리기: uv run python scripts/enrich_products.py --restore {snap_path}")
     finally:
         db.close()
