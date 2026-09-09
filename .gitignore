@@ -1,9 +1,53 @@
 # Environment & secrets
+# (.env.example 은 의도적으로 추적한다 — 아래 패턴 어디에도 걸리지 않음)
 .env
 *.env
 .env.bak.*
 google_sa.json
 instagram_session.json
+
+# 서비스 계정 / 자격증명 파일
+credentials.json
+credentials-*.json
+client_secret*.json
+service_account*.json
+service-account*.json
+*-service-account.json
+gcp-*.json
+firebase-adminsdk*.json
+aws_credentials
+.aws/credentials
+
+# 키 / 인증서 (개인키류)
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.asc
+*.gpg
+
+# DB 비밀번호 / API Key / Token 을 담는 파일
+.pgpass
+.netrc
+secrets.json
+secrets.yml
+secrets.yaml
+*.secret
+*_secret.json
+*.token
+*_token.json
+instagram_session*.json
+
+# Claude Code 개인(로컬) 설정 — 프로젝트 공용 설정만 커밋한다
+# (.claude/settings.json, hooks/, skills/, agents/, mcp/ 는 커밋 대상)
+.claude/settings.local.json
+.claude/worktrees/
 
 # Node
 node_modules/
@@ -32,4 +76,3 @@ static/uploads/
 # OS
 .DS_Store
 Thumbs.db
-google_sa.json

@@ -6,10 +6,38 @@
 > **이 파일은 지도(map)입니다.** 사업 배경·업무 흐름·모델 필드 상세는
 > `BLENDPUNCH_OS_SECOND_BRAIN.md`(572줄)에 있으니 **필요할 때만** 열어보세요.
 
+## 실행환경 — 편집은 Windows, 실행은 WSL
+
+이 저장소는 **WSL Ubuntu(`/home/blendpunch/blend-punch-os`)에서만 실행**된다.
+Claude Code는 Windows PowerShell에서 돌고 프로젝트를 UNC(`\\wsl$\Ubuntu\...`)로 연다.
+
+| 하는 일 | 어디서 |
+|---|---|
+| 파일 읽기·검색·수정 (Read/Edit/Grep/Glob) | Windows에서 그대로 — UNC 정상 동작 |
+| **실행·빌드·테스트·git — 전부** | `wsl -- bash -lc "<명령>"` |
+
+**Windows에서 직접 실행 금지 (프로젝트 명령 전부):** `uv` · `python` · `pytest` · `npm` · `git`
+
+- `uv run`을 Windows에서 실행하면 Linux `.venv`(python3.12)가 Windows용으로 **재생성되어
+  WSL과 EC2 실행환경이 함께 깨진다.** 가장 위험한 명령.
+- `npm`은 `node_modules/.bin`에 Linux 심볼릭 링크만 있어 실패하고, Windows에서 `npm install`을
+  돌리면 Linux `node_modules`가 깨진다.
+- `git`은 Windows에 **설치되어 있지 않다.** git 상태·diff·커밋은 전부 `wsl` 경유로만 확인된다.
+- cwd가 UNC라 cmd.exe 기반 도구는 조용히 `C:\Windows`에서 돈다.
+
+**기존 Linux `.venv` / `node_modules`는 Windows용으로 재생성하지 않는다.**
+
 ## 실행
 
 ```bash
-uv run uvicorn app.main:app --reload --port 8000   # 로컬 (EC2는 .venv/bin/python)
+# Windows Claude Code에서는 아래를 그대로 wsl 로 감싼다
+wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && uv run uvicorn app.main:app --reload --port 8000"
+wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && npm run build:css"
+wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && uv run python migrate.py"
+wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && git status --short"
+
+# WSL 셸에서 직접 작업할 때 (EC2는 .venv/bin/python)
+uv run uvicorn app.main:app --reload --port 8000   # 로컬
 npm run build:css                                  # 템플릿에 새 Tailwind 클래스 추가 시 필수
 uv run python migrate.py                           # DB 마이그레이션 (재실행 안전)
 ```
@@ -58,8 +86,28 @@ app/routers/<name>.py  ↔  app/models/<name>.py  ↔  app/templates/<name>/
 5. **Alpine.js** — 중첩 `x-data` 금지. hidden input의 `:value`를 신뢰하지 말고 `@submit` 핸들러에서 값 구성.
 6. **모든 폼은 POST-Redirect-GET.**
 7. **DB 분리** — 운영 = `blendpunch_dev`, 로컬 = `blendpunch` (같은 RDS 인스턴스, 다른 데이터). 마이그레이션 실행 시 대상 확인.
+8. **실행 명령은 `wsl -- bash -lc "..."`** — 위 「실행환경」 참조. Windows에서 `uv`/`npm`/`git`을 직접 쓰지 않는다.
+
+## Claude 설정 (`.claude/`)
+
+Windows·WSL 양쪽에서 같이 쓰는 **프로젝트 공용 설정**. 개인 설정·인증정보는 여기에 넣지 않는다.
+
+| 경로 | 역할 |
+|---|---|
+| `.claude/settings.json` | 민감파일 Read/Edit deny + DB MCP의 mutation·DDL deny 82건 + 훅 등록 |
+| `.claude/hooks/os-build-css.sh` | 템플릿 수정 시 Tailwind 재빌드 (규칙 2 자동화) |
+| `.claude/hooks/os-router-parity.sh` → `.py` | 라우터 3점세트 정합성 검사 (규칙 1 자동화) |
+| `.claude/mcp/os-db-launch.sh` | `os-db-local`/`os-db-prod` MCP를 WSL 안에서 기동 |
+| `.claude/skills/`, `.claude/agents/` | `ec2-deploy` · `os-locate` · `os-ai-pipeline` · `tenant-scope-reviewer` |
+
+훅은 `bash <POSIX 절대경로>` 로 등록돼 있다. Windows에서 `bash`는 WSL 런처이므로 훅은 항상
+WSL 안에서 실행되고, 훅이 받는 UNC 경로(`\\wsl$\...`)는 스크립트가 POSIX로 정규화한다.
+정규화 동작 확인: `wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && bash .claude/hooks/os-build-css.sh --selftest"`
+
+**DB 자격증명은 WSL의 `~/.claude/os-db-ro.env`(읽기전용 롤)에만 있다. Windows 디스크로 복사하지 않는다.**
 
 ## 배포
 
-`ec2-deploy` 스킬 사용. EC2 IP가 자주 바뀌므로 **항상 DNS로 현재 IP를 먼저 확인**.
+`ec2-deploy` 스킬 사용 (`.claude/skills/ec2-deploy/`). **반드시 WSL에서 실행** — SSH 키가 WSL 홈에 있어
+Windows `ssh.exe`로는 권한 검사에서 막힌다. EC2 IP가 자주 바뀌므로 **항상 DNS로 현재 IP를 먼저 확인**.
 SSH `ubuntu@`, key `~/.ssh/blendpunch-key.pem`, 앱 경로 `/home/ubuntu/blend-punch-os/`.
