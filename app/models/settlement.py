@@ -27,6 +27,10 @@ class Settlement(Base):
     bank_name_snapshot = Column(String(100), nullable=True)
     account_number_snapshot = Column(String(100), nullable=True)
     account_holder_snapshot = Column(String(100), nullable=True)
+    # 통합 운영 스프레드시트 미러 (OS가 진실, 시트는 읽기전용)
+    sheet_code   = Column(String(50), nullable=True, index=True)
+    sheet_status = Column(String(30), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -16,6 +16,8 @@ class User(Base):
     # NULL = 슈퍼어드민 (모든 기능/회사 접근 가능)
     # 값 있음 = 해당 company 소속, 회사 기능 제한 적용
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
+    # role=="partner" 인 협력사 담당자 계정은 이 협력사에 묶인다 (포털 스코프)
+    partner_id = Column(String(36), ForeignKey("partners.id"), nullable=True, index=True)
 
     # 이메일 인증
     email_verified   = Column(Boolean, default=False)
@@ -30,6 +32,7 @@ class User(Base):
     reset_token_exp  = Column(DateTime, nullable=True)
 
     current_token = Column(String(512), nullable=True)
+    last_login_at = Column(DateTime, nullable=True)   # 최근 로그인 일시 (협업사 계정 관리 표시용)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

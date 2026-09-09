@@ -5,10 +5,11 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.database import get_db
 from app.models import Campaign, Product, Influencer
+from app.models.partner import Partner
 from app.models.settlement import Settlement
 from app.models.transaction import Transaction
 from app.models.sales_page import SalesPage
@@ -39,13 +40,16 @@ def _auto_status(c: Campaign, today: date) -> str:
     return c.status
 
 
-def _run_archiving(db: Session):
+def _run_archiving(db: Session, cid: int):
     """Auto-archive campaigns whose end_date month < current KST month,
-    sync KST-based status to DB, and auto-create settlements for completed campaigns."""
+    sync KST-based status to DB, and auto-create settlements for completed campaigns.
+    테넌트 격리: 호출한 사용자의 회사(cid) 캠페인만 처리."""
     today = _kst_today()
     first_of_month = today.replace(day=1)
 
-    all_active = db.query(Campaign).filter(Campaign.is_archived == False).all()
+    all_active = db.query(Campaign).filter(
+        Campaign.company_id == cid, Campaign.is_archived == False
+    ).all()
     changed = False
     newly_completed = []
     for c in all_active:
@@ -83,7 +87,7 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user),
                   tab: str = "active"):
     cid = get_company_id(current_user)
-    _run_archiving(db)
+    _run_archiving(db, cid)
     # Backfill: create settlements for existing completed campaigns that have none
     from sqlalchemy import and_
     completed_no_settlement = db.query(Campaign).filter(
@@ -100,17 +104,21 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
     today = _kst_today()
 
     if tab == "archive":
-        campaigns = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.is_archived == True).order_by(Campaign.end_date.desc()).all()
+        campaigns = db.query(Campaign).options(joinedload(Campaign.product), joinedload(Campaign.influencer)).filter(Campaign.company_id == cid, Campaign.is_archived == True).order_by(Campaign.end_date.desc()).all()
     else:
-        campaigns = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.is_archived == False).order_by(Campaign.start_date.asc().nullslast()).all()
+        campaigns = db.query(Campaign).options(joinedload(Campaign.product), joinedload(Campaign.influencer)).filter(Campaign.company_id == cid, Campaign.is_archived == False).order_by(Campaign.start_date.asc().nullslast()).all()
 
     # Compute auto-status per campaign (KST-based, display only)
     status_map = {c.id: _auto_status(c, today) for c in campaigns}
 
-    active_count   = sum(1 for s in status_map.values() if s == "active")
-    planning_count = sum(1 for s in status_map.values() if s in ("planning", "negotiating", "contracted"))
-    done_count     = sum(1 for s in status_map.values() if s in ("completed", "cancelled"))
+    # ── 통계 카운트는 탭과 무관하게 전역(활성=비보관) 기준으로 계산 ──
+    nonarch = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.is_archived == False).all()
+    nonarch_status = {c.id: _auto_status(c, today) for c in nonarch}
+    active_count   = sum(1 for s in nonarch_status.values() if s == "active")
+    planning_count = sum(1 for s in nonarch_status.values() if s in ("planning", "negotiating", "contracted"))
+    done_count     = sum(1 for s in nonarch_status.values() if s in ("completed", "cancelled"))
     archive_count  = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.is_archived == True).count()
+    total_count    = len(nonarch)
 
     # Calendar JSON — only campaigns with dates
     cal_data = []
@@ -124,11 +132,13 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
                 "status": status_map[c.id],
             })
 
-    # Summary totals for right panel
-    active_statuses = {"active", "completed"}
-    total_revenue    = sum(c.actual_revenue or 0 for c in campaigns if status_map.get(c.id) == "active")
-    total_seller_amt = sum(c.seller_commission_amount or 0 for c in campaigns if status_map.get(c.id) in active_statuses)
-    total_vendor_amt = sum(c.vendor_commission_amount or 0 for c in campaigns if status_map.get(c.id) in active_statuses)
+    # ── 합계: 전체 캠페인(완료·보관 포함, 취소 제외) 기준 — 대시보드와 동일 관점 ──
+    total_revenue = db.query(func.coalesce(func.sum(Campaign.actual_revenue), 0)).filter(
+        Campaign.company_id == cid, Campaign.status != "cancelled").scalar() or 0
+    total_seller_amt = db.query(func.coalesce(func.sum(Campaign.seller_commission_amount), 0)).filter(
+        Campaign.company_id == cid, Campaign.status != "cancelled").scalar() or 0
+    total_vendor_amt = db.query(func.coalesce(func.sum(Campaign.vendor_commission_amount), 0)).filter(
+        Campaign.company_id == cid, Campaign.status != "cancelled").scalar() or 0
 
     # Product / influencer lists for inline edit & quick-create dropdowns
     products_list    = db.query(Product).filter(Product.company_id == cid, Product.status != "archived").order_by(Product.name).limit(400).all()
@@ -140,7 +150,7 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaigns": campaigns, "status_map": status_map, "today": today, "tab": tab,
         "active_count": active_count, "planning_count": planning_count,
-        "done_count": done_count, "archive_count": archive_count,
+        "done_count": done_count, "archive_count": archive_count, "total_count": total_count,
         "cal_json": json.dumps(cal_data, ensure_ascii=False),
         "total_revenue": total_revenue,
         "total_seller_amt": total_seller_amt,
@@ -160,9 +170,12 @@ def campaign_new(request: Request, db: Session = Depends(get_db),
     cid = get_company_id(current_user)
     products = db.query(Product).filter(Product.company_id == cid, Product.status != "archived").order_by(Product.name).limit(300).all()
     influencers = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.status == "active").order_by(Influencer.name).limit(300).all()
+    partners = db.query(Partner).filter(Partner.company_id == cid, Partner.is_active == True).order_by(Partner.name).all()
     return templates.TemplateResponse("campaigns/form.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": None, "products": products, "influencers": influencers, "statuses": STATUSES,
+        "partners_json": [{"id": p.id, "name": p.name} for p in partners],
+        "sel_partner_id": "", "sel_partner_name": "",
         "prefill_product_id": product_id, "prefill_influencer_id": influencer_id,
     })
 
@@ -294,6 +307,7 @@ def campaign_create(
     name: str = Form(...),
     product_id: str = Form(""),
     influencer_id: str = Form(""),
+    partner_id: str = Form(""),
     status: str = Form("planning"),
     start_date: str = Form(""),
     end_date: str = Form(""),
@@ -317,11 +331,15 @@ def campaign_create(
         product_id, influencer_id, commission_rate,
         unit_price, seller_commission_rate_pct, vendor_commission_rate_pct, actual_revenue,
     )
+    # 제품에 배정된 협력사가 있으면 우선 스냅샷, 없으면 폼에서 직접 선택한 협력사
+    prod = db.query(Product).filter(Product.id == product_id, Product.company_id == cid).first() if product_id else None
+    partner_val = (prod.partner_id if prod and prod.partner_id else (partner_id or None))
     campaign = Campaign(
         company_id=cid,
         name=name,
         product_id=product_id or None,
         influencer_id=influencer_id or None,
+        partner_id=partner_val,
         status=status,
         start_date=_parse_date(start_date),
         end_date=_parse_date(end_date),
@@ -402,9 +420,13 @@ def campaign_edit(campaign_id: str, request: Request, db: Session = Depends(get_
         return RedirectResponse("/campaigns", status_code=302)
     products = db.query(Product).filter(Product.company_id == cid, Product.status != "archived").order_by(Product.name).limit(300).all()
     influencers = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.status == "active").order_by(Influencer.name).limit(300).all()
+    partners = db.query(Partner).filter(Partner.company_id == cid, Partner.is_active == True).order_by(Partner.name).all()
+    sel = db.query(Partner).filter(Partner.id == campaign.partner_id).first() if campaign.partner_id else None
     return templates.TemplateResponse("campaigns/form.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": campaign, "products": products, "influencers": influencers, "statuses": STATUSES,
+        "partners_json": [{"id": p.id, "name": p.name} for p in partners],
+        "sel_partner_id": campaign.partner_id or "", "sel_partner_name": sel.name if sel else "",
     })
 
 
@@ -416,6 +438,7 @@ def campaign_update(
     name: str = Form(...),
     product_id: str = Form(""),
     influencer_id: str = Form(""),
+    partner_id: str = Form(""),
     status: str = Form("planning"),
     start_date: str = Form(""),
     end_date: str = Form(""),
@@ -447,6 +470,9 @@ def campaign_update(
     campaign.name = name
     campaign.product_id = product_id or None
     campaign.influencer_id = influencer_id or None
+    # 제품에 배정된 협력사 우선, 없으면 직접 선택
+    _prod = db.query(Product).filter(Product.id == product_id, Product.company_id == cid).first() if product_id else None
+    campaign.partner_id = (_prod.partner_id if _prod and _prod.partner_id else (partner_id or None))
     campaign.status = status
     campaign.start_date = _parse_date(start_date)
     campaign.end_date = _parse_date(end_date)
@@ -599,7 +625,14 @@ def campaign_bulk_delete(
     cid = get_company_id(current_user)
     id_list = [i.strip() for i in ids.split(",") if i.strip()]
     if id_list:
-        db.query(Settlement).filter(Settlement.campaign_id.in_(id_list)).delete(synchronize_session=False)
-        db.query(Campaign).filter(Campaign.company_id == cid, Campaign.id.in_(id_list)).delete(synchronize_session=False)
+        # 본인 회사 소유 캠페인만 추려서 그 캠페인의 정산만 삭제 (타사 정산 삭제 방지)
+        owned_ids = [
+            cid_ for (cid_,) in db.query(Campaign.id).filter(
+                Campaign.company_id == cid, Campaign.id.in_(id_list)
+            ).all()
+        ]
+        if owned_ids:
+            db.query(Settlement).filter(Settlement.campaign_id.in_(owned_ids)).delete(synchronize_session=False)
+            db.query(Campaign).filter(Campaign.id.in_(owned_ids)).delete(synchronize_session=False)
         db.commit()
     return RedirectResponse(f"/campaigns?msg={len(id_list)}개+캠페인+삭제됨", status_code=302)

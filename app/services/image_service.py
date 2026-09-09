@@ -243,10 +243,14 @@ def save_sales_page_image(file: UploadFile, remove_bg: bool = False) -> str | No
     return save_upload(file, UPLOAD_DIR_SALES_PAGES, remove_bg=remove_bg)
 
 
-def process_url_with_remove_bg(url: str, dest_dir: Path) -> str | None:
+def save_url_image(url: str, dest_dir: Path, remove_bg: bool = False,
+                   stem: str | None = None) -> str | None:
     """
-    외부 URL 이미지를 다운로드 → 누끼 제거 → S3 또는 로컬 저장.
+    외부 URL 이미지를 다운로드 → (선택) 누끼 제거 → S3 또는 로컬 저장.
     성공 시 새 URL 반환, 실패 시 None.
+
+    stem 을 주면 랜덤 UUID 대신 그 이름으로 저장한다 (같은 원본 URL이면 같은
+    경로가 나오게 해서, 시트 재임포트 때 파일이 무한히 쌓이는 것을 막는다).
     """
     if not url or not url.startswith("http"):
         return None
@@ -256,10 +260,10 @@ def process_url_with_remove_bg(url: str, dest_dir: Path) -> str | None:
         if resp.status_code != 200:
             return None
         img = Image.open(BytesIO(resp.content))
-        img = _process_image(img, remove_bg=True)
+        img = _process_image(img, remove_bg=remove_bg)
         use_alpha = img.mode == "RGBA"
         img_bytes, ext = _pil_to_bytes(img, use_alpha=use_alpha)
-        filename = f"{uuid.uuid4().hex}.{ext}"
+        filename = f"{stem or uuid.uuid4().hex}.{ext}"
         content_type = "image/png" if ext == "png" else "image/webp"
 
         s3_prefix = _S3_PREFIX_MAP.get(str(dest_dir), f"uploads/{dest_dir.name}")
@@ -273,6 +277,11 @@ def process_url_with_remove_bg(url: str, dest_dir: Path) -> str | None:
         return f"/{dest}"
     except Exception:
         return None
+
+
+def process_url_with_remove_bg(url: str, dest_dir: Path) -> str | None:
+    """외부 URL 이미지 → 누끼 제거 후 저장 (save_url_image 의 누끼 버전)."""
+    return save_url_image(url, dest_dir, remove_bg=True)
 
 
 def cache_external_image(url: str) -> str | None:

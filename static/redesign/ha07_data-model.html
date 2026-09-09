@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>호텔 공동구매 · 데이터 구조 설계 (개발용)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>body{font-family:'Pretendard',sans-serif;}code{font-family:ui-monospace,Menlo,monospace;}
+  th,td{padding:.5rem .7rem;border:1px solid rgba(0,0,0,.08);font-size:13px;text-align:left;vertical-align:top;}
+  th{background:#f4f5f7;font-weight:700;}table{border-collapse:collapse;width:100%;}
+  h2{scroll-margin-top:1rem;}</style>
+<script>tailwind.config={theme:{extend:{colors:{brand:{DEFAULT:'#2f5d3f',dark:'#244a32',light:'#e7f0ea'},accent:'#ff7a1a',ink:'#1b1f1d'}}}}</script>
+</head>
+<body class="bg-white text-ink">
+<div class="max-w-4xl mx-auto px-6 py-12 leading-relaxed">
+  <p class="text-[12px] font-bold text-accent tracking-widest">DEV SPEC · 개발용</p>
+  <h1 class="text-3xl font-extrabold mt-1">호텔 공동구매 — 데이터 구조 설계</h1>
+  <p class="text-[13px] text-black/50 mt-2">확정된 정책 4가지 반영 · 기존 일반 공동구매 무수정 · 추가(additive) 원칙</p>
+
+  <!-- 원칙 -->
+  <div class="mt-8 rounded-xl bg-brand-light/50 p-5 text-[13px]">
+    <p class="font-extrabold mb-2">설계 원칙</p>
+    <ul class="list-disc pl-5 space-y-1 text-black/70">
+      <li>기존 <code>products</code>·주문·정산 로직은 <b>수정하지 않고</b> 컬럼/테이블만 <b>추가</b>한다.</li>
+      <li>상품유형은 <code>products.product_type</code> = <code>'normal'</code> | <code>'hotel'</code> 분기. 기존 데이터는 기본값 <code>'normal'</code>.</li>
+      <li>호텔은 <b>즉시 예약확정 + 날짜별 재고 차감</b> (목표인원 방식 아님).</li>
+    </ul>
+  </div>
+
+  <!-- 테이블 -->
+  <h2 class="text-xl font-extrabold mt-10">1. 테이블 설계</h2>
+
+  <h3 class="font-extrabold mt-6 mb-2 text-brand">① products <span class="text-[12px] font-normal text-black/45">(기존 · 컬럼 1개 추가)</span></h3>
+  <table><tr><th>컬럼</th><th>타입</th><th>설명</th></tr>
+    <tr><td><code>product_type</code></td><td>varchar(10)</td><td><b>추가.</b> 'normal'(기본) / 'hotel'. 이 값으로 상세·등록·정산 분기</td></tr>
+  </table>
+
+  <h3 class="font-extrabold mt-6 mb-2 text-brand">② hotels <span class="text-[12px] font-normal text-black/45">(신규 · products 1:1)</span></h3>
+  <table><tr><th>컬럼</th><th>타입</th><th>설명</th></tr>
+    <tr><td><code>id</code></td><td>PK</td><td></td></tr>
+    <tr><td><code>product_id</code></td><td>FK→products</td><td>1:1 연결</td></tr>
+    <tr><td><code>name</code></td><td>varchar</td><td>호텔명</td></tr>
+    <tr><td><code>region / address</code></td><td>varchar</td><td>지역 / 상세주소</td></tr>
+    <tr><td><code>star</code></td><td>int</td><td>성급</td></tr>
+    <tr><td><code>checkin_time / checkout_time</code></td><td>time</td><td>체크인/아웃 시간</td></tr>
+    <tr><td><code>amenities</code></td><td>json</td><td>편의시설 배열</td></tr>
+    <tr><td><code>images</code></td><td>json</td><td>대표+서브 이미지 URL</td></tr>
+    <tr><td><code>sale_start / sale_end</code></td><td>date</td><td>공구 판매 기간</td></tr>
+    <tr><td><code>cancel_policy</code></td><td>varchar</td><td>취소 규정</td></tr>
+  </table>
+
+  <h3 class="font-extrabold mt-6 mb-2 text-brand">③ hotel_rooms <span class="text-[12px] font-normal text-black/45">(신규 · 객실 타입)</span></h3>
+  <table><tr><th>컬럼</th><th>타입</th><th>설명</th></tr>
+    <tr><td><code>id</code></td><td>PK</td><td></td></tr>
+    <tr><td><code>hotel_id</code></td><td>FK→hotels</td><td></td></tr>
+    <tr><td><code>name</code></td><td>varchar</td><td>객실타입명 (디럭스 오션뷰 등)</td></tr>
+    <tr><td><code>base_capacity / max_capacity</code></td><td>int</td><td>기준인원 / 최대인원</td></tr>
+    <tr><td><code>bed_type</code></td><td>varchar</td><td>침대 구성</td></tr>
+    <tr><td><code>default_extra_person_fee</code></td><td>int</td><td><b>추가인원요금 기본값</b> (날짜별 재고표에서 덮어쓰기 가능)</td></tr>
+    <tr><td><code>images / description</code></td><td>json/text</td><td></td></tr>
+  </table>
+
+  <h3 class="font-extrabold mt-6 mb-2 text-brand">④ hotel_date_inventory ★ <span class="text-[12px] font-normal text-black/45">(신규 · 핵심 · 날짜×객실)</span></h3>
+  <table><tr><th>컬럼</th><th>타입</th><th>설명</th></tr>
+    <tr><td><code>id</code></td><td>PK</td><td></td></tr>
+    <tr><td><code>room_id</code></td><td>FK→hotel_rooms</td><td></td></tr>
+    <tr><td><code>date</code></td><td>date</td><td>투숙 1박 날짜</td></tr>
+    <tr><td><code>normal_price</code></td><td>int</td><td>정상가</td></tr>
+    <tr><td><code>group_price</code></td><td>int</td><td>공구판매가</td></tr>
+    <tr><td><code>remaining</code></td><td>int</td><td><b>잔여 객실 수</b> (예약 확정 시 차감)</td></tr>
+    <tr><td><code>extra_person_fee</code></td><td>int NULL</td><td>날짜별 추가인원요금 <b>override</b>. NULL이면 rooms 기본값 사용</td></tr>
+    <tr><td><code>note</code></td><td>varchar</td><td>비고</td></tr>
+    <tr><td colspan="3" class="bg-brand-light/40"><b>UNIQUE(room_id, date)</b> — 엑셀 업로드 시 이 키로 upsert(중복방지)</td></tr>
+  </table>
+
+  <h3 class="font-extrabold mt-6 mb-2 text-brand">⑤ hotel_reservations <span class="text-[12px] font-normal text-black/45">(신규 · 예약)</span></h3>
+  <table><tr><th>컬럼</th><th>타입</th><th>설명</th></tr>
+    <tr><td><code>id / reservation_no</code></td><td>PK / varchar</td><td>BP-H-YYYYMMDD-XXXX</td></tr>
+    <tr><td><code>room_id</code></td><td>FK→hotel_rooms</td><td></td></tr>
+    <tr><td><code>guest_name / phone</code></td><td>varchar</td><td>예약자</td></tr>
+    <tr><td><code>checkin_date / checkout_date</code></td><td>date</td><td>체크인/아웃</td></tr>
+    <tr><td><code>nights</code></td><td>int</td><td>박 수</td></tr>
+    <tr><td><code>adults / children</code></td><td>int</td><td>인원</td></tr>
+    <tr><td><code>room_amount / extra_person_amount / total_amount</code></td><td>int</td><td>객실요금 / 추가인원요금 / 합계</td></tr>
+    <tr><td><code>status</code></td><td>varchar</td><td>confirmed / checked_in / cancelled / no_show</td></tr>
+    <tr><td><code>paid_at</code></td><td>datetime</td><td>결제일 (정산 기준 A)</td></tr>
+  </table>
+
+  <h3 class="font-extrabold mt-6 mb-2 text-brand">⑥ settlements <span class="text-[12px] font-normal text-black/45">(기존 · 컬럼 추가)</span></h3>
+  <table><tr><th>컬럼</th><th>타입</th><th>설명</th></tr>
+    <tr><td><code>product_type</code></td><td>varchar(10)</td><td><b>추가.</b> 'normal'/'hotel' — 정산 필터 구분</td></tr>
+    <tr><td><code>settlement_basis</code></td><td>varchar(20)</td><td><b>추가.</b> 'payment_date'(초기 기본) / 'checkout_date'(추후)</td></tr>
+    <tr><td><code>payment_date</code></td><td>date</td><td>결제일</td></tr>
+    <tr><td><code>checkout_date</code></td><td>date NULL</td><td><b>호텔만.</b> 체크아웃일 — 기준 전환 대비 분리 저장</td></tr>
+    <tr><td><code>settlement_date</code></td><td>date</td><td>basis에 따라 결정(초기=payment_date). 재집계 가능</td></tr>
+  </table>
+
+  <!-- 플로우 -->
+  <h2 class="text-xl font-extrabold mt-12">2. 핵심 플로우</h2>
+
+  <div class="mt-4 space-y-4 text-[13px]">
+    <div class="rounded-xl border border-black/8 p-4">
+      <p class="font-bold">🔻 예약 확정 & 재고 차감 (즉시확정)</p>
+      <p class="text-black/65 mt-1">결제 승인 → 트랜잭션 안에서 투숙 <b>각 날짜</b>의 <code>hotel_date_inventory.remaining</code>을 <code>-1</code> (2박이면 두 날짜 모두). 하나라도 <code>remaining=0</code>이면 예약 거부·환불. 목표인원 대기 없음.</p>
+    </div>
+    <div class="rounded-xl border border-black/8 p-4">
+      <p class="font-bold">💰 추가 인원 요금 계산</p>
+      <p class="text-black/65 mt-1"><code>fee = COALESCE(inventory.extra_person_fee, rooms.default_extra_person_fee)</code><br>
+      <code>extra_person_amount = max(0, adults − base_capacity) × fee × nights</code><br>
+      예) 기준2·추가2만, 성인3, 2박 → 1 × 20,000 × 2 = 40,000원</p>
+    </div>
+    <div class="rounded-xl border border-black/8 p-4">
+      <p class="font-bold">📥 엑셀 블록표 업로드</p>
+      <p class="text-black/65 mt-1">표준 컬럼(날짜·요일·객실타입·정상가·공구판매가·잔여객실·기준인원·최대인원·추가인원요금·비고) 파싱 → <code>(room_id, date)</code> upsert. 객실타입은 이름 매칭(없으면 신규 안내).<br>
+      <span class="text-accent font-semibold">확장:</span> <code>hotel_column_mapping</code> 프로파일 테이블을 추후 추가해 호텔별 컬럼명 매핑("객실명"→"객실타입") 지원.</p>
+    </div>
+    <div class="rounded-xl border border-black/8 p-4">
+      <p class="font-bold">🧮 정산 기준 전환</p>
+      <p class="text-black/65 mt-1">초기 <code>settlement_basis='payment_date'</code>로 <code>settlement_date=payment_date</code>.
+      호텔은 <code>checkout_date</code>를 함께 저장해 두므로, 향후 정책만 <code>'checkout_date'</code>로 바꾸면 <code>settlement_date</code> 재계산으로 즉시 전환.</p>
+    </div>
+  </div>
+
+  <!-- API -->
+  <h2 class="text-xl font-extrabold mt-12">3. API 엔드포인트 (초안)</h2>
+  <table class="mt-3"><tr><th>메서드</th><th>경로</th><th>설명</th></tr>
+    <tr><td>GET</td><td><code>/hotel/{product_id}</code></td><td>호텔 상세 (H01)</td></tr>
+    <tr><td>GET</td><td><code>/hotel/{id}/availability?ci=&co=</code></td><td>기간 내 객실별 가격·잔여 (H02 달력·객실)</td></tr>
+    <tr><td>POST</td><td><code>/hotel/{id}/reserve</code></td><td>예약 생성 + 재고 차감 (트랜잭션)</td></tr>
+    <tr><td>POST</td><td><code>/admin/hotel</code> · <code>/rooms</code></td><td>호텔·객실 등록 (A1·A2)</td></tr>
+    <tr><td>POST</td><td><code>/admin/hotel/{id}/inventory/upload</code></td><td>엑셀 업로드 → upsert (A3)</td></tr>
+    <tr><td>PATCH</td><td><code>/admin/inventory/{id}</code></td><td>칸 클릭 수정(가격·잔여·추가요금) (A3)</td></tr>
+    <tr><td>POST</td><td><code>/admin/inventory/bulk</code></td><td>기간 일괄설정 (A3)</td></tr>
+    <tr><td>GET</td><td><code>/admin/reservations</code></td><td>예약 관리 (A4)</td></tr>
+    <tr><td>GET</td><td><code>/admin/settlements?type=hotel&basis=</code></td><td>정산 필터 조회 (A5)</td></tr>
+  </table>
+
+  <div class="mt-10 rounded-xl bg-accent/5 border border-accent/20 p-5 text-[13px]">
+    <p class="font-extrabold text-accent mb-1">확장 포인트 (초기엔 미구현, 구조만 대비)</p>
+    <ul class="list-disc pl-5 space-y-1 text-black/70">
+      <li><code>hotel_column_mapping</code> — 호텔별 엑셀 컬럼 매핑</li>
+      <li><code>settlement_basis='checkout_date'</code> — 체크아웃일 기준 정산 전환</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

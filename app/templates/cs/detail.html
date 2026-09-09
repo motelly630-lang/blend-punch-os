@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.cs_number }} · 고객 CS{% endblock %}
+{% block page_title %}{{ ticket.cs_number }}{% endblock %}
+
+{% block header_actions %}
+<a href="/cs" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:border-gray-300 whitespace-nowrap">← 목록</a>
+{% endblock %}
+
+{% block content %}
+<!-- 상단 요약 -->
+<div class="bg-white border border-gray-100 rounded-xl p-5 mb-5">
+  <div class="flex flex-wrap items-center gap-3 mb-3">
+    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ STATUS_BADGES.get(ticket.status, 'bg-gray-100 text-gray-600') }}">
+      {{ STATUS_LABELS.get(ticket.status, ticket.status) }}
+    </span>
+    {% if ticket.is_urgent %}
+    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-600">긴급</span>
+    {% endif %}
+    {% if ticket.submitted_by_partner %}
+    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-700">협업사 접수</span>
+    {% endif %}
+    {% if cs_type %}<span class="text-xs text-gray-500">유형: <b class="text-gray-700">{{ cs_type.name }}</b></span>{% endif %}
+    {% if ticket.resolution_type %}<span class="text-xs text-gray-500">처리: <b class="text-gray-700">{{ RESOLUTION_LABELS.get(ticket.resolution_type) }}</b></span>{% endif %}
+  </div>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+    <div><div class="text-xs text-gray-400">접수일시</div><div class="text-gray-800">{{ ticket.received_at | dt }}</div></div>
+    <div><div class="text-xs text-gray-400">접수경로</div><div class="text-gray-800">{{ CHANNEL_LABELS.get(ticket.channel, ticket.channel or '-') }}</div></div>
+    <div><div class="text-xs text-gray-400">담당자</div><div class="text-gray-800">{{ assignee.username if assignee else '미지정' }}</div></div>
+    <div><div class="text-xs text-gray-400">처리 예정일</div><div class="{% if ticket.due_at and ticket.due_at < now and ticket.status not in ['completed','closed'] %}text-red-600 font-medium{% else %}text-gray-800{% endif %}">{{ ticket.due_at | dt if ticket.due_at else '-' }}</div></div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+  <div class="lg:col-span-2 space-y-5">
+    <!-- 1) 고객·주문 -->
+    <section class="bg-white border border-gray-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">고객 · 외부 주문정보</h2>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+        <div><div class="text-xs text-gray-400">고객명</div><div class="text-gray-800">{{ ticket.customer_name or '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">연락처</div><div class="text-gray-800">{{ ticket.customer_phone or '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">외부 주문번호</div><div class="text-gray-800">{{ ticket.external_order_number or '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">주문 출처</div><div class="text-gray-800">{{ ORDER_SOURCE_LABELS.get(ticket.order_source, ticket.order_source or '-') }}</div></div>
+        <div><div class="text-xs text-gray-400">판매채널</div><div class="text-gray-800">{{ SALES_CHANNEL_LABELS.get(ticket.sales_channel, ticket.sales_channel or '-') }}</div></div>
+        <div><div class="text-xs text-gray-400">결제금액</div><div class="text-gray-800">{{ ticket.payment_amount | won if ticket.payment_amount else '-' }}</div></div>
+        <div class="col-span-2 md:col-span-3"><div class="text-xs text-gray-400">주소 / 배송메모</div><div class="text-gray-800">{{ ticket.customer_address or '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">구매일</div><div class="text-gray-800">{{ ticket.purchased_at | date if ticket.purchased_at else '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">출고일</div><div class="text-gray-800">{{ ticket.shipped_at | date if ticket.shipped_at else '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">배송완료</div><div class="text-gray-800">{{ ticket.delivered_at | date if ticket.delivered_at else '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">택배사</div><div class="text-gray-800">{{ ticket.courier or '-' }}</div></div>
+        <div class="col-span-2"><div class="text-xs text-gray-400">송장번호</div><div class="text-gray-800">{{ ticket.tracking_number or '-' }}</div></div>
+      </div>
+    </section>
+
+    <!-- 2) 상품 -->
+    <section class="bg-white border border-gray-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">상품정보</h2>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+        <div class="col-span-2 md:col-span-3"><div class="text-xs text-gray-400">상품명</div>
+          <div class="text-gray-800">
+            {% if product %}{{ product.name }} <span class="text-xs text-gray-400">(OS 상품)</span>
+            {% elif ticket.external_product_name %}{{ ticket.external_product_name }} <span class="text-xs text-gray-400">(직접입력)</span>
+            {% else %}-{% endif %}
+          </div>
+        </div>
+        <div><div class="text-xs text-gray-400">옵션</div><div class="text-gray-800">{{ ticket.product_option or '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">수량</div><div class="text-gray-800">{{ ticket.quantity or '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">협업사</div><div class="text-gray-800">{{ partner.name if partner else '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">인플루언서</div><div class="text-gray-800">{{ influencer.name if influencer else '-' }}</div></div>
+        <div><div class="text-xs text-gray-400">캠페인/공구</div><div class="text-gray-800">{{ ticket.campaign_name or '-' }}</div></div>
+      </div>
+    </section>
+
+    <!-- 3) 문의내용 -->
+    <section class="bg-white border border-gray-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">CS 문의내용</h2>
+      <div class="space-y-3 text-sm">
+        <div><div class="text-xs text-gray-400 mb-1">고객 문의내용</div><div class="text-gray-800 whitespace-pre-wrap">{{ ticket.inquiry_content or '-' }}</div></div>
+        <div><div class="text-xs text-gray-400 mb-1">고객 요청사항</div><div class="text-gray-800 whitespace-pre-wrap">{{ ticket.customer_request or '-' }}</div></div>
+        <div><div class="text-xs text-gray-400 mb-1">협업사 공개용 전달내용</div><div class="text-gray-800 whitespace-pre-wrap">{{ ticket.partner_note or '-' }}</div></div>
+      </div>
+    </section>
+
+    <!-- 4) 첨부 이미지·파일 -->
+    <section class="bg-white border border-gray-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">첨부 이미지 · 파일 <span class="text-xs font-normal text-gray-400">({{ attachments | length }})</span></h2>
+      {% if attachments %}
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+        {% for att in attachments %}
+        <div class="border border-gray-200 rounded-lg overflow-hidden">
+          {% if att.file_type == 'image' %}
+          <a href="/cs/attachments/{{ att.id }}" target="_blank"><img src="/cs/attachments/{{ att.id }}" class="w-full h-28 object-cover"></a>
+          {% else %}
+          <a href="/cs/attachments/{{ att.id }}" class="flex items-center justify-center h-28 bg-gray-50 hover:bg-gray-100">
+            <div class="text-center px-2">
+              <svg class="w-8 h-8 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <div class="text-[11px] mt-1 text-gray-500 truncate">{{ att.file_name }}</div>
+            </div>
+          </a>
+          {% endif %}
+          <div class="flex items-center justify-between px-2 py-1.5 text-[11px] border-t border-gray-100">
+            {% if att.is_public %}<span class="text-green-600 font-medium">협업사 공개</span>{% else %}<span class="text-gray-400">내부</span>{% endif %}
+            <div class="flex items-center gap-2">
+              <form method="post" action="/cs/{{ ticket.id }}/attachments/{{ att.id }}/toggle-public">
+                <button class="text-gray-500 hover:text-indigo-600">{% if att.is_public %}비공개로{% else %}공개로{% endif %}</button>
+              </form>
+              {% if is_admin or att.uploaded_by == current_user.id %}
+              <form method="post" action="/cs/{{ ticket.id }}/attachments/{{ att.id }}/delete" onsubmit="return confirm('첨부를 삭제할까요?')">
+                <button class="text-gray-400 hover:text-red-600">삭제</button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-400 mb-4">첨부가 없습니다.</p>
+      {% endif %}
+
+      <form method="post" action="/cs/{{ ticket.id }}/attachments" enctype="multipart/form-data" class="border-t border-gray-100 pt-3 flex flex-wrap items-center gap-2">
+        <input type="file" name="files" multiple class="text-xs text-gray-500">
+        <label class="inline-flex items-center gap-1.5 text-xs text-gray-500"><input type="checkbox" name="is_public" value="1" class="rounded border-gray-300"> 협업사 공개</label>
+        <button class="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-gray-800 hover:bg-gray-900">첨부 추가</button>
+      </form>
+      <p class="text-[11px] text-gray-300 mt-1">이미지 최대 20장 · 영상/문서 최대 5개 · 개별 20MB · 실행파일 불가</p>
+    </section>
+
+    {% if guides %}
+    <!-- 5) 상품별 CS 가이드 -->
+    <section class="bg-amber-50/40 border border-amber-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-amber-800 mb-3">상품별 CS 가이드</h2>
+      <div class="space-y-3">
+        {% for g in guides %}
+        <div>
+          <div class="text-sm font-semibold text-gray-800">{{ g.title }}</div>
+          {% if g.content_internal %}<div class="text-sm text-gray-700 whitespace-pre-wrap mt-1">{{ g.content_internal }}</div>{% endif %}
+          {% if g.content_partner %}<div class="text-xs text-gray-500 whitespace-pre-wrap mt-1 bg-white rounded-lg p-2 border border-amber-100"><span class="text-indigo-400">[협업사 공개]</span> {{ g.content_partner }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- 7) 내부 메모 -->
+    <section class="bg-red-50/40 border border-red-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-red-700 mb-2">내부 메모 <span class="text-xs font-normal text-red-400">협업사에 노출되지 않음</span></h2>
+      <div class="text-sm text-gray-800 whitespace-pre-wrap">{{ ticket.internal_memo or '-' }}</div>
+    </section>
+  </div>
+
+  <!-- 우측: 처리 액션 + 타임라인 -->
+  <div class="space-y-5">
+
+    <!-- 처리 진행 -->
+    <section class="bg-white border border-gray-100 rounded-xl p-5 space-y-4">
+      <h2 class="text-sm font-semibold text-gray-800">처리 진행</h2>
+
+      <!-- 상태 변경 -->
+      <form method="post" action="/cs/{{ ticket.id }}/status" class="space-y-2">
+        <label class="block text-xs font-medium text-gray-500">상태 변경</label>
+        <select name="status" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          {% for code, label, _ in STATUSES %}
+          <option value="{{ code }}" {% if ticket.status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" name="note" placeholder="변경 사유/메모 (선택)" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+        <button class="w-full px-3 py-2 rounded-lg text-sm font-medium text-white bg-gray-800 hover:bg-gray-900">상태 변경</button>
+      </form>
+
+      <!-- 담당자 지정 -->
+      <form method="post" action="/cs/{{ ticket.id }}/assign" class="space-y-2 border-t border-gray-100 pt-4">
+        <label class="block text-xs font-medium text-gray-500">담당자 지정</label>
+        <div class="flex gap-2">
+          <select name="assigned_user_id" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm">
+            <option value="">미지정</option>
+            {% for u in staff_users %}<option value="{{ u.id }}" {% if ticket.assigned_user_id == u.id %}selected{% endif %}>{{ u.username }}</option>{% endfor %}
+          </select>
+          <button class="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">지정</button>
+        </div>
+      </form>
+
+      <!-- 협업사 전달 -->
+      <form method="post" action="/cs/{{ ticket.id }}/forward-partner" class="space-y-2 border-t border-gray-100 pt-4">
+        <label class="block text-xs font-medium text-gray-500">협업사 전달
+          {% if ticket.is_forwarded_to_partner %}<span class="ml-1 text-green-600">· 전달됨 ({{ ticket.forwarded_at | date }})</span>{% endif %}
+        </label>
+        {% if partner %}
+        <textarea name="partner_note" rows="2" placeholder="협업사 공개용 전달내용" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">{{ ticket.partner_note or '' }}</textarea>
+        <button class="w-full px-3 py-2 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+          {% if ticket.is_forwarded_to_partner %}전달내용 갱신{% else %}협업사에 전달{% endif %}
+        </button>
+        {% else %}
+        <p class="text-xs text-gray-400">연결된 협업사가 없어 전달할 수 없습니다.</p>
+        {% endif %}
+      </form>
+    </section>
+
+    <!-- 처리방법 -->
+    <section class="bg-white border border-gray-100 rounded-xl p-5"
+             x-data="{ rtype: '{{ ticket.resolution_type or '' }}', map: {{ RESOLUTION_FIELDS | tojson }}, has(k){ return (this.map[this.rtype]||[]).includes(k) } }">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">처리방법 · 결과</h2>
+      <form method="post" action="/cs/{{ ticket.id }}/resolution" class="space-y-3">
+        <select name="resolution_type" x-model="rtype" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          <option value="">선택 안 함</option>
+          {% for code, label in RESOLUTIONS %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+        </select>
+
+        {% set rd = ticket.resolution_detail or {} %}
+        <!-- 환불 -->
+        <div x-show="has('refund_amount')" x-cloak>
+          <label class="block text-xs text-gray-500 mb-1">환불금액</label>
+          <input type="text" name="refund_amount" value="{{ ticket.refund_amount | int if ticket.refund_amount else '' }}" inputmode="numeric" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+        </div>
+        <div x-show="has('refund_due_date')" x-cloak class="grid grid-cols-2 gap-2">
+          <div><label class="block text-xs text-gray-500 mb-1">환불 예정일</label><input type="date" name="refund_due_date" value="{{ rd.get('refund_due_date','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">환불 완료일</label><input type="date" name="refund_done_date" value="{{ rd.get('refund_done_date','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">환불 처리자</label><input type="text" name="refund_by" value="{{ rd.get('refund_by','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">환불 메모</label><input type="text" name="refund_memo" value="{{ rd.get('refund_memo','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+        </div>
+        <!-- 재발송 -->
+        <div x-show="has('resend_product')" x-cloak class="grid grid-cols-2 gap-2">
+          <div class="col-span-2"><label class="block text-xs text-gray-500 mb-1">재발송 상품</label><input type="text" name="resend_product" value="{{ rd.get('resend_product','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">옵션</label><input type="text" name="resend_option" value="{{ rd.get('resend_option','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">수량</label><input type="text" name="resend_qty" value="{{ rd.get('resend_qty','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">예정일</label><input type="date" name="resend_due_date" value="{{ rd.get('resend_due_date','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">완료일</label><input type="date" name="resend_done_date" value="{{ rd.get('resend_done_date','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">택배사</label><input type="text" name="resend_courier" value="{{ rd.get('resend_courier','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">재발송 송장</label><input type="text" name="resend_tracking" value="{{ rd.get('resend_tracking','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div class="col-span-2"><label class="block text-xs text-gray-500 mb-1">처리자</label><input type="text" name="resend_by" value="{{ rd.get('resend_by','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+        </div>
+        <!-- 교환/반품 -->
+        <div x-show="has('collect_needed')" x-cloak class="grid grid-cols-2 gap-2">
+          <div><label class="block text-xs text-gray-500 mb-1">회수 여부</label><input type="text" name="collect_needed" value="{{ rd.get('collect_needed','') }}" placeholder="필요/불필요" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">회수 예정일</label><input type="date" name="collect_due_date" value="{{ rd.get('collect_due_date','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">회수 송장</label><input type="text" name="collect_tracking" value="{{ rd.get('collect_tracking','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">회수 완료일</label><input type="date" name="collect_done_date" value="{{ rd.get('collect_done_date','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">검수 결과</label><input type="text" name="inspect_result" value="{{ rd.get('inspect_result','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">추가 배송비</label><input type="text" name="extra_shipping_fee" value="{{ rd.get('extra_shipping_fee','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+          <div class="col-span-2"><label class="block text-xs text-gray-500 mb-1">처리 담당자</label><input type="text" name="handler" value="{{ rd.get('handler','') }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></div>
+        </div>
+        <button class="w-full px-3 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">처리방법 저장</button>
+      </form>
+    </section>
+
+    <!-- 기록 추가 (댓글) + 답변 템플릿 추천 -->
+    <section class="bg-white border border-gray-100 rounded-xl p-5"
+             x-data="{ tpls: {{ templates_json | tojson }}, body: '', insert(m){ this.body = this.body ? (this.body + '\n' + m) : m } }">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">기록 추가</h2>
+      {% if rec_templates %}
+      <div class="mb-3">
+        <div class="text-xs text-gray-400 mb-1.5">추천 답변 템플릿 <span class="text-gray-300">(클릭 시 아래 입력창에 삽입 · 자동전송 안 함)</span></div>
+        <div class="flex flex-wrap gap-1.5">
+          <template x-for="t in tpls" :key="t.id">
+            <button type="button" @click="insert(t.customer_message)"
+                    class="px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-xs hover:bg-blue-100" x-text="t.name"></button>
+          </template>
+        </div>
+      </div>
+      {% endif %}
+      <form method="post" action="/cs/{{ ticket.id }}/comment" class="space-y-2">
+        <select name="comment_type" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          <option value="internal_memo">내부 메모 (협업사 미노출)</option>
+          <option value="partner_public">협업사 공개 댓글</option>
+          <option value="customer_notice">고객 안내기록</option>
+        </select>
+        <textarea name="body" x-model="body" rows="3" required placeholder="내용 입력" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></textarea>
+        <button class="w-full px-3 py-2 rounded-lg text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">기록 추가</button>
+      </form>
+    </section>
+
+    <section class="bg-white border border-gray-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">처리 타임라인</h2>
+      <ol class="relative border-l border-gray-200 ml-1 space-y-4">
+        {% for a in activities %}
+        <li class="ml-4">
+          <span class="absolute -left-1.5 w-3 h-3 rounded-full bg-blue-400 border-2 border-white"></span>
+          <div class="text-xs text-gray-400">{{ a.created_at | dt }} · {{ a.actor_name or '시스템' }}</div>
+          <div class="text-sm text-gray-800">
+            {% if a.activity_type == 'created' %}CS 등록
+            {% elif a.activity_type == 'status_change' %}상태 변경: {{ a.from_value or '-' }} → {{ a.to_value or '-' }}
+            {% elif a.activity_type == 'assign' %}담당자 지정: {{ a.to_value or '-' }}
+            {% elif a.activity_type == 'forward_partner' %}협업사 전달
+            {% elif a.activity_type == 'resolution_change' %}처리방법: {{ a.to_value or '-' }}
+            {% elif a.activity_type == 'attachment' %}첨부 추가: {{ a.to_value or '-' }}
+            {% elif a.activity_type == 'reopened' %}재오픈
+            {% elif a.activity_type == 'internal_memo' %}<span class="text-red-600 font-medium">내부 메모</span>
+            {% elif a.activity_type == 'partner_public' %}<span class="text-indigo-600 font-medium">협업사 공개 댓글</span>
+            {% elif a.activity_type == 'partner_reply' %}<span class="text-purple-600 font-medium">협업사 답변</span>
+            {% elif a.activity_type == 'customer_notice' %}<span class="text-green-600 font-medium">고객 안내</span>
+            {% else %}{{ a.activity_type }}{% endif %}
+          </div>
+          {% if a.body and a.activity_type in ['internal_memo','partner_public','partner_reply','customer_notice','forward_partner'] %}
+          <div class="text-sm text-gray-600 mt-1 whitespace-pre-wrap bg-gray-50 rounded-lg p-2">{{ a.body }}</div>
+          {% endif %}
+        </li>
+        {% else %}
+        <li class="ml-4 text-sm text-gray-400">기록이 없습니다.</li>
+        {% endfor %}
+      </ol>
+      <p class="text-xs text-gray-300 mt-4">상태변경·담당지정·처리방법·댓글 기능은 다음 단계에서 추가됩니다.</p>
+    </section>
+  </div>
+</div>
+{% endblock %}

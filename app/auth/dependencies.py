@@ -66,6 +66,10 @@ def require_partner(user: User = Depends(get_current_user)) -> User:
     return user  # get_current_user already validates login
 
 
+# 협력사 포털(/portal) 접근은 app/services/portal_access.py 의 portal_context 를 쓴다.
+# (협력사 본인 + 내부 직원 보기전용 미리보기를 하나의 컨텍스트로 처리)
+
+
 def require_feature(key: str):
     """
     FastAPI dependency factory — 기능 플래그 + role 동시 검사.

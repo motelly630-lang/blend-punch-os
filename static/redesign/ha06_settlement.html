@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A5 정산(호텔 통합) · BLEND PICK Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>body{font-family:'Pretendard',sans-serif;}</style>
+<script>tailwind.config={theme:{extend:{colors:{brand:{DEFAULT:'#2f5d3f',dark:'#244a32',light:'#e7f0ea'},accent:'#ff7a1a',ink:'#1b1f1d'}}}}</script>
+</head>
+<!-- A5 — 정산 관리 (일반+호텔 통합, 상품유형 필터 + 정산기준 표시) -->
+<body class="bg-[#f4f5f7] text-ink">
+<div class="flex min-h-screen">
+  <aside class="w-56 bg-white border-r border-black/5 shrink-0">
+    <div class="px-5 py-5 border-b border-black/5"><p class="text-[11px] text-black/40 font-semibold">BLEND PICK</p><p class="font-extrabold text-lg">Admin</p></div>
+    <nav class="p-3 space-y-1 text-[14px]">
+      <a href="07_admin-dashboard.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">📊 대시보드</a>
+      <a href="08_admin-products.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">📦 상품 관리</a>
+      <a href="10_admin-orders.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">🧾 판매 관리</a>
+      <a href="ha05_reservations.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">🏨 예약 관리</a>
+      <a href="ha06_settlement.html" class="flex gap-3 px-3 py-2.5 rounded-lg bg-brand-light text-brand font-bold border-l-2 border-brand">💰 정산 관리</a>
+    </nav>
+  </aside>
+
+  <main class="flex-1 p-8" x-data="{type:'all', basis:'payment'}">
+    <div class="flex items-center gap-2 mb-1"><span class="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-sm">₩</span><h1 class="text-2xl font-extrabold">정산 관리</h1></div>
+    <p class="text-[13px] text-black/45 mb-6">일반·호텔 공동구매 통합 정산 · 상품유형으로 구분해서 조회</p>
+
+    <!-- 유형 필터 (핵심) -->
+    <div class="flex items-center justify-between">
+      <div class="flex gap-2 text-[13px] font-semibold">
+        <button @click="type='all'"    class="px-4 py-1.5 rounded-full" :class="type==='all'?'bg-ink text-white':'bg-white border border-black/10 text-black/55'">전체</button>
+        <button @click="type='normal'" class="px-4 py-1.5 rounded-full" :class="type==='normal'?'bg-brand text-white':'bg-white border border-black/10 text-black/55'">📦 일반 공동구매</button>
+        <button @click="type='hotel'"  class="px-4 py-1.5 rounded-full" :class="type==='hotel'?'bg-accent text-white':'bg-white border border-black/10 text-black/55'">🏨 호텔 공동구매</button>
+      </div>
+      <!-- 정산 기준 (호텔) -->
+      <div class="flex items-center gap-2 text-[12px]">
+        <span class="text-black/45">정산 기준</span>
+        <select x-model="basis" class="px-3 py-1.5 rounded-lg border border-black/10">
+          <option value="payment">결제일 기준 (현재)</option>
+          <option value="checkout">체크아웃일 기준 (예정)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 요약 -->
+    <div class="grid grid-cols-4 gap-4 mt-5">
+      <div class="bg-white rounded-xl border border-black/5 p-5"><p class="text-[12px] text-black/45">일반 정산액</p><p class="text-xl font-extrabold mt-1">678,547원</p></div>
+      <div class="bg-white rounded-xl border border-black/5 p-5"><p class="text-[12px] text-black/45">호텔 정산액</p><p class="text-xl font-extrabold mt-1">6,015,240원</p></div>
+      <div class="bg-white rounded-xl border border-black/5 p-5"><p class="text-[12px] text-black/45">총 수수료</p><p class="text-xl font-extrabold mt-1">245,300원</p></div>
+      <div class="bg-brand text-white rounded-xl p-5"><p class="text-[12px] text-white/70">총 정산액</p><p class="text-xl font-extrabold mt-1">6,693,787원</p></div>
+    </div>
+
+    <!-- 정산 내역 -->
+    <div class="bg-white rounded-2xl border border-black/5 mt-4 overflow-x-auto">
+      <table class="w-full text-[13px] whitespace-nowrap">
+        <thead class="bg-black/[0.02] text-black/45 text-left">
+          <tr><th class="px-5 py-3 font-semibold">유형</th><th class="font-semibold">정산 기준일</th><th class="font-semibold">주문/예약번호</th><th class="font-semibold">구매자</th><th class="font-semibold text-right">총액</th><th class="font-semibold text-right">수수료</th><th class="font-semibold text-right pr-5">정산액</th></tr>
+        </thead>
+        <tbody class="divide-y divide-black/5">
+          <script>
+            // [유형, 결제일, 체크아웃일(호텔만), 번호, 구매자, 총액, 수수료, 정산액]
+            const rows=[
+              ['hotel','2026. 6. 30.','2026. 8. 3.','BP-H-20260702-K3M9','오유나','258,000원','-8,514원','249,486원'],
+              ['hotel','2026. 6. 28.','2026. 8. 6.','BP-H-20260701-A7X2','김도현','239,000원','-7,887원','231,113원'],
+              ['normal','2026. 6. 16.','','BP-20260611-1LV27B','정우성','28,300원','-1,027원','27,273원'],
+              ['hotel','2026. 6. 20.','2026. 7. 30.','BP-H-20260630-Q1W2','이서연','258,000원','-8,514원','249,486원'],
+              ['normal','2026. 6. 6.','','BP-20260603-BCCDEX','한소희','37,800원','-1,247원','36,553원'],
+              ['normal','2026. 6. 5.','','BP-20260602-UQLT2D','정우성','82,200원','-2,713원','79,487원']];
+            const b={normal:'bg-brand-light text-brand',hotel:'bg-accent/15 text-accent'};
+            const label={normal:'일반',hotel:'호텔'};
+            document.write(rows.map(r=>`<tr class="hover:bg-black/[0.015]" data-type="${r[0]}">
+              <td class="px-5 py-3"><span class="px-2 py-0.5 rounded-full text-[12px] font-semibold ${b[r[0]]}">${label[r[0]]}</span></td>
+              <td class="text-black/60">${r[1]}${r[2]?`<span class="text-[11px] text-accent"> · 투숙 ${r[2]}</span>`:''}</td>
+              <td class="text-brand font-semibold">${r[3]}</td><td class="font-semibold">${r[4]}</td>
+              <td class="text-right">${r[5]}</td><td class="text-right text-red-500">${r[6]}</td><td class="text-right pr-5 font-bold">${r[7]}</td></tr>`).join(''));
+          </script>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-[11px] text-black/40 mt-3">💡 호텔은 <b>결제일·체크아웃일 컬럼을 분리 저장</b>하여, 정산 기준 전환 시 즉시 재집계됩니다. (초기: 결제일 기준)</p>
+  </main>
+</div>
+<script>
+  // 유형 필터 동작 (시안 데모)
+  document.addEventListener('alpine:init',()=>{});
+  new MutationObserver(()=>{}).observe(document.body,{});
+</script>
+</body>
+</html>

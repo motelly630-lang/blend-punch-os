@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A · 프리미엄 에디토리얼 · BLEND PICK</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Pretendard',sans-serif;background:#f3f1ec;color:#1a1a17;}
+  .serif{font-family:'Playfair Display',serif;}
+  [x-cloak]{display:none;}
+</style>
+</head>
+<!-- 무드 A — 프리미엄 에디토리얼: 크림 배경, 세리프 대형 타이포, 얇은 선, 넓은 여백, 무채색 절제 -->
+<body>
+<div class="mx-auto max-w-[440px] min-h-screen relative pb-28" style="background:#f3f1ec;">
+
+  <header class="flex items-center justify-between px-6 h-16">
+    <span class="serif text-xl tracking-tight">Blend Pick</span>
+    <span class="text-[10px] tracking-[0.2em] uppercase text-black/40">Group Order</span>
+  </header>
+
+  <!-- 인플루언서 -->
+  <div class="px-6 flex items-center gap-3 pb-6">
+    <img src="https://i.pravatar.cc/80?img=47" class="w-10 h-10 rounded-full object-cover grayscale">
+    <div class="leading-tight">
+      <p class="text-[12px] tracking-wide">CURATED BY <b>@jieun_daily</b></p>
+      <p class="text-[12px] text-black/45 italic serif">"제가 매일 먹는 그 옥수수예요."</p>
+    </div>
+  </div>
+
+  <!-- 히어로 이미지 (풀블리드) -->
+  <div class="relative">
+    <img src="https://shop-phinf.pstatic.net/20260224_291/1771908482234RHd76_PNG/1.png?type=w848" class="w-full aspect-[4/5] object-cover">
+    <span class="absolute bottom-4 left-6 text-white serif text-[13px] tracking-widest">EDITION 01 — 클래식농원</span>
+  </div>
+
+  <!-- 타이틀 블록 -->
+  <div class="px-6 pt-8">
+    <h1 class="serif text-[34px] leading-[1.1]">미니옥수수<br><span class="italic text-black/70">x 클래식농원</span></h1>
+    <div class="mt-6 flex items-end justify-between border-b border-black/15 pb-5">
+      <div>
+        <p class="text-[10px] tracking-[0.2em] uppercase text-black/40">Group Price</p>
+        <p class="serif text-[28px]">₩2,900</p>
+      </div>
+      <p class="text-[13px] text-black/40 line-through mb-1">₩3,500</p>
+    </div>
+  </div>
+
+  <!-- 공구 정보 (미니멀) -->
+  <div class="px-6 py-6 grid grid-cols-2 gap-6 text-[13px]">
+    <div><p class="text-[10px] tracking-[0.15em] uppercase text-black/40 mb-1">Closes in</p><p class="serif text-[18px]">2d 14h</p></div>
+    <div><p class="text-[10px] tracking-[0.15em] uppercase text-black/40 mb-1">Joined</p><p class="serif text-[18px]">128 people</p></div>
+  </div>
+
+  <!-- 옵션 -->
+  <div class="px-6" x-data="{opts:[['1개',2900],['3개',5800],['5개',7500]],sel:null}">
+    <p class="text-[10px] tracking-[0.2em] uppercase text-black/40 mb-3">Select Option</p>
+    <div class="divide-y divide-black/12 border-y border-black/12">
+      <template x-for="(o,i) in opts" :key="i">
+        <button @click="sel=i" class="w-full flex items-center justify-between py-4 text-[14px]"
+          :class="sel===i?'font-bold':''">
+          <span class="flex items-center gap-3"><span class="w-4 h-4 rounded-full border" :class="sel===i?'border-8 border-black':'border-black/30'"></span><span x-text="'미니 옥수수 '+o[0]"></span></span>
+          <span class="serif" x-text="'+₩'+o[1].toLocaleString()"></span>
+        </button>
+      </template>
+    </div>
+
+    <div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[440px] px-6 py-4" style="background:#f3f1ec;border-top:1px solid rgba(0,0,0,.12);">
+      <button class="w-full py-4 bg-[#1a1a17] text-[#f3f1ec] text-[13px] tracking-[0.2em] uppercase serif italic disabled:opacity-30"
+        :disabled="sel===null" x-text="sel===null?'Choose an option':'Join Group Order'"></button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

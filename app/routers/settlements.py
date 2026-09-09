@@ -4,7 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.database import get_db
 from app.models import Settlement, Campaign, Influencer
@@ -86,6 +86,7 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
     # Load only the active tab's rows
     settlements = (
         db.query(Settlement)
+        .options(joinedload(Settlement.influencer), joinedload(Settlement.campaign))
         .filter(Settlement.company_id == cid, Settlement.status == tab)
         .order_by(Settlement.created_at.desc())
         .limit(200)
@@ -330,10 +331,12 @@ def settlement_create(
         calc["final_payment"] = round(final_payment_manual)
     cid = get_company_id(current_user)
 
-    # 인플루언서 계좌 정보 스냅샷
+    # 인플루언서 계좌 정보 스냅샷 — 반드시 본인 회사(cid) 인플루언서만
     bank_snap = account_snap = holder_snap = None
     if influencer_id:
-        inf = db.query(Influencer).filter(Influencer.id == influencer_id).first()
+        inf = db.query(Influencer).filter(
+            Influencer.company_id == cid, Influencer.id == influencer_id
+        ).first()
         if inf:
             bank_snap = inf.bank_name
             account_snap = inf.account_number

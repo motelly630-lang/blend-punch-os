@@ -1,0 +1,56 @@
+{% extends "portal_base.html" %}
+{% block title %}고객 CS · 협력사 포털{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-start justify-between gap-3 mb-5">
+  <div>
+    <h1 class="text-lg font-bold text-gray-900 mb-1">고객 CS</h1>
+    <p class="text-sm text-gray-500">블렌드펀치가 전달한 CS와, 협력사에서 직접 접수한 CS를 함께 보여줍니다.</p>
+  </div>
+  {% if not readonly %}
+  <a href="/portal/cs/new" class="px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 whitespace-nowrap">+ CS 접수</a>
+  {% endif %}
+</div>
+
+<div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
+  <table class="w-full text-sm rt">
+    <thead class="bg-gray-50 text-gray-500 text-xs">
+      <tr>
+        <th class="text-left font-medium px-3 py-2.5">접수일</th>
+        <th class="text-left font-medium px-3 py-2.5">CS 번호</th>
+        <th class="text-left font-medium px-3 py-2.5">구분</th>
+        <th class="text-left font-medium px-3 py-2.5">상품명</th>
+        <th class="text-left font-medium px-3 py-2.5">유형</th>
+        <th class="text-left font-medium px-3 py-2.5">상태</th>
+        <th class="text-left font-medium px-3 py-2.5">답변</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for t in tickets %}
+      <tr class="hover:bg-gray-50 cursor-pointer" onclick="location.href='/portal/cs/{{ t.id }}'">
+        <td data-label="접수일" class="px-3 py-2.5 text-gray-500">{{ t.received_at | date }}</td>
+        <td data-label="CS 번호" class="px-3 py-2.5 font-medium text-gray-800">
+          {% if t.is_urgent %}<span class="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mr-1 align-middle"></span>{% endif %}{{ t.cs_number }}
+        </td>
+        <td data-label="구분" class="px-3 py-2.5">
+          {% if t.submitted %}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700">직접 접수</span>
+          {% else %}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-600">전달받음</span>{% endif %}
+        </td>
+        <td data-label="상품명" class="px-3 py-2.5 text-gray-700">{{ t.product_name }}</td>
+        <td data-label="유형" class="px-3 py-2.5 text-gray-600">{{ t.cs_type }}</td>
+        <td data-label="상태" class="px-3 py-2.5">
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_BADGES.get(t.status, 'bg-gray-100 text-gray-600') }}">{{ STATUS_LABELS.get(t.status, t.status) }}</span>
+        </td>
+        <td data-label="답변" class="px-3 py-2.5">
+          {% if t.needs_reply %}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-600">답변 필요</span>{% else %}<span class="text-gray-300 text-xs">-</span>{% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="rt-empty px-3 py-16 text-center text-gray-400 text-sm">
+        CS 내역이 없습니다.{% if not readonly %} 전달할 건이 있으면 <a href="/portal/cs/new" class="text-gray-700 underline">CS 접수</a>를 이용하세요.{% endif %}
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

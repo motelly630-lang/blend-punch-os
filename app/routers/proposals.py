@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Proposal, Product, Influencer
 from app.models.user import User
@@ -18,6 +18,7 @@ def proposal_list(request: Request, db: Session = Depends(get_db),
     cid = get_company_id(current_user)
     proposals = (
         db.query(Proposal)
+        .options(joinedload(Proposal.product), joinedload(Proposal.influencer))
         .filter(Proposal.company_id == cid)
         .order_by(Proposal.created_at.desc())
         .limit(200)

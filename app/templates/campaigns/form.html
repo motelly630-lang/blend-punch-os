@@ -193,6 +193,27 @@
       </div>
     </div>
 
+    <!-- 협력사 연결 (지정 시 해당 협력사 포털 공구 스케줄에 표시) -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-3">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">협력사 연결
+        <span class="normal-case font-normal text-gray-300">· 지정 시 해당 협력사 포털 공구 스케줄에 표시</span></h3>
+      <div class="relative" id="partner-dropdown">
+        <input type="hidden" name="partner_id" id="partner-id-input" value="{{ sel_partner_id }}">
+        <input type="text" id="partner-search" autocomplete="off" placeholder="협력사 검색..."
+          value="{{ sel_partner_name }}"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onfocus="openDropdown('partner')" oninput="filterDropdown('partner', this.value)">
+        <div id="partner-list" style="display:none"
+          class="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+          <div class="px-3 py-2 text-xs text-gray-400 cursor-pointer hover:bg-gray-50" onclick="selectItem('partner','','')">선택 안함</div>
+          {% for p in partners_json %}
+          <div class="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50" onclick="selectItem('partner','{{ p.id }}','{{ p.name }}')">{{ p.name }}</div>
+          {% endfor %}
+        </div>
+      </div>
+      <p class="text-xs text-gray-400">제품에 협력사가 배정돼 있으면 저장 시 그 협력사가 자동 우선 적용됩니다.</p>
+    </div>
+
     <!-- 판매 정보 -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
       <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">판매 정보</h3>
@@ -373,7 +394,7 @@ window.filterDropdown = function (type, query) {
   });
 };
 document.addEventListener('click', function (e) {
-  ['product', 'influencer'].forEach(function (type) {
+  ['product', 'influencer', 'partner'].forEach(function (type) {
     var wrap = document.getElementById(type + '-dropdown');
     if (wrap && !wrap.contains(e.target)) {
       var list = document.getElementById(type + '-list');

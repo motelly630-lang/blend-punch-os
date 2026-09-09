@@ -49,5 +49,14 @@ class Influencer(Base):
     resident_registration_number = Column(String(30), nullable=True)
 
     is_archived = Column(Boolean, default=False)
+
+    # 통합 운영 스프레드시트 연동 — 시트 PK(SEL-...)와 상태값 한글 원본
+    sheet_code   = Column(String(50), nullable=True, index=True)
+    sheet_status = Column(String(30), nullable=True)
+
+    # 인스타 프로필 자동수집 — 성공/실패 모두 기록해서 같은 계정을 무한 재시도하지 않는다
+    enriched_at   = Column(DateTime, nullable=True, index=True)
+    enrich_error  = Column(String(200), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

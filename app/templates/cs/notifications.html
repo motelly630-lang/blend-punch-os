@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}CS 알림 · BLEND PUNCH OS{% endblock %}
+{% block page_title %}CS 알림{% endblock %}
+
+{% block header_actions %}
+<a href="/cs" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:border-gray-300">← CS</a>
+<form method="post" action="/cs/notifications/read-all">
+  <button class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-gray-800 hover:bg-gray-900">모두 읽음</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white border border-gray-100 rounded-xl divide-y divide-gray-50">
+  {% for n in items %}
+  <form method="post" action="/cs/notifications/{{ n.id }}/read">
+    <button type="submit" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 {% if not n.is_read %}bg-blue-50/40{% endif %}">
+      {% if not n.is_read %}<span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>{% else %}<span class="w-2 h-2 flex-shrink-0"></span>{% endif %}
+      <span class="flex-1">
+        <span class="block text-sm {% if not n.is_read %}font-semibold text-gray-800{% else %}text-gray-600{% endif %}">{{ n.title }}</span>
+        {% if n.body %}<span class="block text-xs text-gray-400 mt-0.5 truncate">{{ n.body }}</span>{% endif %}
+      </span>
+      <span class="text-xs text-gray-400 flex-shrink-0">{{ n.created_at | dt }}</span>
+    </button>
+  </form>
+  {% else %}
+  <div class="px-4 py-16 text-center text-gray-400 text-sm">알림이 없습니다.</div>
+  {% endfor %}
+</div>
+{% endblock %}

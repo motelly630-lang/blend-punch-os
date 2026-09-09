@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── 공통 커스텀 스타일 (여러 base 템플릿에 흩어져 있던 것 통합) ── */
+[x-cloak] { display: none !important; }
+
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator { display: inline-flex; }
+.htmx-request.htmx-indicator { display: inline-flex; }
+
+.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

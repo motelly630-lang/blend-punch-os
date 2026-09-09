@@ -4,16 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}BLEND PUNCH SHOP{% endblock %}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: { extend: { fontFamily: { sans: ['Noto Sans KR', 'system-ui', 'sans-serif'] } } }
-    }
-  </script>
+  <link rel="stylesheet" href="/static/css/app.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <script src="/static/js/htmx.min.js"></script>
+  <script defer src="/static/js/alpine.min.js"></script>
   <style>
     [x-cloak] { display: none !important; }
     .htmx-indicator { display: none; }

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}상품별 CS 가이드 · BLEND PUNCH OS{% endblock %}
+{% block page_title %}상품별 CS 가이드{% endblock %}
+
+{% block header_actions %}
+<a href="/cs" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:border-gray-300">← CS</a>
+{% if is_admin %}
+<a href="/cs/guides/new" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700">가이드 등록</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<form method="get" action="/cs/guides" class="mb-4 flex items-center gap-2">
+  <select name="product_id" onchange="this.form.submit()" class="px-3 py-2 rounded-lg border border-gray-200 text-sm">
+    <option value="">전체 상품</option>
+    {% for p in products %}<option value="{{ p.id }}" {% if f_product == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+  </select>
+</form>
+
+<div class="space-y-3">
+  {% for g in guides %}
+  <div class="bg-white border border-gray-100 rounded-xl p-5 {% if not g.is_active %}opacity-50{% endif %}">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <div class="text-xs text-gray-400">{{ prod_map.get(g.product_id, '공통(상품 미지정)') }}</div>
+        <h3 class="text-sm font-semibold text-gray-800">{{ g.title }}{% if not g.is_active %} <span class="text-xs text-gray-400">(비활성)</span>{% endif %}</h3>
+      </div>
+      {% if is_admin %}<a href="/cs/guides/{{ g.id }}/edit" class="text-xs text-blue-600 hover:underline flex-shrink-0">수정</a>{% endif %}
+    </div>
+    {% if g.content_internal %}<div class="mt-2 text-sm text-gray-700 whitespace-pre-wrap"><span class="text-xs text-red-400">[내부]</span> {{ g.content_internal }}</div>{% endif %}
+    {% if g.content_partner %}<div class="mt-2 text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 rounded-lg p-2"><span class="text-xs text-indigo-400">[협업사 공개]</span> {{ g.content_partner }}</div>{% endif %}
+  </div>
+  {% else %}
+  <div class="bg-white border border-gray-100 rounded-xl p-16 text-center text-gray-400 text-sm">등록된 가이드가 없습니다.</div>
+  {% endfor %}
+</div>
+{% endblock %}

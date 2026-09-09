@@ -1,0 +1,150 @@
+{% extends "portal_base.html" %}
+{% block title %}{{ cs.cs_number }} · 협력사 포털{% endblock %}
+
+{% block content %}
+<a href="/portal/cs" class="text-sm text-gray-400 hover:text-gray-700">← 목록</a>
+
+<div class="bg-white border border-gray-100 rounded-xl p-5 mt-3 mb-4">
+  <div class="flex flex-wrap items-center gap-3 mb-3">
+    <h1 class="text-lg font-bold text-gray-900">{{ cs.cs_number }}</h1>
+    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ STATUS_BADGES.get(cs.status, 'bg-gray-100 text-gray-600') }}">{{ STATUS_LABELS.get(cs.status, cs.status) }}</span>
+    {% if cs.submitted %}<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-700">직접 접수</span>{% endif %}
+    {% if cs.is_urgent %}<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-600">긴급</span>{% endif %}
+    {% if cs.needs_reply %}<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-600">답변 필요</span>{% endif %}
+  </div>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+    <div><div class="text-xs text-gray-400">상품명</div><div class="text-gray-800">{{ cs.product_name }}</div></div>
+    <div><div class="text-xs text-gray-400">유형</div><div class="text-gray-800">{{ cs.cs_type }}</div></div>
+    <div><div class="text-xs text-gray-400">옵션 / 수량</div><div class="text-gray-800">{{ cs.product_option }} / {{ cs.quantity or '-' }}</div></div>
+    <div><div class="text-xs text-gray-400">접수일</div><div class="text-gray-800">{{ cs.received_at | date }}</div></div>
+    <div><div class="text-xs text-gray-400">주문번호</div><div class="text-gray-800">{{ cs.order_number }}</div></div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2 space-y-4">
+    <!-- 블렌드펀치 전달내용 -->
+    {% if cs.partner_note %}
+    <section class="bg-indigo-50/50 border border-indigo-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-indigo-800 mb-2">블렌드펀치 전달내용</h2>
+      <div class="text-sm text-gray-800 whitespace-pre-wrap">{{ cs.partner_note }}</div>
+    </section>
+    {% endif %}
+
+    <!-- 고객 문의 -->
+    <section class="bg-white border border-gray-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">고객 문의내용</h2>
+      <div class="text-sm text-gray-800 whitespace-pre-wrap">{{ cs.inquiry_content or '-' }}</div>
+      {% if cs.customer_request %}
+      <div class="mt-3"><div class="text-xs text-gray-400 mb-1">고객 요청사항</div><div class="text-sm text-gray-800 whitespace-pre-wrap">{{ cs.customer_request }}</div></div>
+      {% endif %}
+    </section>
+
+    <!-- 공개 고객정보 (마스킹) -->
+    <section class="bg-white border border-gray-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">고객 정보
+        <span class="text-xs font-normal text-gray-400">
+          (개인정보 보호를 위해 일부 마스킹{% if cs.submitted %} — 접수 시 입력하신 값도 동일하게 표시됩니다{% endif %})
+        </span>
+      </h2>
+      <div class="grid grid-cols-3 gap-3 text-sm">
+        <div><div class="text-xs text-gray-400">고객명</div><div class="text-gray-800">{{ cs.customer_name }}</div></div>
+        <div><div class="text-xs text-gray-400">연락처</div><div class="text-gray-800">{{ cs.customer_phone }}</div></div>
+        <div><div class="text-xs text-gray-400">주소 {% if cs.address_full_disclosed %}<span class="text-green-500">(전체공개)</span>{% endif %}</div><div class="text-gray-800">{{ cs.customer_address }}</div></div>
+      </div>
+    </section>
+
+    <!-- 공개 첨부 -->
+    {% if attachments %}
+    <section class="bg-white border border-gray-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">첨부 자료</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {% for att in attachments %}
+        <div class="border border-gray-200 rounded-lg overflow-hidden">
+          {% if att.file_type == 'image' %}
+          <a href="/portal/cs/attachments/{{ att.id }}" target="_blank"><img src="/portal/cs/attachments/{{ att.id }}" class="w-full h-28 object-cover"></a>
+          {% else %}
+          <a href="/portal/cs/attachments/{{ att.id }}" class="flex items-center justify-center h-28 bg-gray-50 hover:bg-gray-100">
+            <div class="text-center px-2"><svg class="w-8 h-8 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><div class="text-[11px] mt-1 text-gray-500 truncate">{{ att.file_name }}</div></div>
+          </a>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- 공개 가이드 -->
+    {% if guides %}
+    <section class="bg-amber-50/40 border border-amber-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-amber-800 mb-3">상품 CS 가이드</h2>
+      <div class="space-y-3">
+        {% for g in guides %}
+        <div><div class="text-sm font-semibold text-gray-800">{{ g.title }}</div><div class="text-sm text-gray-700 whitespace-pre-wrap mt-1">{{ g.content }}</div></div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <!-- 우측: 답변 + 진행 기록 -->
+  <div class="space-y-4">
+    <section class="bg-white border border-gray-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">협업사 답변</h2>
+      {% if readonly %}
+      <p class="text-sm text-gray-400 py-6 text-center">관리자 미리보기에서는 답변을 등록할 수 없습니다.</p>
+      {% else %}
+      <form method="post" action="/portal/cs/{{ cs.id }}/reply" class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">답변 내용</label>
+          <textarea name="reply" rows="4" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" placeholder="확인 결과 및 답변을 입력하세요"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">권장 처리방법</label>
+          <select name="recommended_resolution" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+            <option value="">선택 안 함</option>
+            {% for code, label in RESOLUTIONS %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">처리 가능 여부</label>
+          <input type="text" name="feasibility" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" placeholder="예: 재발송 가능 / 재고 부족">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">재발송 가능일</label>
+          <input type="date" name="resend_available_date" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">기타 메모</label>
+          <textarea name="memo" rows="2" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></textarea>
+        </div>
+        <button class="w-full px-3 py-2.5 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700">답변 등록</button>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="bg-white border border-gray-100 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">진행 기록</h2>
+      <ol class="relative border-l border-gray-200 ml-1 space-y-4">
+        {% for a in activities %}
+        <li class="ml-4">
+          <span class="absolute -left-1.5 w-3 h-3 rounded-full bg-indigo-400 border-2 border-white"></span>
+          <div class="text-xs text-gray-400">{{ a.created_at | dt }} · {{ a.actor or '블렌드펀치' }}</div>
+          <div class="text-sm text-gray-800">
+            {% if a.type == 'partner_reply' %}<span class="text-purple-600 font-medium">협업사 답변</span>
+            {% elif a.type == 'forward_partner' %}<span class="text-indigo-600 font-medium">블렌드펀치 전달</span>
+            {% elif a.type == 'partner_public' %}<span class="text-indigo-600 font-medium">블렌드펀치 메시지</span>
+            {% elif a.type == 'customer_notice' %}<span class="text-green-600 font-medium">고객 안내</span>
+            {% elif a.type == 'status_change' %}상태 변경
+            {% else %}{{ a.type }}{% endif %}
+          </div>
+          {% if a.body %}<div class="text-sm text-gray-600 mt-1 whitespace-pre-wrap bg-gray-50 rounded-lg p-2">{{ a.body }}</div>{% endif %}
+        </li>
+        {% else %}
+        <li class="ml-4 text-sm text-gray-400">기록이 없습니다.</li>
+        {% endfor %}
+      </ol>
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}협력사 포털 | BLEND PUNCH{% endblock %}</title>
+  <link rel="icon" type="image/png" href="/static/logo.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script defer src="/static/js/alpine.min.js"></script>
+  <style>
+    [x-cloak]{display:none!important}
+    html,body{max-width:100vw;overflow-x:hidden}
+
+    /* ── 반응형 테이블: 모바일(≤640px)에서 각 행을 카드로 ── */
+    @media (max-width: 640px) {
+      .rt thead { display: none; }
+      .rt, .rt tbody, .rt tr, .rt td { display: block; width: 100%; }
+      .rt tr {
+        border: 1px solid #f0f0f0; border-radius: 12px;
+        padding: 4px 12px; margin-bottom: 10px; background: #fff;
+      }
+      .rt td {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 8px 0 !important; text-align: right !important;
+        border-bottom: 1px solid #f7f7f7;
+      }
+      .rt tr td:last-child { border-bottom: 0; }
+      .rt td::before {
+        content: attr(data-label);
+        font-size: 12px; font-weight: 500; color: #9ca3af;
+        text-align: left; flex-shrink: 0;
+      }
+      /* 빈 상태(colspan) 행은 카드 테두리 없이 */
+      .rt td.rt-empty { justify-content: center; }
+      .rt td.rt-empty::before { content: ""; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-900 antialiased min-h-screen">
+
+  <!-- 상단바 -->
+  <header class="bg-gray-900 text-white">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <img src="/static/logo.png" alt="BP" class="w-7 h-7 object-contain" onerror="this.style.display='none'">
+        <div>
+          <div class="text-xs font-bold tracking-widest uppercase leading-none">BLEND PUNCH</div>
+          <div class="text-gray-400 text-xs mt-0.5 leading-none">협력사 포털</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        {% if partner %}<span class="text-gray-300 hidden sm:inline">{{ partner.name }}</span>{% endif %}
+        {% if admin_view %}
+        <a href="/portal/exit" class="text-gray-400 hover:text-white text-xs">미리보기 종료</a>
+        {% else %}
+        <a href="/logout" class="text-gray-400 hover:text-white text-xs">로그아웃</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  {% if admin_view %}
+  <!-- 관리자 미리보기 배너 (보기 전용) -->
+  <div class="bg-amber-400 text-amber-950">
+    <div class="max-w-5xl mx-auto px-4 py-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+      <span class="font-bold">관리자 미리보기</span>
+      <span class="hidden sm:inline">협력사가 보는 화면 그대로입니다. 답변·CS 등록 등 쓰기는 막혀 있습니다.</span>
+      <form method="get" action="/portal/switch" class="ml-auto flex items-center gap-2">
+        <input type="hidden" name="next" value="{{ request.url.path }}">
+        <select name="partner_id" onchange="this.form.submit()"
+                class="px-2 py-1 rounded-md border border-amber-600/40 bg-amber-50 text-amber-950 text-xs">
+          {% for p in switch_partners %}
+          <option value="{{ p.id }}" {% if partner and p.id == partner.id %}selected{% endif %}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button class="px-2 py-1 rounded-md bg-amber-950 text-amber-50">전환</button></noscript>
+      </form>
+      <a href="/partners" class="underline whitespace-nowrap">OS로 돌아가기</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 서브 네비 -->
+  <nav class="bg-white border-b border-gray-100">
+    <div class="max-w-5xl mx-auto px-4 flex items-center gap-1 text-sm">
+      <a href="/portal" class="px-3 py-2.5 font-medium {% if active_portal == 'home' %}text-gray-900 border-b-2 border-gray-900{% else %}text-gray-400 hover:text-gray-700{% endif %}">홈</a>
+      <a href="/portal/cs" class="px-3 py-2.5 font-medium {% if active_portal == 'cs' %}text-gray-900 border-b-2 border-gray-900{% else %}text-gray-400 hover:text-gray-700{% endif %}">고객 CS</a>
+      {% if not readonly %}
+      <a href="/portal/cs/new" class="ml-auto my-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-700">+ CS 접수</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  {% if request.query_params.get('msg') or request.query_params.get('err') %}
+  <div class="max-w-5xl mx-auto px-4 pt-4">
+    {% if request.query_params.get('msg') %}
+    <div class="rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-2.5">{{ request.query_params.get('msg') }}</div>
+    {% endif %}
+    {% if request.query_params.get('err') %}
+    <div class="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5">{{ request.query_params.get('err') }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <main class="max-w-5xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="max-w-5xl mx-auto px-4 py-6 text-center text-xs text-gray-400">
+    공구·정산·검수 일정은 보기 전용입니다. CS는 직접 접수하거나 답변하실 수 있습니다.
+  </footer>
+</body>
+</html>

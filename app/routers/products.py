@@ -43,6 +43,31 @@ def _parse_set_options(raw: str) -> list | None:
         return None
 
 
+def _parse_str_list(raw: str) -> list | None:
+    """JSON 문자열 배열 파싱 → 공백 제거된 str 리스트 (실패 시 None)."""
+    try:
+        data = json.loads(raw)
+        cleaned = [c.strip() for c in data if isinstance(c, str) and c.strip()]
+        return cleaned or None
+    except Exception:
+        return None
+
+
+def _ensure_brand(db: Session, cid: int, brand_name: str) -> None:
+    """제품에 지정된 브랜드가 Brand 테이블에 없으면 자동 생성.
+
+    - Product.brand 문자열 구조는 그대로 유지 (FK 아님).
+    - Brand.name 은 전역 unique 이므로 이름 기준으로만 존재 여부 확인 → unique 충돌 회피.
+    - 커밋은 호출부(제품 저장 트랜잭션)에서 함께 처리.
+    """
+    name = (brand_name or "").strip()
+    if not name:
+        return
+    exists = db.query(BrandModel).filter(BrandModel.name == name).first()
+    if not exists:
+        db.add(BrandModel(company_id=cid, name=name))
+
+
 @router.get("")
 def product_list(request: Request, db: Session = Depends(get_db),
                  q: str = "", category: str = "", completeness: str = "",
@@ -51,7 +76,8 @@ def product_list(request: Request, db: Session = Depends(get_db),
     from sqlalchemy import func
     brand_rows = (
         db.query(Product.brand, func.count(Product.id).label("cnt"))
-        .filter(Product.company_id == cid, Product.brand.isnot(None), Product.brand != "")
+        .filter(Product.company_id == cid, Product.brand.isnot(None), Product.brand != "",
+                Product.is_archived.isnot(True))
         .group_by(Product.brand)
         .order_by(Product.brand)
         .all()
@@ -96,13 +122,18 @@ def product_brand(brand_name: str, request: Request, db: Session = Depends(get_d
                   current_user: User = Depends(get_current_user)):
     cid = get_company_id(current_user)
     from sqlalchemy import func
-    query = db.query(Product).filter(Product.company_id == cid, Product.brand == brand_name)
+    query = db.query(Product).filter(
+        Product.company_id == cid,
+        Product.brand == brand_name,
+        Product.is_archived.isnot(True),  # 보관(삭제) 제품 제외
+    )
     if q:
         query = query.filter(Product.name.ilike(f"%{q}%"))
     products = query.order_by(Product.created_at.desc()).limit(300).all()
     brand_rows = (
         db.query(Product.brand, func.count(Product.id).label("cnt"))
-        .filter(Product.company_id == cid, Product.brand.isnot(None), Product.brand != "")
+        .filter(Product.company_id == cid, Product.brand.isnot(None), Product.brand != "",
+                Product.is_archived.isnot(True))
         .group_by(Product.brand)
         .order_by(Product.brand)
         .all()
@@ -161,6 +192,7 @@ def product_create(
     positioning: str = Form(""),
     set_options_json: str = Form("[]"),
     categories_json: str = Form("[]"),
+    recommended_inf_json: str = Form("[]"),
     group_buy_guideline: str = Form(""),
     status: str = Form("active"),
     visibility_status: str = Form("active"),
@@ -190,11 +222,8 @@ def product_create(
     key_benefits = [b.strip() for b in key_benefits_raw.splitlines() if b.strip()]
     image_path = _save_image(product_image) or (product_image_url.strip() or None)
     set_opts = _parse_set_options(set_options_json)
-    try:
-        cats = json.loads(categories_json)
-        cats = [c for c in cats if isinstance(c, str) and c.strip()] or None
-    except Exception:
-        cats = None
+    cats = _parse_str_list(categories_json)
+    rec_inf = _parse_str_list(recommended_inf_json)
     commission = recommended_commission_rate / 100.0  # form sends %, DB stores 0-1
 
     product = Product(
@@ -210,6 +239,7 @@ def product_create(
         positioning=positioning or None,
         set_options=set_opts,
         categories=cats,
+        recommended_inf_categories=rec_inf,
         group_buy_guideline=group_buy_guideline or None,
         product_image=image_path,
         status=status,
@@ -235,6 +265,7 @@ def product_create(
     completeness = validate_product_completeness(product)
     product.is_complete = completeness["is_complete"]
     product.missing_fields = completeness["missing_fields"] or None
+    _ensure_brand(db, cid, brand)
     db.add(product)
     db.commit()
     db.refresh(product)
@@ -327,6 +358,7 @@ def product_update(
     positioning: str = Form(""),
     set_options_json: str = Form("[]"),
     categories_json: str = Form("[]"),
+    recommended_inf_json: str = Form("[]"),
     group_buy_guideline: str = Form(""),
     status: str = Form("active"),
     visibility_status: str = Form("active"),
@@ -378,6 +410,14 @@ def product_update(
         except Exception:
             pass  # 파싱 실패 → 기존 값 유지
 
+    # recommended_inf_categories: 파싱 성공 시만 업데이트
+    if recommended_inf_json.strip():
+        try:
+            rec_raw = json.loads(recommended_inf_json)
+            product.recommended_inf_categories = [c for c in rec_raw if isinstance(c, str) and c.strip()] or None
+        except Exception:
+            pass  # 파싱 실패 → 기존 값 유지
+
     commission = recommended_commission_rate / 100.0  # form sends %, DB stores 0-1
 
     product.name = name
@@ -420,6 +460,7 @@ def product_update(
     product.is_complete = completeness["is_complete"]
     product.missing_fields = completeness["missing_fields"] or None
 
+    _ensure_brand(db, cid, brand)
     db.commit()
     return RedirectResponse(f"/products/{product_id}?msg=수정되었습니다", status_code=302)
 

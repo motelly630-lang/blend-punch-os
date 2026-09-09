@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}CS 등록 · BLEND PUNCH OS{% endblock %}
+{% block page_title %}CS 등록{% endblock %}
+
+{% block content %}
+<form method="post" action="/cs/new" enctype="multipart/form-data" class="max-w-4xl space-y-5">
+
+  <!-- 접수 기본 -->
+  <section class="bg-white border border-gray-100 rounded-xl p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-4">접수 기본</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">접수경로</label>
+        <select name="channel" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          <option value="">선택</option>
+          {% for code, label in CHANNELS %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">CS 유형</label>
+        <select name="cs_type_id" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          <option value="">선택</option>
+          {% for t in cs_types %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">내부 담당자</label>
+        <select name="assigned_user_id" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          <option value="">미지정</option>
+          {% for u in staff_users %}<option value="{{ u.id }}">{{ u.username }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">처리 예정일</label>
+        <input type="datetime-local" name="due_at" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div class="flex items-end">
+        <label class="inline-flex items-center gap-2 text-sm text-gray-700 pb-2">
+          <input type="checkbox" name="is_urgent" value="1" class="rounded border-gray-300"> 긴급 CS
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <!-- 상품정보 -->
+  <section x-data="productPicker()" class="bg-white border border-gray-100 rounded-xl p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-1">상품정보</h2>
+    <p class="text-xs text-gray-400 mb-4">기존 OS 상품을 검색해 선택하면 협업사가 자동 연결됩니다. 없으면 상품명을 직접 입력하세요.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- 검색형 상품 선택 -->
+      <div class="relative">
+        <label class="block text-xs font-medium text-gray-500 mb-1">OS 상품 검색</label>
+        <input type="hidden" name="product_id" :value="selectedId">
+        <input type="text" x-model="query" @focus="open=true" @input="open=true"
+               placeholder="상품명 입력해 검색…" autocomplete="off"
+               class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-400 focus:outline-none">
+        <div x-show="open" @click.outside="open=false" x-cloak
+             class="absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+          <template x-for="p in filtered()" :key="p.id">
+            <div @click="select(p)" class="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer flex items-center justify-between">
+              <span x-text="p.name"></span>
+              <span class="text-xs text-gray-400" x-text="p.brand"></span>
+            </div>
+          </template>
+          <div x-show="filtered().length===0" class="px-3 py-2 text-sm text-gray-400">검색 결과가 없습니다</div>
+        </div>
+        <div x-show="selectedId" x-cloak class="mt-1.5 flex items-center gap-2 text-xs">
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">선택: <span x-text="selectedName" class="ml-1"></span></span>
+          <button type="button" @click="clear()" class="text-gray-400 hover:text-gray-600">지우기</button>
+        </div>
+      </div>
+      <!-- 미등록 직접입력 (상품 선택 시 비활성) -->
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">미등록 상품명 직접입력</label>
+        <input type="text" name="external_product_name" :disabled="!!selectedId"
+               class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm disabled:bg-gray-50 disabled:text-gray-400"
+               placeholder="OS에 없는 상품명">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">협업사 (직접입력 시)</label>
+        <select name="partner_id" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          <option value="">선택 안 함</option>
+          {% for p in partners %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">인플루언서</label>
+        <select name="influencer_id" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          <option value="">선택 안 함</option>
+          {% for i in influencers %}<option value="{{ i.id }}">{{ i.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">옵션</label>
+        <input type="text" name="product_option" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">수량</label>
+          <input type="number" name="quantity" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">캠페인/공구명</label>
+          <input type="text" name="campaign_name" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 주문·고객 정보 -->
+  <section class="bg-white border border-gray-100 rounded-xl p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-1">주문·고객 정보</h2>
+    <p class="text-xs text-gray-400 mb-4">shop과 연동되지 않으므로 모두 수기 입력합니다. 외부 주문번호는 문자열로 저장됩니다.</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">외부 주문번호</label>
+        <input type="text" name="external_order_number" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">주문 출처</label>
+        <select name="order_source" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          <option value="">선택</option>
+          {% for code, label in ORDER_SOURCES %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">판매채널</label>
+        <select name="sales_channel" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          <option value="">선택</option>
+          {% for code, label in SALES_CHANNELS %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">고객명</label>
+        <input type="text" name="customer_name" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">고객 연락처</label>
+        <input type="text" name="customer_phone" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">결제금액</label>
+        <input type="text" name="payment_amount" inputmode="numeric" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div class="md:col-span-3">
+        <label class="block text-xs font-medium text-gray-500 mb-1">주소 / 배송메모</label>
+        <input type="text" name="customer_address" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">구매일</label>
+        <input type="date" name="purchased_at" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">출고일</label>
+        <input type="date" name="shipped_at" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">배송완료일</label>
+        <input type="date" name="delivered_at" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">택배사</label>
+        <input type="text" name="courier" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-gray-500 mb-1">송장번호</label>
+        <input type="text" name="tracking_number" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+    </div>
+  </section>
+
+  <!-- CS 내용 -->
+  <section class="bg-white border border-gray-100 rounded-xl p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-4">CS 내용</h2>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">고객 문의내용</label>
+        <textarea name="inquiry_content" rows="3" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">고객 요청사항</label>
+        <textarea name="customer_request" rows="2" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"></textarea>
+      </div>
+
+      <!-- 사진 첨부 -->
+      <div x-data="imgUpload()">
+        <label class="block text-xs font-medium text-gray-500 mb-1">사진 첨부 <span class="text-gray-400">(문제 파악용, 최대 20장)</span></label>
+        <div class="flex items-center gap-3">
+          <label class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 cursor-pointer hover:border-blue-400 hover:text-blue-600">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            사진 선택
+            <input type="file" name="images" accept="image/*" multiple class="hidden" @change="preview($event)">
+          </label>
+          <span class="text-xs text-gray-400" x-text="count ? count + '장 선택됨' : '선택된 사진 없음'"></span>
+        </div>
+        <div class="flex gap-2 flex-wrap mt-2">
+          <template x-for="(u,idx) in urls" :key="idx">
+            <img :src="u" class="w-20 h-20 object-cover rounded-lg border border-gray-200">
+          </template>
+        </div>
+        <label class="inline-flex items-center gap-2 text-xs text-gray-500 mt-2">
+          <input type="checkbox" name="images_public" value="1" class="rounded border-gray-300"> 이 사진을 협업사에도 공개
+        </label>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">협업사 공개용 전달내용</label>
+        <textarea name="partner_note" rows="2" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" placeholder="협업사에게 전달할 내용 (내부메모와 분리)"></textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">내부 메모 <span class="text-red-400">(협업사 미노출)</span></label>
+        <textarea name="internal_memo" rows="2" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-red-50/30"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <div class="flex items-center gap-2">
+    <button type="submit" class="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700">CS 등록</button>
+    <a href="/cs" class="px-4 py-2.5 rounded-lg text-sm text-gray-500 hover:text-gray-700">취소</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function productPicker() {
+    return {
+      products: {{ products_json | tojson }},
+      query: '', open: false, selectedId: '', selectedName: '',
+      filtered() {
+        const list = this.products;
+        if (!this.query.trim()) return list.slice(0, 50);
+        const q = this.query.trim().toLowerCase();
+        return list.filter(p => (p.name || '').toLowerCase().includes(q)
+                              || (p.brand || '').toLowerCase().includes(q)).slice(0, 50);
+      },
+      select(p) { this.selectedId = p.id; this.selectedName = p.name; this.query = p.name; this.open = false; },
+      clear() { this.selectedId = ''; this.selectedName = ''; this.query = ''; },
+    };
+  }
+  function imgUpload() {
+    return {
+      urls: [], count: 0,
+      preview(e) {
+        this.urls = []; this.count = e.target.files.length;
+        for (const f of e.target.files) {
+          if (f.type && f.type.startsWith('image/')) this.urls.push(URL.createObjectURL(f));
+        }
+      },
+    };
+  }
+</script>
+{% endblock %}

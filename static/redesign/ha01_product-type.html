@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A0 상품유형 선택 · BLEND PICK Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>body{font-family:'Pretendard',sans-serif;}</style>
+<script>tailwind.config={theme:{extend:{colors:{brand:{DEFAULT:'#2f5d3f',dark:'#244a32',light:'#e7f0ea'},accent:'#ff7a1a',ink:'#1b1f1d'}}}}</script>
+</head>
+<!-- A0 — 상품 등록 첫 화면 : 상품유형 분기 (기존 일반 = 그대로 / 호텔 = 전용폼) -->
+<body class="bg-[#f4f5f7] text-ink">
+<div class="flex min-h-screen">
+  <aside class="w-56 bg-white border-r border-black/5 shrink-0">
+    <div class="px-5 py-5 border-b border-black/5"><p class="text-[11px] text-black/40 font-semibold">BLEND PICK</p><p class="font-extrabold text-lg">Admin</p></div>
+    <nav class="p-3 space-y-1 text-[14px]">
+      <a href="07_admin-dashboard.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">📊 대시보드</a>
+      <a href="08_admin-products.html" class="flex gap-3 px-3 py-2.5 rounded-lg bg-brand-light text-brand font-bold border-l-2 border-brand">📦 상품 관리</a>
+      <a href="10_admin-orders.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">🧾 판매 관리</a>
+      <a href="ha05_reservations.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">🏨 예약 관리</a>
+      <a href="12_admin-settlement.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">💰 정산 관리</a>
+    </nav>
+  </aside>
+
+  <main class="flex-1 p-8" x-data="{t:null}">
+    <h1 class="text-2xl font-extrabold">상품 등록</h1>
+    <p class="text-[13px] text-black/45 mt-1">먼저 상품 유형을 선택하세요</p>
+
+    <div class="grid md:grid-cols-2 gap-5 mt-8 max-w-3xl">
+      <!-- 일반 -->
+      <button @click="t='normal'" class="text-left rounded-2xl border-2 p-6 transition" :class="t==='normal'?'border-brand bg-brand-light/40':'border-black/10 bg-white'">
+        <div class="text-3xl">📦</div>
+        <p class="text-[17px] font-extrabold mt-3">일반 공동구매</p>
+        <p class="text-[13px] text-black/55 mt-1 leading-relaxed">식품·뷰티·리빙 등 일반 상품. 옵션·수량 선택형 구매.</p>
+        <p class="text-[12px] text-brand font-semibold mt-3">기존 등록 화면 그대로 사용 (변경 없음)</p>
+      </button>
+      <!-- 호텔 -->
+      <button @click="t='hotel'" class="text-left rounded-2xl border-2 p-6 transition" :class="t==='hotel'?'border-accent bg-accent/5':'border-black/10 bg-white'">
+        <div class="text-3xl">🏨</div>
+        <p class="text-[17px] font-extrabold mt-3">호텔 공동구매 <span class="text-[11px] font-bold text-white bg-accent px-2 py-0.5 rounded-full align-middle">NEW</span></p>
+        <p class="text-[13px] text-black/55 mt-1 leading-relaxed">숙박 상품. 날짜·객실·인원 선택형 예약. 날짜별 가격·잔여 관리.</p>
+        <p class="text-[12px] text-accent font-semibold mt-3">호텔 전용 4단계 등록 화면으로 이동</p>
+      </button>
+    </div>
+
+    <div class="mt-8 max-w-3xl flex justify-end">
+      <a :href="t==='hotel'?'ha02_hotel-info.html':(t==='normal'?'09_admin-product-form.html':'#')"
+         class="px-6 py-3 rounded-xl font-bold text-[14px] text-white transition"
+         :class="t?'bg-brand':'bg-black/20 pointer-events-none'">다음 단계 →</a>
+    </div>
+  </main>
+</div>
+</body>
+</html>

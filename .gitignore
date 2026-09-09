@@ -1,6 +1,12 @@
 # Environment & secrets
 .env
 *.env
+.env.bak.*
+google_sa.json
+instagram_session.json
+
+# Node
+node_modules/
 
 # Database
 *.db
@@ -26,3 +32,4 @@ static/uploads/
 # OS
 .DS_Store
 Thumbs.db
+google_sa.json

@@ -25,28 +25,37 @@
 
 {% block content %}
 
-<!-- Stats -->
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-  <div class="bg-green-50 rounded-xl p-4 border border-green-100">
+<!-- Stats (클릭 시 상태 필터) -->
+<div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+  <button type="button" id="stat-all" onclick="CampBoard.setStatus('all')"
+    class="stat-btn text-left bg-slate-50 rounded-xl p-4 border-2 border-slate-100 hover:border-slate-300 transition-colors">
+    <div class="text-2xl font-bold text-slate-700">{{ total_count }}</div>
+    <div class="text-sm text-slate-500 mt-0.5">전체</div>
+  </button>
+  <button type="button" id="stat-active" onclick="CampBoard.setStatus('active')"
+    class="stat-btn text-left bg-green-50 rounded-xl p-4 border-2 border-green-100 hover:border-green-300 transition-colors">
     <div class="text-2xl font-bold text-green-700">{{ active_count }}</div>
     <div class="text-sm text-green-600 mt-0.5">진행중</div>
-  </div>
-  <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
+  </button>
+  <button type="button" id="stat-plan" onclick="CampBoard.setStatus('plan')"
+    class="stat-btn text-left bg-blue-50 rounded-xl p-4 border-2 border-blue-100 hover:border-blue-300 transition-colors">
     <div class="text-2xl font-bold text-blue-700">{{ planning_count }}</div>
     <div class="text-sm text-blue-600 mt-0.5">예정</div>
-  </div>
-  <div class="bg-gray-50 rounded-xl p-4 border border-gray-100">
+  </button>
+  <button type="button" id="stat-done" onclick="CampBoard.setStatus('done')"
+    class="stat-btn text-left bg-gray-50 rounded-xl p-4 border-2 border-gray-100 hover:border-gray-300 transition-colors">
     <div class="text-2xl font-bold text-gray-600">{{ done_count }}</div>
     <div class="text-sm text-gray-500 mt-0.5">완료</div>
-  </div>
-  <div class="bg-amber-50 rounded-xl p-4 border border-amber-100">
+  </button>
+  <a href="/campaigns?tab=archive"
+    class="text-left bg-amber-50 rounded-xl p-4 border-2 {% if tab == 'archive' %}border-amber-400{% else %}border-amber-100 hover:border-amber-300{% endif %} transition-colors block">
     <div class="text-2xl font-bold text-amber-600">{{ archive_count }}</div>
     <div class="text-sm text-amber-500 mt-0.5">보관</div>
-  </div>
+  </a>
 </div>
 
 <!-- Tab + View toggle -->
-<div class="flex items-center justify-between mb-4">
+<div class="flex items-center justify-between mb-3 gap-2 flex-wrap">
   <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
     <a href="/campaigns?tab=active"
       class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors {% if tab != 'archive' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
@@ -59,11 +68,15 @@
   </div>
   {% if tab != 'archive' %}
   <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
-    <button id="btn-list-view" onclick="setView('list')"
+    <button id="btn-list-view" onclick="CampBoard.setView('list')"
       class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors">
       <svg class="w-3.5 h-3.5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>리스트
     </button>
-    <button id="btn-cal-view" onclick="setView('calendar')"
+    <button id="btn-tl-view" onclick="CampBoard.setView('timeline')"
+      class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors">
+      <svg class="w-3.5 h-3.5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h10M4 12h16M4 18h7"/></svg>타임라인
+    </button>
+    <button id="btn-cal-view" onclick="CampBoard.setView('calendar')"
       class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors">
       <svg class="w-3.5 h-3.5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>캘린더
     </button>
@@ -71,58 +84,38 @@
   {% endif %}
 </div>
 
-<!-- ── 모바일 전용: 현황 요약 + 단축키 ───────────────────────────── -->
-{% if tab != 'archive' %}
-<div class="lg:hidden grid grid-cols-2 gap-3 mb-4">
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
-    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">현황 요약</div>
-    <div class="space-y-1.5">
-      <div><div class="text-xs text-gray-400">진행중 매출</div><div class="text-base font-bold text-green-700">{{ total_revenue | won }}</div></div>
-      <div><div class="text-xs text-gray-400">셀러 정산</div><div class="text-sm font-bold text-blue-600">{{ total_seller_amt | won }}</div></div>
-      <div><div class="text-xs text-gray-400">벤더 수익</div><div class="text-sm font-bold text-orange-500">{{ total_vendor_amt | won }}</div></div>
-    </div>
+<!-- 검색 / 필터 / 정렬 툴바 -->
+<div id="camp-tools" class="flex flex-wrap items-center gap-2 mb-4">
+  <div class="relative flex-1 min-w-[180px]">
+    <svg class="w-4 h-4 text-gray-300 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    <input id="camp-search" type="text" placeholder="제품·브랜드·인플루언서 검색"
+      oninput="CampBoard.setSearch(this.value)"
+      class="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
   </div>
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
-    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">캠페인 현황</div>
-    <div class="space-y-1.5">
-      <div class="flex justify-between"><span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>진행중</span><span class="text-sm font-bold text-green-700">{{ active_count }}</span></div>
-      <div class="flex justify-between"><span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>예정</span><span class="text-sm font-bold text-blue-600">{{ planning_count }}</span></div>
-      <div class="flex justify-between"><span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-300 inline-block"></span>완료</span><span class="text-sm font-bold text-gray-500">{{ done_count }}</span></div>
-    </div>
-    <div class="mt-2 pt-2 border-t border-gray-50 text-xs text-gray-400">✏️인라인편집 &nbsp; ↵저장 &nbsp; ⎋취소</div>
-  </div>
+  <select id="camp-inf-filter" onchange="CampBoard.setInf(this.value)"
+    class="px-2.5 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+    <option value="">전체 인플루언서</option>
+  </select>
+  <select id="camp-sort" onchange="CampBoard.setSort(this.value)"
+    class="px-2.5 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+    {% if tab != 'archive' %}<option value="schedule">일정순 (그룹)</option>{% endif %}
+    <option value="recent">최근 종료순</option>
+    <option value="deadline">마감 임박순</option>
+    <option value="name">제품명순</option>
+    <option value="influencer">인플루언서순</option>
+    <option value="revenue">매출순</option>
+  </select>
+  <button type="button" onclick="CampBoard.reset()"
+    class="px-3 py-2 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">초기화</button>
 </div>
-{% endif %}
 
 <!-- ── MAIN LAYOUT ─────────────────────────────────────────────────── -->
 <div class="flex gap-4 items-start">
 
 <!-- ── LIST VIEW ─────────────────────────────────────────────────── -->
-<div id="view-list" class="flex-1 min-w-0 space-y-2 w-full">
+<div id="view-list" class="flex-1 min-w-0 w-full">
 
-  {% if tab == 'archive' %}
-  <!-- Archive -->
-  {% for c in campaigns %}
-  {% set prod_name = c.product.name if c.product else c.product_name_manual %}
-  <div class="flex items-center gap-3 bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md opacity-70 hover:opacity-100 transition-all">
-    <input type="checkbox" class="camp-check w-4 h-4 rounded border-gray-300 flex-shrink-0" value="{{ c.id }}" onchange="updateBulkDelete()">
-    <div class="flex-1 min-w-0">
-      {% if prod_name %}<div class="font-semibold text-sm text-gray-700 truncate">{{ prod_name }}</div>{% endif %}
-      <div class="text-xs text-gray-400 truncate">{{ c.name }}{% if c.influencer %} · {{ c.influencer.name }}{% endif %}</div>
-    </div>
-    <div class="text-right flex-shrink-0">
-      {% if c.actual_revenue %}<div class="text-sm font-bold text-gray-700">{{ c.actual_revenue | won }}</div>{% endif %}
-      <div class="text-xs text-gray-400">{{ c.start_date | date }} ~ {{ c.end_date | date }}</div>
-    </div>
-    <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">보관됨</span>
-    <a href="/campaigns/{{ c.id }}" class="text-gray-300 hover:text-gray-500">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-    </a>
-  </div>
-  {% endfor %}
-
-  {% else %}
-
+  {% if tab != 'archive' %}
   {# ── 빠른 생성 패널 ── #}
   <div x-data="createPanel()" class="mb-4">
     <button @click="open = !open" type="button"
@@ -243,242 +236,101 @@
       </div>
     </div>
   </div>
+  {% endif %}{# end 빠른생성 (활성 탭 전용) #}
 
-  {# ── 진행중 ── #}
-  {% set sect_active = [] %}
-  {% for c in campaigns if status_map[c.id] == 'active' %}{% set _ = sect_active.append(c) %}{% endfor %}
-  {% if sect_active %}
-  <div class="mb-2">
-    <div class="flex items-center gap-2 mb-2">
-      <div class="w-2 h-2 rounded-full bg-green-500"></div>
-      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">진행중</span>
-      <span class="text-xs text-gray-400">{{ sect_active | length }}건</span>
-    </div>
-    <div class="space-y-2">
-      {% for c in campaigns if status_map[c.id] == 'active' %}
-      {% set prod_name = c.product.name if c.product else c.product_name_manual %}
-      {% set brand_name = c.product.brand if c.product and c.product.brand else c.brand_name_manual %}
-      {% set cat_name = c.product.category if c.product and c.product.category else c.category_manual %}
-      {% if c.end_date %}{% set dday = (c.end_date - today).days %}{% else %}{% set dday = None %}{% endif %}
+  {# ── 통합 캠페인 리스트 (그룹 헤더는 JS가 주입, 행은 여기에) ── #}
+  <div id="camp-list" data-mode="{{ 'archive' if tab == 'archive' else 'active' }}" class="grid grid-cols-1 lg:grid-cols-2 gap-2 items-start">
+    {% set ST_LABEL = {'planning':'기획중','negotiating':'협의중','contracted':'계약완료','active':'진행중','completed':'완료','cancelled':'취소'} %}
+    {% set ST_CHIP = {'planning':'bg-gray-100 text-gray-600','negotiating':'bg-blue-100 text-blue-700','contracted':'bg-indigo-100 text-indigo-700','active':'bg-green-100 text-green-700','completed':'bg-gray-100 text-gray-600','cancelled':'bg-red-100 text-red-600'} %}
+    {% set NEXT_M = (today.month % 12) + 1 %}
+    {% set NEXT_Y = today.year + (1 if today.month == 12 else 0) %}
+    {% for c in campaigns %}
+    {% set st = status_map[c.id] %}
+    {% set grp = 'active' if st == 'active' else ('done' if st in ['completed','cancelled'] else 'plan') %}
+    {% set prod_name = c.product.name if c.product else c.product_name_manual %}
+    {% set brand_name = c.product.brand if c.product and c.product.brand else c.brand_name_manual %}
+    {% set cat_name = c.product.category if c.product and c.product.category else c.category_manual %}
+    {% set inf_name = c.influencer.name if c.influencer else '' %}
+    {% if st == 'active' and c.end_date %}{% set dday = (c.end_date - today).days %}{% set dpfx = '마감' %}
+    {% elif grp == 'plan' and c.start_date %}{% set dday = (c.start_date - today).days %}{% set dpfx = '시작' %}
+    {% else %}{% set dday = None %}{% set dpfx = '' %}{% endif %}
+    {% if st == 'active' %}{% set win = 'active' %}
+    {% elif grp == 'done' %}{% set win = 'done' %}
+    {% elif c.start_date and c.start_date.year == today.year and c.start_date.month == today.month %}{% set win = 'thismonth' %}
+    {% elif c.start_date and c.start_date.year == NEXT_Y and c.start_date.month == NEXT_M %}{% set win = 'nextmonth' %}
+    {% else %}{% set win = 'later' %}{% endif %}
+    {% set sort_dday = dday if dday is not none else 99999 %}
+    {% if grp == 'active' %}{% set bar = 'bg-green-400' %}{% set borders = 'border-green-100 hover:shadow-md hover:border-green-300' %}
+    {% elif grp == 'plan' %}{% set bar = 'bg-blue-300' %}{% set borders = 'border-gray-100 hover:shadow-md hover:border-blue-200' %}
+    {% else %}{% set bar = 'bg-red-300' if st == 'cancelled' else 'bg-gray-300' %}{% set borders = 'border-gray-100 hover:shadow-md opacity-75 hover:opacity-100' %}{% endif %}
+    {% if dday is none %}{% set dcolor = 'text-gray-400' %}
+    {% elif dday < 0 %}{% set dcolor = 'text-gray-400' %}
+    {% elif dday == 0 %}{% set dcolor = 'text-red-600' %}
+    {% elif dday <= 3 %}{% set dcolor = 'text-orange-500' %}
+    {% elif st == 'active' %}{% set dcolor = 'text-green-600' %}
+    {% else %}{% set dcolor = 'text-blue-500' %}{% endif %}
 
-      <div
-        x-data="campCard(CAMP_DATA['{{ c.id }}'])"
-        @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()"
-        class="bg-white rounded-xl border shadow-sm transition-all w-full overflow-hidden"
-        :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200' : 'border-green-100 hover:shadow-md hover:border-green-300'">
+    <div class="camp-row"
+      :class="editing ? 'lg:col-span-2' : ''"
+      data-camp="{{ c.id }}"
+      data-status="{{ grp }}"
+      data-window="{{ win }}"
+      data-name="{{ (prod_name or c.name) | lower }}"
+      data-brand="{{ (brand_name or '') | lower }}"
+      data-influencer="{{ inf_name | lower }}"
+      data-inflabel="{{ inf_name }}"
+      data-start="{{ c.start_date.isoformat() if c.start_date else '' }}"
+      data-end="{{ c.end_date.isoformat() if c.end_date else '' }}"
+      data-dday="{{ sort_dday }}"
+      data-revenue="{{ c.actual_revenue or 0 }}"
+      x-data="campCard(CAMP_DATA['{{ c.id }}'])"
+      @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()">
+      <div class="bg-white rounded-xl border shadow-sm transition-all"
+        :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200' : '{{ borders }}'">
 
-        <!-- Header -->
-        <div class="flex items-center gap-2 px-3 sm:px-4 pt-3 pb-2 border-b border-gray-50 w-full">
+        <div class="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5">
           <input type="checkbox" class="camp-check w-4 h-4 rounded border-gray-300 flex-shrink-0" value="{{ c.id }}" onchange="updateBulkDelete()">
-          <div class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></div>
-          <a href="/campaigns/{{ c.id }}" class="flex-1 min-w-0 font-medium text-sm text-gray-700 hover:text-green-700 truncate" x-show="!editing">{{ c.name }}</a>
-          <span class="flex-1 min-w-0 font-medium text-sm text-gray-800 truncate" x-show="editing" x-cloak>{{ c.name }}</span>
-          <template x-if="!editing">
-            <div class="flex items-center gap-1.5 flex-shrink-0">
-              {% if dday is not none %}
-              <span class="text-xs font-semibold
-                {% if dday < 0 %}text-gray-400{% elif dday == 0 %}text-red-600{% elif dday <= 3 %}text-orange-500{% else %}text-green-600{% endif %}">
-                {% if dday < 0 %}D+{{ dday | abs }}{% elif dday == 0 %}D-Day{% else %}D-{{ dday }}{% endif %}
-              </span>
-              {% endif %}
-              <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 whitespace-nowrap">진행중</span>
-              <button @click="openEdit()" type="button" title="인라인 편집"
-                class="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors flex-shrink-0">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-              </button>
-              <a href="/campaigns/{{ c.id }}/edit" title="전체 편집" class="hidden sm:block p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-              </a>
-            </div>
-          </template>
-          <template x-if="editing">
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <span class="text-xs text-blue-500 font-medium">편집중</span>
-              <button @click="saveEdit()" type="button" :disabled="saving"
-                class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">
-                <span x-show="!saving">저장</span><span x-show="saving" x-cloak>저장중...</span>
-              </button>
-              <button @click="cancelEdit()" type="button"
-                class="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">취소</button>
-            </div>
-          </template>
-        </div>
+          <div class="w-1 h-9 rounded-full {{ bar }} flex-shrink-0"></div>
 
-        <!-- VIEW MODE body -->
-        <a href="/campaigns/{{ c.id }}" x-show="!editing" class="grid grid-cols-2 sm:grid-cols-3 gap-0 divide-x divide-gray-50">
-          <div class="px-3 sm:px-4 py-3 space-y-1.5">
-            {% if prod_name %}<div class="text-sm font-bold text-gray-900 leading-tight truncate">{{ prod_name }}</div>
-            {% else %}<div class="text-sm text-gray-300 italic">제품 미연결</div>{% endif %}
-            <div class="flex items-center gap-1 flex-wrap">
-              {% if brand_name %}<span class="text-xs text-gray-500">{{ brand_name }}</span>{% endif %}
-              {% if brand_name and cat_name %}<span class="text-gray-300 text-xs">·</span>{% endif %}
-              {% if cat_name %}<span class="text-xs text-gray-400">{{ cat_name }}</span>{% endif %}
-            </div>
-            {% if c.influencer %}
-            <div class="flex items-center gap-2 pt-1 border-t border-gray-50">
-              {% set img = c.influencer.profile_image_path or c.influencer.profile_image_url %}
-              {% if img %}<img src="{{ img }}" alt="" class="w-6 h-6 rounded-full object-cover flex-shrink-0">
-              {% else %}<div class="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0"><span class="text-purple-600 text-xs font-bold">{{ c.influencer.name[0] }}</span></div>{% endif %}
-              <span class="text-xs text-purple-600 font-medium truncate">{{ c.influencer.name }}</span>
-            </div>
-            {% endif %}
-          </div>
-          <div class="px-3 sm:px-4 py-3">
-            <div class="text-xs text-gray-400 mb-1">매출</div>
-            <div class="text-sm sm:text-base font-bold text-green-700">{% if c.actual_revenue %}{{ c.actual_revenue | won }}{% else %}₩0{% endif %}</div>
-            <div class="text-xs text-gray-400 mt-1">실 {{ c.actual_sales or 0 }} / 예상 {{ c.expected_sales or 0 }}</div>
-          </div>
-          <div class="hidden sm:block px-4 py-3">
-            <div class="text-xs text-gray-400 mb-1">정산</div>
-            {% if c.seller_commission_amount %}
-            <div class="text-xs mb-0.5"><span class="text-gray-400">셀러 </span><span class="font-semibold text-blue-600">{{ c.seller_commission_amount | won }}</span></div>
-            {% endif %}
-            {% if c.vendor_commission_amount %}
-            <div class="text-xs mb-1.5"><span class="text-gray-400">벤더 </span><span class="font-semibold text-orange-500">{{ c.vendor_commission_amount | won }}</span></div>
-            {% endif %}
-            {% if not c.seller_commission_amount and not c.vendor_commission_amount %}<div class="text-xs text-gray-300 mb-1.5">미설정</div>{% endif %}
-            {% if c.start_date or c.end_date %}<div class="text-xs text-gray-400 border-t border-gray-50 pt-1">{{ c.start_date | date }} ~ {{ c.end_date | date }}</div>{% endif %}
-          </div>
-        </a>
-
-        <!-- EDIT MODE body -->
-        {% include 'campaigns/_inline_edit_form.html' %}
-
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
-  {# ── 예정 ── #}
-  {% set sect_plan = [] %}
-  {% for c in campaigns if status_map[c.id] in ['planning','negotiating','contracted'] %}{% set _ = sect_plan.append(c) %}{% endfor %}
-  {% if sect_plan %}
-  <div class="mb-2">
-    <div class="flex items-center gap-2 mb-2">
-      <div class="w-2 h-2 rounded-full bg-blue-500"></div>
-      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">예정</span>
-      <span class="text-xs text-gray-400">{{ sect_plan | length }}건</span>
-    </div>
-    <div class="space-y-2">
-      {% for c in campaigns if status_map[c.id] in ['planning','negotiating','contracted'] %}
-      {% set prod_name = c.product.name if c.product else c.product_name_manual %}
-      {% set brand_name = c.product.brand if c.product and c.product.brand else c.brand_name_manual %}
-      {% if c.start_date %}{% set dday_s = (c.start_date - today).days %}{% else %}{% set dday_s = None %}{% endif %}
-      {% set ST_COLOR = {'planning': 'bg-gray-100 text-gray-600', 'negotiating': 'bg-blue-100 text-blue-700', 'contracted': 'bg-indigo-100 text-indigo-700'} %}
-      {% set ST_LABEL = {'planning': '기획중', 'negotiating': '협의중', 'contracted': '계약완료'} %}
-
-      <div
-        x-data="campCard(CAMP_DATA['{{ c.id }}'])"
-        @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()"
-        class="bg-white rounded-xl border shadow-sm transition-all"
-        :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200' : 'border-gray-100 hover:shadow-md hover:border-blue-200'">
-
-        <div class="flex items-center gap-3 px-4 py-3">
-          <input type="checkbox" class="camp-check w-4 h-4 rounded border-gray-300 flex-shrink-0" value="{{ c.id }}" onchange="updateBulkDelete()">
-          <div class="w-1 h-10 rounded-full bg-blue-300 flex-shrink-0"></div>
+          <!-- VIEW: 좌측 정보 -->
           <div class="flex-1 min-w-0" x-show="!editing">
-            {% if prod_name %}<div class="text-sm font-bold text-gray-800 truncate">{{ prod_name }}</div>{% endif %}
-            <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-              <span class="text-xs text-gray-400 truncate">{{ c.name }}</span>
-              {% if brand_name %}<span class="text-gray-300">·</span><span class="text-xs text-gray-400">{{ brand_name }}</span>{% endif %}
+            {% if prod_name %}<div class="text-sm font-bold text-gray-800 truncate">{{ prod_name }}</div>
+            {% else %}<div class="text-sm text-gray-400 italic truncate">{{ c.name }}</div>{% endif %}
+            <div class="flex items-center gap-1.5 mt-0.5 flex-wrap text-xs">
+              {% if prod_name and c.name != prod_name %}<span class="text-gray-400 truncate max-w-[140px]">{{ c.name }}</span>{% endif %}
+              {% if brand_name %}{% if prod_name and c.name != prod_name %}<span class="text-gray-300">·</span>{% endif %}<span class="text-gray-400">{{ brand_name }}</span>{% endif %}
+              {% if cat_name %}<span class="text-gray-300">·</span><span class="text-gray-400">{{ cat_name }}</span>{% endif %}
               {% if c.influencer %}
               <span class="text-gray-300">·</span>
               {% set img = c.influencer.profile_image_path or c.influencer.profile_image_url %}
               {% if img %}<img src="{{ img }}" alt="" class="w-4 h-4 rounded-full object-cover">{% endif %}
-              <span class="text-xs text-purple-500">{{ c.influencer.name }}</span>
+              <span class="text-purple-500 font-medium">{{ c.influencer.name }}</span>
               {% endif %}
             </div>
           </div>
           <span class="flex-1 min-w-0 text-sm font-semibold text-gray-700 truncate" x-show="editing" x-cloak>{{ prod_name or c.name }}</span>
+
+          <!-- VIEW: 우측 지표 -->
           <template x-if="!editing">
-            <div class="flex items-center gap-2 flex-shrink-0">
-              {% if c.start_date %}
-              <div class="text-right">
-                <div class="text-xs text-gray-500">{{ c.start_date | date }}</div>
-                {% if dday_s is not none %}<div class="text-xs font-semibold {% if dday_s <= 0 %}text-green-600{% elif dday_s <= 7 %}text-orange-500{% else %}text-blue-500{% endif %}">
-                  {% if dday_s <= 0 %}시작됨{% elif dday_s == 1 %}내일{% else %}{{ dday_s }}일 후{% endif %}
-                </div>{% endif %}
-              </div>
-              {% endif %}
-              <span class="text-xs px-2 py-0.5 rounded-full {{ ST_COLOR.get(status_map[c.id], 'bg-gray-100 text-gray-600') }}">
-                {{ ST_LABEL.get(status_map[c.id], status_map[c.id]) }}
-              </span>
-              <button @click="openEdit()" type="button" class="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-              </button>
-              <a href="/campaigns/{{ c.id }}" class="text-gray-300 hover:text-blue-500">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-              </a>
-            </div>
-          </template>
-          <template x-if="editing">
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <span class="text-xs text-blue-500 font-medium">편집중</span>
-              <button @click="saveEdit()" type="button" :disabled="saving"
-                class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">
-                <span x-show="!saving">저장</span><span x-show="saving" x-cloak>저장중...</span>
-              </button>
-              <button @click="cancelEdit()" type="button"
-                class="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">취소</button>
-            </div>
-          </template>
-        </div>
-        {% include 'campaigns/_inline_edit_form.html' %}
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
-  {# ── 완료/취소 ── #}
-  {% set sect_done = [] %}
-  {% for c in campaigns if status_map[c.id] in ['completed','cancelled'] %}{% set _ = sect_done.append(c) %}{% endfor %}
-  {% if sect_done %}
-  <div class="mb-2">
-    <div class="flex items-center gap-2 mb-2">
-      <div class="w-2 h-2 rounded-full bg-gray-400"></div>
-      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">완료</span>
-      <span class="text-xs text-gray-400">{{ sect_done | length }}건</span>
-    </div>
-    <div class="space-y-2">
-      {% for c in campaigns if status_map[c.id] in ['completed','cancelled'] %}
-      {% set prod_name = c.product.name if c.product else c.product_name_manual %}
-      {% set brand_name = c.product.brand if c.product and c.product.brand else c.brand_name_manual %}
-
-      <div
-        x-data="campCard(CAMP_DATA['{{ c.id }}'])"
-        @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()"
-        class="bg-white rounded-xl border shadow-sm transition-all opacity-75 hover:opacity-100"
-        :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200 opacity-100' : 'border-gray-100 hover:shadow-md'">
-
-        <div class="flex items-center gap-3 px-4 py-3">
-          <input type="checkbox" class="camp-check w-4 h-4 rounded border-gray-300 flex-shrink-0" value="{{ c.id }}" onchange="updateBulkDelete()">
-          <div class="w-1 h-10 rounded-full {% if status_map[c.id] == 'cancelled' %}bg-red-300{% else %}bg-gray-300{% endif %} flex-shrink-0"></div>
-          <div class="flex-1 min-w-0" x-show="!editing">
-            {% if prod_name %}<div class="text-sm font-semibold text-gray-700 truncate">{{ prod_name }}</div>{% endif %}
-            <div class="flex items-center gap-2 mt-0.5">
-              <span class="text-xs text-gray-400 truncate">{{ c.name }}</span>
-              {% if brand_name %}<span class="text-xs text-gray-300">·</span><span class="text-xs text-gray-400">{{ brand_name }}</span>{% endif %}
-              {% if c.influencer %}<span class="text-xs text-gray-300">·</span><span class="text-xs text-gray-500">{{ c.influencer.name }}</span>{% endif %}
-            </div>
-          </div>
-          <span class="flex-1 min-w-0 text-sm font-semibold text-gray-700 truncate" x-show="editing" x-cloak>{{ prod_name or c.name }}</span>
-          <template x-if="!editing">
-            <div class="flex items-center gap-3 flex-shrink-0">
-              <div class="text-right">
-                {% if c.actual_revenue %}<div class="text-sm font-bold text-gray-600">{{ c.actual_revenue | won }}</div>{% endif %}
+            <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              {% if (st == 'active' or grp == 'done') and c.actual_revenue %}
+              <div class="text-right hidden md:block">
+                <div class="text-sm font-bold {{ 'text-green-700' if st == 'active' else 'text-gray-500' }}">{{ c.actual_revenue | won }}</div>
                 {% if c.seller_commission_amount %}<div class="text-xs text-blue-500">셀러 {{ c.seller_commission_amount | won }}</div>{% endif %}
-                {% if c.end_date %}<div class="text-xs text-gray-400">{{ c.end_date | date }}</div>{% endif %}
               </div>
-              <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0
-                {% if status_map[c.id] == 'completed' %}bg-gray-100 text-gray-600{% else %}bg-red-100 text-red-600{% endif %}">
-                {{ status_map[c.id] | status_label }}
-              </span>
-              <button @click="openEdit()" type="button" class="p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors">
+              {% endif %}
+              <div class="text-right">
+                {% if c.start_date %}<div class="text-xs text-gray-400 whitespace-nowrap">{{ c.start_date | date }}{% if c.end_date %} ~ {{ c.end_date | date }}{% endif %}</div>{% endif %}
+                {% if dday is not none %}
+                <div class="text-xs font-semibold {{ dcolor }} whitespace-nowrap">{{ dpfx }} {% if dday < 0 %}+{{ dday | abs }}{% elif dday == 0 %}D-DAY{% else %}D-{{ dday }}{% endif %}</div>
+                {% endif %}
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full whitespace-nowrap {{ ST_CHIP.get(st, 'bg-gray-100 text-gray-600') }}">{{ ST_LABEL.get(st, st) }}</span>
+              <button @click="openEdit()" type="button" title="인라인 편집"
+                class="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors flex-shrink-0">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
               </button>
-              <a href="/campaigns/{{ c.id }}" class="text-gray-300 hover:text-gray-500">
+              <a href="/campaigns/{{ c.id }}" title="상세" class="text-gray-300 hover:text-blue-500 flex-shrink-0">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
               </a>
             </div>
@@ -495,64 +347,59 @@
             </div>
           </template>
         </div>
+
         {% include 'campaigns/_inline_edit_form.html' %}
       </div>
-      {% endfor %}
     </div>
+    {% endfor %}
   </div>
-  {% endif %}
 
-  {% endif %}{# end active/archive #}
+  <div id="camp-empty" style="display:none" class="bg-white rounded-xl border border-gray-100 p-10 text-center text-sm text-gray-400">
+    조건에 맞는 캠페인이 없습니다
+  </div>
 </div>{# end view-list #}
 
 <!-- ── RIGHT PANEL ─────────────────────────────────────────────────── -->
-{% if tab != 'archive' %}
 <div class="hidden lg:block w-56 flex-shrink-0 sticky top-4 space-y-3">
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">현황 요약</div>
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">전체 합계</div>
     <div class="space-y-3">
       <div>
-        <div class="text-xs text-gray-400 mb-0.5">진행중 총 매출</div>
+        <div class="text-xs text-gray-400 mb-0.5">총 판매 금액</div>
         <div class="text-lg font-bold text-green-700">{{ total_revenue | won }}</div>
       </div>
       <div class="border-t border-gray-50 pt-2">
-        <div class="text-xs text-gray-400 mb-0.5">셀러 정산 예정</div>
+        <div class="text-xs text-gray-400 mb-0.5">셀러 정산 금액</div>
         <div class="text-base font-bold text-blue-600">{{ total_seller_amt | won }}</div>
       </div>
       <div class="border-t border-gray-50 pt-2">
-        <div class="text-xs text-gray-400 mb-0.5">벤더 예상 수익</div>
+        <div class="text-xs text-gray-400 mb-0.5">벤더 정산 금액</div>
         <div class="text-base font-bold text-orange-500">{{ total_vendor_amt | won }}</div>
       </div>
     </div>
-  </div>
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">캠페인 현황</div>
-    <div class="space-y-2">
-      <div class="flex justify-between items-center">
-        <span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>진행중</span>
-        <span class="text-sm font-bold text-green-700">{{ active_count }}</span>
-      </div>
-      <div class="flex justify-between items-center">
-        <span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>예정</span>
-        <span class="text-sm font-bold text-blue-600">{{ planning_count }}</span>
-      </div>
-      <div class="flex justify-between items-center">
-        <span class="text-xs text-gray-500 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-300 inline-block"></span>완료</span>
-        <span class="text-sm font-bold text-gray-500">{{ done_count }}</span>
-      </div>
-    </div>
+    <div class="mt-2 pt-2 border-t border-gray-50 text-[11px] text-gray-400 leading-snug">완료·보관 포함 · 취소 제외</div>
   </div>
   <div class="bg-blue-50 rounded-xl border border-blue-100 p-3">
-    <div class="text-xs font-semibold text-blue-600 mb-2">인라인 편집 단축키</div>
+    <div class="text-xs font-semibold text-blue-600 mb-2">단축키 / 팁</div>
     <ul class="space-y-1 text-xs text-blue-500">
-      <li>✏️ 연필: 인라인 편집</li>
-      <li>🔗 링크: 전체 편집</li>
-      <li>↵ Enter: 저장</li>
-      <li>⎋ Esc: 취소</li>
+      <li>📊 상단 카드 클릭 → 상태 필터</li>
+      <li>✏️ 연필: 인라인 편집(매출 입력)</li>
+      <li>↵ Enter: 저장 · ⎋ Esc: 취소</li>
     </ul>
   </div>
 </div>
-{% endif %}
+
+<!-- ── TIMELINE VIEW ─────────────────────────────────────────────────── -->
+<div id="view-timeline" style="display:none" class="flex-1 min-w-0">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4">
+    <div id="tl-grid"></div>
+    <div class="flex items-center gap-4 mt-3 text-xs text-gray-500 px-1">
+      <span class="flex items-center gap-1"><span class="w-3 h-2 rounded bg-green-400 inline-block"></span>진행중</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-2 rounded bg-blue-400 inline-block"></span>예정</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-2 rounded bg-gray-300 inline-block"></span>완료</span>
+    </div>
+  </div>
+</div>
 
 <!-- ── CALENDAR VIEW ─────────────────────────────────────────────────── -->
 <div id="view-calendar" style="display:none" class="flex-1">
@@ -814,33 +661,13 @@ function createPanel() {
   var CAL_DATA  = {{ cal_json | safe }};
   var TODAY_STR = '{{ today }}';
   var todayDate = new Date(TODAY_STR + 'T00:00:00');
+  var DAY_MS = 86400000;
 
-  // ── View toggle ──────────────────────────────────────────────────────
-  // Always start with list view on page load (never restore calendar from localStorage)
-  var currentView = 'list';
-  function setView(v) {
-    currentView = v;
-    var vl = document.getElementById('view-list');
-    var vc = document.getElementById('view-calendar');
-    var bl = document.getElementById('btn-list-view');
-    var bc = document.getElementById('btn-cal-view');
-    if (v === 'list') {
-      vl && (vl.style.display = ''); vc && (vc.style.display = 'none');
-      bl && bl.classList.add('bg-white','text-gray-900','shadow-sm');
-      bl && bl.classList.remove('text-gray-500');
-      bc && bc.classList.remove('bg-white','text-gray-900','shadow-sm');
-      bc && bc.classList.add('text-gray-500');
-    } else {
-      vl && (vl.style.display = 'none'); vc && (vc.style.display = '');
-      bc && bc.classList.add('bg-white','text-gray-900','shadow-sm');
-      bc && bc.classList.remove('text-gray-500');
-      bl && bl.classList.remove('bg-white','text-gray-900','shadow-sm');
-      bl && bl.classList.add('text-gray-500');
-      renderCalendar();
-    }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
   }
-  window.setView = setView;
-  setView(currentView);
 
   // ── Calendar ─────────────────────────────────────────────────────────
   var calYear = todayDate.getFullYear(), calMonth = todayDate.getMonth();
@@ -885,6 +712,266 @@ function createPanel() {
   var pb = document.getElementById('cal-prev'), nb = document.getElementById('cal-next');
   if (pb) pb.addEventListener('click', function(){ calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); });
   if (nb) nb.addEventListener('click', function(){ calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); });
+
+  // ── CampBoard: 필터 / 정렬 / 그룹핑 / 뷰 컨트롤러 ──────────────────────
+  window.CampBoard = (function () {
+    // status: 'open'(진행중+예정, 완료 제외/기본) | 'all'(전체) | 'active' | 'plan' | 'done'
+    var state = { status: 'open', inf: '', q: '', sort: 'schedule', view: 'list', archive: false };
+    var DEFAULT_STATUS = 'open';
+    var collapsed = { active:false, thismonth:false, nextmonth:false, later:false, done:false };
+    var _TM = {{ today.month }};
+    var _NM = (_TM % 12) + 1;
+    var GROUPS = [
+      { key:'active',    label:'진행중',                    dot:'bg-green-500' },
+      { key:'thismonth', label:'이번 달(' + _TM + '월) 시작', dot:'bg-blue-500' },
+      { key:'nextmonth', label:'다음 달(' + _NM + '월) 시작', dot:'bg-indigo-400' },
+      { key:'later',     label:'그 이후',                   dot:'bg-gray-400' },
+      { key:'done',      label:'완료',                      dot:'bg-gray-300' },
+    ];
+    var TL_COLOR = { active:'bg-green-400', plan:'bg-blue-400', done:'bg-gray-300' };
+    var listEl, rows = [], headerEls = {}, emptyEl;
+
+    function init() {
+      listEl = document.getElementById('camp-list');
+      if (!listEl) return; // archive tab
+      if (listEl.dataset.boarded) return; // 중복 init(헤더 중복 생성) 방지
+      listEl.dataset.boarded = '1';
+      // 보관 탭 = 플랫 모드(시간 그룹핑 없음, 최근 종료순, 전체 표시)
+      if (listEl.dataset.mode === 'archive') {
+        state.archive = true;
+        DEFAULT_STATUS = 'all';
+        state.status = 'all';
+        state.sort = 'recent';
+        var so0 = document.getElementById('camp-sort');
+        if (so0) so0.value = 'recent';
+      }
+      rows = Array.prototype.slice.call(listEl.querySelectorAll('.camp-row'));
+      emptyEl = document.getElementById('camp-empty');
+      GROUPS.forEach(function (g) {
+        var h = document.createElement('div');
+        h.className = 'camp-grp flex items-center gap-2 mt-3 mb-0.5 cursor-pointer select-none';
+        h.dataset.group = g.key;
+        h.style.gridColumn = '1 / -1';
+        h.innerHTML =
+          '<span class="w-2 h-2 rounded-full ' + g.dot + '"></span>' +
+          '<span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">' + g.label + '</span>' +
+          '<span class="text-xs text-gray-400" data-count></span>' +
+          '<svg class="w-3.5 h-3.5 text-gray-300 transition-transform ml-1" data-chev fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>';
+        h.addEventListener('click', function () { collapsed[g.key] = !collapsed[g.key]; render(); });
+        headerEls[g.key] = h;
+        listEl.appendChild(h);
+      });
+      buildInfOptions();
+      render();
+    }
+
+    function buildInfOptions() {
+      var sel = document.getElementById('camp-inf-filter');
+      if (!sel) return;
+      var set = {};
+      rows.forEach(function (r) { var l = r.dataset.inflabel; if (l) set[l] = 1; });
+      Object.keys(set).sort(function(a,b){ return a.localeCompare(b,'ko'); }).forEach(function (name) {
+        var o = document.createElement('option');
+        o.value = name.toLowerCase();
+        o.textContent = name;
+        sel.appendChild(o);
+      });
+    }
+
+    function matches(r) {
+      if (state.status === 'open') { if (r.dataset.status === 'done') return false; }
+      else if (state.status !== 'all' && r.dataset.status !== state.status) return false;
+      if (state.inf && r.dataset.influencer !== state.inf) return false;
+      if (state.q) {
+        var hay = r.dataset.name + ' ' + r.dataset.brand + ' ' + r.dataset.influencer;
+        if (hay.indexOf(state.q) < 0) return false;
+      }
+      return true;
+    }
+
+    function cmp(a, b) {
+      switch (state.sort) {
+        case 'recent':     return (b.dataset.end || b.dataset.start || '').localeCompare(a.dataset.end || a.dataset.start || '');
+        case 'deadline':   return (+a.dataset.dday) - (+b.dataset.dday);
+        case 'name':       return a.dataset.name.localeCompare(b.dataset.name, 'ko');
+        case 'influencer': return (a.dataset.inflabel || 'zzz').localeCompare(b.dataset.inflabel || 'zzz', 'ko');
+        case 'revenue':    return (+b.dataset.revenue) - (+a.dataset.revenue);
+        default: // schedule: 시작일 오름차순 (없으면 뒤로)
+          return (a.dataset.start || '9999').localeCompare(b.dataset.start || '9999');
+      }
+    }
+
+    function render() {
+      if (!listEl) return;
+      var visible = rows.filter(matches);
+      var order = 1;
+
+      if (state.sort === 'schedule') {
+        GROUPS.forEach(function (g) {
+          var gr = visible.filter(function (r) { return r.dataset.window === g.key; });
+          gr.sort(cmp);
+          var h = headerEls[g.key];
+          if (gr.length === 0) {
+            h.style.display = 'none';
+          } else {
+            h.style.display = 'flex';
+            h.style.order = order++;
+            h.querySelector('[data-count]').textContent = gr.length + '건';
+            h.querySelector('[data-chev]').style.transform = collapsed[g.key] ? 'rotate(-90deg)' : '';
+          }
+          gr.forEach(function (r) {
+            r.style.order = order++;
+            r.style.display = collapsed[g.key] ? 'none' : '';
+          });
+        });
+      } else {
+        Object.keys(headerEls).forEach(function (k) { headerEls[k].style.display = 'none'; });
+        visible.sort(cmp);
+        visible.forEach(function (r, i) {
+          r.style.order = i + 1;
+          r.style.display = '';
+        });
+      }
+      rows.forEach(function (r) { if (visible.indexOf(r) < 0) r.style.display = 'none'; });
+
+      if (emptyEl) emptyEl.style.display = visible.length ? 'none' : '';
+      updateStatHighlight();
+      if (state.view === 'timeline') renderTimeline(visible);
+    }
+
+    function updateStatHighlight() {
+      [['all','stat-all','ring-slate-400'], ['active','stat-active','ring-green-400'], ['plan','stat-plan','ring-blue-400'], ['done','stat-done','ring-gray-400']].forEach(function (x) {
+        var el = document.getElementById(x[1]);
+        if (!el) return;
+        el.classList.remove('ring-2', 'ring-offset-1', x[2]);
+        if (state.status === x[0]) el.classList.add('ring-2', 'ring-offset-1', x[2]);
+      });
+    }
+
+    // ── Timeline (gantt) ──────────────────────────────────────────────
+    function renderTimeline(visible) {
+      var host = document.getElementById('tl-grid');
+      if (!host) return;
+      var rws = (visible || rows.filter(matches)).filter(function (r) { return r.dataset.start; });
+      if (rws.length === 0) {
+        host.innerHTML = '<div class="text-sm text-gray-400 py-10 text-center">표시할 일정이 없습니다 (시작일이 설정된 캠페인만 표시)</div>';
+        return;
+      }
+      var minS = null, maxE = null;
+      rws.forEach(function (r) {
+        var s = new Date(r.dataset.start + 'T00:00:00');
+        var e = new Date((r.dataset.end || r.dataset.start) + 'T00:00:00');
+        if (!minS || s < minS) minS = s;
+        if (!maxE || e > maxE) maxE = e;
+      });
+      if (todayDate < minS) minS = new Date(todayDate);
+      if (todayDate > maxE) maxE = new Date(todayDate);
+      var totalDays = Math.round((maxE - minS) / DAY_MS) + 1;
+      if (totalDays > 70) { maxE = new Date(minS.getTime() + 69 * DAY_MS); totalDays = 70; }
+      var colW = 34, labelW = 170;
+
+      rws.sort(function (a, b) { return a.dataset.start.localeCompare(b.dataset.start); });
+
+      var headCells = '';
+      for (var i = 0; i < totalDays; i++) {
+        var d = new Date(minS.getTime() + i * DAY_MS);
+        var isToday = d.getFullYear() === todayDate.getFullYear() && d.getMonth() === todayDate.getMonth() && d.getDate() === todayDate.getDate();
+        var showMonth = (d.getDate() === 1 || i === 0);
+        headCells +=
+          '<div class="flex-shrink-0 text-center border-l border-gray-100 ' + (isToday ? 'bg-blue-50' : '') + '" style="width:' + colW + 'px">' +
+            '<div class="text-[10px] leading-tight ' + (isToday ? 'text-blue-600 font-bold' : 'text-gray-400') + '">' + (showMonth ? (d.getMonth() + 1) + '월' : '') + '</div>' +
+            '<div class="text-[11px] ' + (isToday ? 'text-blue-600 font-bold' : 'text-gray-500') + '">' + d.getDate() + '</div>' +
+          '</div>';
+      }
+
+      var bodyRows = '';
+      rws.forEach(function (r) {
+        var s = new Date(r.dataset.start + 'T00:00:00');
+        var e = new Date((r.dataset.end || r.dataset.start) + 'T00:00:00');
+        var off = Math.round((s - minS) / DAY_MS);
+        var span = Math.round((e - s) / DAY_MS) + 1;
+        if (off < 0) { span += off; off = 0; }
+        if (off + span > totalDays) span = totalDays - off;
+        if (span < 1) span = 1;
+        var color = TL_COLOR[r.dataset.status] || 'bg-gray-300';
+        var nm = r.dataset.name || '(이름 없음)';
+        var inf = r.dataset.inflabel || '';
+        var labelHtml = '<span class="font-medium text-gray-700">' + escapeHtml(nm) + '</span>' +
+                        (inf ? ' <span class="text-purple-400">· ' + escapeHtml(inf) + '</span>' : '');
+        var barText = inf || nm;
+        bodyRows +=
+          '<div class="flex items-center border-t border-gray-50 hover:bg-gray-50/60" style="height:36px">' +
+            '<div class="flex-shrink-0 px-2 text-xs truncate" style="width:' + labelW + 'px" title="' + escapeHtml(nm + (inf ? ' · ' + inf : '')) + '">' + labelHtml + '</div>' +
+            '<div class="relative flex-1" style="height:36px">' +
+              '<a href="/campaigns/' + r.dataset.camp + '" class="absolute top-2 h-5 rounded ' + color + ' text-white text-[10px] flex items-center px-1.5 truncate hover:opacity-90 shadow-sm" style="left:' + (off * colW) + 'px;width:' + Math.max(span * colW - 3, colW - 3) + 'px" title="' + escapeHtml(nm) + '">' + escapeHtml(barText) + '</a>' +
+            '</div>' +
+          '</div>';
+      });
+
+      host.innerHTML =
+        '<div class="overflow-x-auto">' +
+          '<div style="min-width:' + (labelW + totalDays * colW) + 'px">' +
+            '<div class="flex sticky top-0 bg-white z-10 border-b border-gray-100 pb-1">' +
+              '<div class="flex-shrink-0 text-[11px] text-gray-400 px-2 flex items-end pb-0.5" style="width:' + labelW + 'px">캠페인 / 인플루언서</div>' +
+              '<div class="flex flex-1">' + headCells + '</div>' +
+            '</div>' +
+            bodyRows +
+          '</div>' +
+        '</div>';
+    }
+
+    // ── View switch ───────────────────────────────────────────────────
+    function setView(v) {
+      state.view = v;
+      var map = { list: 'view-list', timeline: 'view-timeline', calendar: 'view-calendar' };
+      Object.keys(map).forEach(function (k) {
+        var el = document.getElementById(map[k]);
+        if (el) el.style.display = (k === v) ? '' : 'none';
+      });
+      var btns = { list: 'btn-list-view', timeline: 'btn-tl-view', calendar: 'btn-cal-view' };
+      Object.keys(btns).forEach(function (k) {
+        var b = document.getElementById(btns[k]);
+        if (!b) return;
+        if (k === v) { b.classList.add('bg-white', 'text-gray-900', 'shadow-sm'); b.classList.remove('text-gray-500'); }
+        else { b.classList.remove('bg-white', 'text-gray-900', 'shadow-sm'); b.classList.add('text-gray-500'); }
+      });
+      if (v === 'calendar') renderCalendar();
+      else if (v === 'timeline') renderTimeline();
+    }
+
+    return {
+      init: init,
+      setStatus: function (s) {
+        // 보관 탭에서 상태 카드(전체/진행중/예정/완료) 클릭 → 활성 탭으로 이동
+        if (!listEl || state.archive) { window.location.href = '/campaigns?tab=active'; return; }
+        state.status = (state.status === s) ? DEFAULT_STATUS : s;
+        render();
+      },
+      setInf:    function (v) { state.inf = v; render(); },
+      setSearch: function (v) { state.q = (v || '').trim().toLowerCase(); render(); },
+      setSort:   function (v) { state.sort = v; render(); },
+      setView:   setView,
+      reset:     function () {
+        state.status = DEFAULT_STATUS; state.inf = ''; state.q = '';
+        state.sort = state.archive ? 'recent' : 'schedule';
+        var s = document.getElementById('camp-search'); if (s) s.value = '';
+        var inf = document.getElementById('camp-inf-filter'); if (inf) inf.value = '';
+        var so = document.getElementById('camp-sort'); if (so) so.value = state.sort;
+        render();
+      },
+    };
+  })();
+
+  // 초기화
+  function bootCampBoard() {
+    CampBoard.init();
+    CampBoard.setView('list');
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootCampBoard);
+  } else {
+    bootCampBoard();
+  }
 }());
 </script>
 {% endblock %}

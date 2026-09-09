@@ -9,6 +9,7 @@ class Product(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
+    partner_id = Column(String(36), ForeignKey("partners.id"), nullable=True, index=True)  # 협력사(공급사) 출처
     name = Column(String(200), nullable=False)
     brand = Column(String(200), nullable=False)
     category = Column(String(100), nullable=False)
@@ -71,6 +72,18 @@ class Product(Base):
     # AI 에이전트 파이프라인
     review_status  = Column(String(30), default="draft")   # draft|structured|reviewed|strategy_checked|approved|rejected
     priority_score = Column(Float, nullable=True)           # 이사 최종 점수 (0~100)
+
+    # 제품 소싱 에이전트 (sourcing pipeline) — docs/sourcing_agent_design.md
+    as_info           = Column(Text, nullable=True)         # A/S 정보 (보증·교환반품·연락처)
+    cert_info         = Column(JSON, nullable=True)         # list[{type, number, authority}] (KC·식약처 등)
+    margin_rate       = Column(Float, nullable=True)        # (공구가-공급가)/공구가 캐시값
+    compliance        = Column(JSON, nullable=True)         # {category, safe[], risky[], disclaimer}
+    generated_copy    = Column(JSON, nullable=True)         # {card_news, reels_hook, detail_summary, seller_message}
+    sourcing_batch_id = Column(String(36), nullable=True, index=True)  # SourcingBatch FK (soft)
+
+    # 통합 운영 스프레드시트 연동
+    sheet_code   = Column(String(50), nullable=True, index=True)   # 시트 PK (PRD-2026-0001)
+    sheet_status = Column(String(30), nullable=True)               # 시트 6단계 한글 원본
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

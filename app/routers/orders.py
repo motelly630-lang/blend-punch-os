@@ -238,6 +238,7 @@ async def orders_bulk_ship(
     - 인코딩: UTF-8 (BOM 포함 가능) 또는 CP949(EUC-KR)
     """
     # ── 파일 읽기 & 인코딩 처리 ─────────────────────────────────────────
+    cid = get_company_id(user)  # 테넌트 격리: 본인 회사 주문만 처리
     content = await file.read()
     if not content:
         return JSONResponse({"ok": False, "error": "파일이 비어있습니다."}, status_code=400)
@@ -300,11 +301,15 @@ async def orders_bulk_ship(
             skipped += 1
             continue
 
-        # 주문 조회 (order_number 우선)
+        # 주문 조회 (order_number 우선) — 반드시 본인 회사(cid)로 스코프
         if order_number:
-            order = db.query(Order).filter(Order.order_number == order_number).first()
+            order = db.query(Order).filter(
+                Order.company_id == cid, Order.order_number == order_number
+            ).first()
         else:
-            order = db.query(Order).filter(Order.id == order_id).first()
+            order = db.query(Order).filter(
+                Order.company_id == cid, Order.id == order_id
+            ).first()
 
         if not order:
             errors.append(f"행 {line_no}: 주문을 찾을 수 없습니다 ({identifier})")

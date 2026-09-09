@@ -18,5 +18,9 @@ class Brand(Base):
     review_status  = Column(String(30), default="draft")
     priority_score = Column(Float, nullable=True)
 
+    # 통합 운영 스프레드시트 연동 — 시트 PK(BRD-...)와 상태값 한글 원본
+    sheet_code   = Column(String(50), nullable=True, index=True)
+    sheet_status = Column(String(30), nullable=True)
+
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

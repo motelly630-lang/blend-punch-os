@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C · 내추럴 오가닉 · BLEND PICK</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap" rel="stylesheet">
+<style>body{font-family:'Pretendard',sans-serif;background:#f6f2e9;color:#3a3524;}
+  .hand{font-family:'Gaegu',cursive;}[x-cloak]{display:none;}</style>
+</head>
+<!-- 무드 C — 내추럴 오가닉: 세이지+테라코타+크림, 둥근 요소, 따뜻한 손글씨 포인트, 산지직송 감성 -->
+<body>
+<div class="mx-auto max-w-[440px] min-h-screen relative pb-28" style="background:#f6f2e9;">
+
+  <header class="flex items-center justify-between px-5 h-14">
+    <span class="font-extrabold tracking-tight" style="color:#5a7052;">🌿 Blend Pick</span>
+    <span class="hand text-[15px]" style="color:#c1743b;">함께 사요!</span>
+  </header>
+
+  <!-- 인플루언서 카드 -->
+  <div class="mx-5 rounded-3xl p-4 flex items-center gap-3" style="background:#e8ecdf;">
+    <img src="https://i.pravatar.cc/80?img=47" class="w-11 h-11 rounded-full object-cover ring-2 ring-white">
+    <div><p class="text-[13px] font-bold" style="color:#5a7052;">@jieun_daily 님이 추천</p>
+    <p class="hand text-[16px]" style="color:#3a3524;">"제가 매일 먹는 그 옥수수예요 🌽"</p></div>
+  </div>
+
+  <!-- 히어로 (둥근 카드) -->
+  <div class="mx-5 mt-5 rounded-[2rem] overflow-hidden relative shadow-sm">
+    <img src="https://shop-phinf.pstatic.net/20260224_291/1771908482234RHd76_PNG/1.png?type=w848" class="w-full aspect-square object-cover">
+    <span class="absolute top-4 left-4 hand text-[18px] text-white px-3 py-1 rounded-full" style="background:#c1743b;">17% 할인!</span>
+  </div>
+
+  <div class="px-5 pt-5">
+    <p class="text-[12px] font-semibold" style="color:#8a8266;">🏡 클래식농원 · 산지직송</p>
+    <h1 class="text-[22px] font-extrabold mt-1">미니옥수수 x 클래식농원</h1>
+    <div class="flex items-baseline gap-2 mt-2">
+      <span class="text-[26px] font-extrabold" style="color:#5a7052;">2,900원</span>
+      <span class="text-[14px] line-through" style="color:#b0a888;">3,500원</span>
+    </div>
+    <p class="text-[12px] mt-1" style="color:#8a8266;">배송비 3,000원 · 3만원 이상 무료</p>
+  </div>
+
+  <!-- 공구 진행 (따뜻한 톤) -->
+  <div class="mx-5 mt-5 rounded-3xl p-5" style="background:#e8ecdf;">
+    <div class="flex items-center justify-between">
+      <div><p class="text-[12px]" style="color:#8a8266;">공구 마감까지</p><p class="text-[19px] font-extrabold" style="color:#5a7052;">2일 14시간</p></div>
+      <div class="text-right"><p class="text-[12px]" style="color:#8a8266;">지금까지</p><p class="hand text-[22px]" style="color:#c1743b;">128명 참여 🎉</p></div>
+    </div>
+    <div class="mt-3 h-2.5 rounded-full overflow-hidden" style="background:#d3d8c4;"><div class="h-full rounded-full" style="width:64%;background:#c1743b;"></div></div>
+    <p class="text-[12px] mt-2" style="color:#6b6446;">🌱 72명만 더 모이면 <b style="color:#c1743b;">추가 5% 할인</b>!</p>
+  </div>
+
+  <!-- 옵션 -->
+  <div class="px-5 mt-6" x-data="{opts:[['1개',2900],['3개',5800],['5개',7500]],sel:null}">
+    <p class="text-[14px] font-extrabold mb-2">몇 개 담을까요?</p>
+    <div class="space-y-2">
+      <template x-for="(o,i) in opts" :key="i">
+        <button @click="sel=i" class="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-[14px] font-semibold transition border-2"
+          :style="sel===i?'border-color:#5a7052;background:#e8ecdf;':'border-color:rgba(0,0,0,.08);background:#fff;'">
+          <span x-text="'미니 옥수수 '+o[0]"></span><span style="color:#5a7052;" x-text="'+'+o[1].toLocaleString()+'원'"></span>
+        </button>
+      </template>
+    </div>
+
+    <div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[440px] px-5 py-4" style="background:#f6f2e9;border-top:1px solid rgba(0,0,0,.08);">
+      <button class="w-full py-4 rounded-full text-white font-extrabold text-[16px] disabled:opacity-40" style="background:#5a7052;"
+        :disabled="sel===null" x-text="sel===null?'옵션을 골라주세요':'🌽 공구 참여하기'"></button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}CS 통계 · BLEND PUNCH OS{% endblock %}
+{% block page_title %}CS 통계{% endblock %}
+
+{% block header_actions %}
+<a href="/cs" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:border-gray-300">← CS</a>
+<a href="/cs/export?date_from={{ date_from }}&date_to={{ date_to }}" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-green-600 hover:bg-green-700">엑셀 다운로드</a>
+{% endblock %}
+
+{% block content %}
+<form method="get" action="/cs/stats" class="mb-4 flex flex-wrap items-center gap-2">
+  <span class="text-xs text-gray-400">접수 기간</span>
+  <input type="date" name="date_from" value="{{ date_from }}" class="px-3 py-2 rounded-lg border border-gray-200 text-sm">
+  <span class="text-gray-300">~</span>
+  <input type="date" name="date_to" value="{{ date_to }}" class="px-3 py-2 rounded-lg border border-gray-200 text-sm">
+  <button class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gray-800 hover:bg-gray-900">조회</button>
+</form>
+
+<!-- 접수 요약 -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  {% set tiles = [('오늘 접수', today_cnt, 'gray'), ('이번 주', week_cnt, 'gray'), ('이번 달', month_cnt, 'gray'), ('기간 내 접수', total, 'blue')] %}
+  {% for label, val, color in tiles %}
+  <div class="bg-white border border-gray-100 rounded-xl p-4">
+    <div class="text-xs text-gray-400">{{ label }}</div>
+    <div class="text-2xl font-bold text-gray-900 mt-1">{{ val }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 처리 상태 -->
+<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+  <a href="/cs?tab=all" class="bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-300"><div class="text-xs text-gray-400">미처리</div><div class="text-xl font-bold text-amber-600 mt-1">{{ open_cnt }}</div></a>
+  <a href="/cs?tab=processing" class="bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-300"><div class="text-xs text-gray-400">처리중</div><div class="text-xl font-bold text-gray-800 mt-1">{{ processing_cnt }}</div></a>
+  <a href="/cs?tab=partner_waiting" class="bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-300"><div class="text-xs text-gray-400">협업사 답변대기</div><div class="text-xl font-bold text-purple-600 mt-1">{{ partner_wait_cnt }}</div></a>
+  <a href="/cs?tab=completed" class="bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-300"><div class="text-xs text-gray-400">처리완료</div><div class="text-xl font-bold text-green-600 mt-1">{{ completed_cnt }}</div></a>
+  <a href="/cs?tab=overdue" class="bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-300"><div class="text-xs text-gray-400">지연(초과)</div><div class="text-xl font-bold text-red-600 mt-1">{{ delayed_cnt }}</div></a>
+</div>
+
+<!-- 처리 결과 -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+  <div class="bg-white border border-gray-100 rounded-xl p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-3">처리 결과</h2>
+    <div class="grid grid-cols-2 gap-3 text-sm">
+      <div><div class="text-xs text-gray-400">부분환불</div><div class="text-gray-800">{{ partial_cnt }}건 · {{ partial_sum | won }}</div></div>
+      <div><div class="text-xs text-gray-400">전체환불</div><div class="text-gray-800">{{ full_cnt }}건 · {{ full_sum | won }}</div></div>
+      <div><div class="text-xs text-gray-400">재발송</div><div class="text-gray-800">{{ resend_cnt }}건</div></div>
+      <div><div class="text-xs text-gray-400">교환/반품</div><div class="text-gray-800">{{ exch_ret_cnt }}건</div></div>
+      <div class="col-span-2"><div class="text-xs text-gray-400">평균 처리시간</div><div class="text-gray-800">{% if avg_hours is not none %}{{ avg_hours }}시간{% else %}-{% endif %}</div></div>
+    </div>
+  </div>
+  <div class="bg-white border border-gray-100 rounded-xl p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-3">CS 유형별</h2>
+    <div class="space-y-1.5">
+      {% for name, n in by_type %}
+      <div class="flex items-center justify-between text-sm"><span class="text-gray-600">{{ name }}</span><span class="font-medium text-gray-800">{{ n }}</span></div>
+      {% else %}<div class="text-sm text-gray-400">데이터 없음</div>{% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- 협업사별 / 상품별 -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div class="bg-white border border-gray-100 rounded-xl p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-3">협업사별</h2>
+    <div class="space-y-1.5">
+      {% for name, n in by_partner %}
+      <div class="flex items-center justify-between text-sm"><span class="text-gray-600">{{ name }}</span><span class="font-medium text-gray-800">{{ n }}</span></div>
+      {% else %}<div class="text-sm text-gray-400">데이터 없음</div>{% endfor %}
+    </div>
+  </div>
+  <div class="bg-white border border-gray-100 rounded-xl p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-3">상품별 (반복 CS는 <span class="text-red-500">빨강</span>)</h2>
+    <div class="space-y-1.5">
+      {% for name, n in by_product %}
+      <div class="flex items-center justify-between text-sm"><span class="{% if n >= 2 %}text-red-600 font-medium{% else %}text-gray-600{% endif %}">{{ name }}</span><span class="font-medium text-gray-800">{{ n }}</span></div>
+      {% else %}<div class="text-sm text-gray-400">데이터 없음</div>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

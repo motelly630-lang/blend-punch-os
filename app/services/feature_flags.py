@@ -54,6 +54,8 @@ ALL_FEATURES: dict[str, dict] = {
     "automation":   {"name": "자동화 센터",     "group": "os",       "tier": "pro",   "min_role": "admin"},
     "outreach":     {"name": "아웃리치",        "group": "os",       "tier": "pro",   "min_role": "staff"},
     "crm":          {"name": "CRM 파이프라인",  "group": "os",       "tier": "pro",   "min_role": "staff"},
+    "sourcing":     {"name": "제품 소싱 에이전트", "group": "os",     "tier": "pro",   "min_role": "admin"},
+    "cs":           {"name": "고객 CS",         "group": "os",       "tier": "basic", "min_role": "staff"},
     # 커머스
     "orders":       {"name": "주문 관리",       "group": "commerce", "tier": "basic", "min_role": "staff"},
     "sales_pages":  {"name": "판매 페이지",     "group": "commerce", "tier": "basic", "min_role": "admin"},
@@ -70,6 +72,7 @@ PLAN_FEATURES: dict[str, set[str]] = {
         "influencers", "campaigns", "proposals", "applications",
         "trends", "settlements",
         "orders", "sales_pages",
+        "cs",
     },
     "pro": set(ALL_FEATURES.keys()),
 }
@@ -85,6 +88,7 @@ GATE_PATHS: list[tuple[str, str]] = [
     ("/applications",          "applications"),
     ("/trends",                "trends"),
     ("/settlements",           "settlements"),
+    ("/cs",                    "cs"),
     ("/automation",            "automation"),
     ("/outreach",              "outreach"),
     ("/crm",                   "crm"),

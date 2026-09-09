@@ -40,7 +40,7 @@ def login_page(request: Request, db: Session = Depends(get_db)):
         if payload:
             user = db.query(User).filter(User.username == payload.get("sub"), User.is_active == True).first()
             if user and user.current_token == token:
-                return RedirectResponse("/", status_code=302)
+                return RedirectResponse("/portal" if user.role == "partner" else "/", status_code=302)
     return templates.TemplateResponse("auth/login.html", {
         "request": request,
         "login_bg_image": _get_login_bg(db),
@@ -73,8 +73,17 @@ def login(
             {"request": request, "error": "이메일 인증이 필요합니다. 가입 시 발송된 인증 메일을 확인해주세요.", "login_bg_image": bg},
             status_code=401,
         )
+    # 협력사 계정은 OS 로그인에서 차단 — 협력사 전용 로그인 이용 (완전 분리)
+    if user.role == "partner":
+        return templates.TemplateResponse(
+            "auth/login.html",
+            {"request": request, "error": "협력사 계정입니다. 협력사 로그인을 이용해주세요.",
+             "login_bg_image": bg, "show_partner_link": True},
+            status_code=403,
+        )
     token = create_access_token(username=user.username, role=user.role)
     user.current_token = token
+    user.last_login_at = datetime.utcnow()
 
     # 출결 기록 — 당일 첫 로그인만 기록 (갱신 안 함)
     # replace(tzinfo=None): psycopg2가 tz-aware → UTC 변환하는 것 방지, KST 값 그대로 저장
@@ -88,7 +97,9 @@ def login(
         db.add(AttendanceLog(user_id=user.id, date=today, first_login_at=now_kst))
 
     db.commit()
-    response = RedirectResponse("/", status_code=302)
+    # 협력사(partner) 계정은 OS 대신 협력사 포털로
+    landing = "/portal" if user.role == "partner" else "/"
+    response = RedirectResponse(landing, status_code=302)
     response.set_cookie(
         key=_COOKIE_KEY, value=token,
         httponly=True, max_age=_COOKIE_MAX_AGE,
@@ -100,6 +111,7 @@ def login(
 
 @router.get("/logout")
 def logout(request: Request, db: Session = Depends(get_db)):
+    logout_target = "/login"
     token = request.cookies.get(_COOKIE_KEY)
     if token:
         from app.auth.service import decode_token
@@ -107,6 +119,8 @@ def logout(request: Request, db: Session = Depends(get_db)):
         if payload:
             user = db.query(User).filter(User.username == payload.get("sub")).first()
             if user:
+                if user.role == "partner":
+                    logout_target = "/portal/login"
                 user.current_token = None
                 # 출결 기록 — 로그아웃 시각 갱신 (버튼 클릭만, 당일 기준)
                 now_kst = datetime.now(KST).replace(tzinfo=None)
@@ -118,97 +132,27 @@ def logout(request: Request, db: Session = Depends(get_db)):
                 if attendance:
                     attendance.last_logout_at = now_kst
                 db.commit()
-    response = RedirectResponse("/login", status_code=302)
+    response = RedirectResponse(logout_target, status_code=302)
     response.delete_cookie(_COOKIE_KEY, domain=settings.cookie_domain or None)
     return response
 
 
-# ── 회원가입 ──────────────────────────────────────────────────────────────────
+# ── 회원가입 (비활성화) ────────────────────────────────────────────────────────
+# 내부 전용 시스템 — 공개 회원가입 차단. 계정은 슈퍼어드민이 /users 에서 직접 생성.
 
 @router.get("/signup", response_class=HTMLResponse)
 def signup_page(request: Request):
-    if request.cookies.get(_COOKIE_KEY):
-        return RedirectResponse("/", status_code=302)
-    return templates.TemplateResponse("auth/signup.html", {"request": request})
+    return RedirectResponse("/login", status_code=302)
 
 
 @router.post("/signup")
-def signup(
-    request: Request,
-    db: Session = Depends(get_db),
-    company_name: str = Form(...),
-    email: str = Form(...),
-    password: str = Form(...),
-    password2: str = Form(...),
-):
-    email = email.strip().lower()
-
-    if password != password2:
-        return templates.TemplateResponse("auth/signup.html", {
-            "request": request, "error": "비밀번호가 일치하지 않습니다.",
-            "v_company": company_name, "v_email": email,
-        })
-    if len(password) < 8:
-        return templates.TemplateResponse("auth/signup.html", {
-            "request": request, "error": "비밀번호는 8자 이상이어야 합니다.",
-            "v_company": company_name, "v_email": email,
-        })
-    if db.query(User).filter(User.email == email).first():
-        return templates.TemplateResponse("auth/signup.html", {
-            "request": request, "error": "이미 등록된 이메일입니다.",
-            "v_company": company_name, "v_email": email,
-        })
-
-    # username = 이메일 @ 앞 부분 (중복 시 숫자 붙임)
-    base_username = email.split("@")[0].replace(".", "_").replace("+", "_")[:50]
-    username = base_username
-    suffix = 2
-    while db.query(User).filter(User.username == username).first():
-        username = f"{base_username}{suffix}"
-        suffix += 1
-
-    # 회사 생성 (beta 플랜)
-    from app.services.feature_flags import apply_plan
-    company = Company(name=company_name.strip(), plan="beta", is_active=True)
-    db.add(company)
-    db.flush()
-    apply_plan(db, "beta", company.id)
-
-    # 인증 토큰 생성
-    verify_token = secrets.token_urlsafe(32)
-
-    user = User(
-        username=username,
-        email=email,
-        hashed_password=hash_password(password),
-        role="admin",
-        is_active=True,
-        email_verified=False,
-        company_id=company.id,
-        verify_token=verify_token,
-        verify_token_exp=datetime.utcnow() + timedelta(hours=24),
-    )
-    db.add(user)
-    db.commit()
-
-    # 인증 메일 발송
-    try:
-        from app.services.system_email import send_verify_email
-        send_verify_email(db, user)
-    except Exception:
-        pass
-
-    return RedirectResponse(
-        f"/signup/done?email={email}",
-        status_code=302,
-    )
+def signup(request: Request):
+    return RedirectResponse("/login", status_code=302)
 
 
 @router.get("/signup/done", response_class=HTMLResponse)
-def signup_done(request: Request, email: str = ""):
-    return templates.TemplateResponse("auth/signup_done.html", {
-        "request": request, "email": email,
-    })
+def signup_done(request: Request):
+    return RedirectResponse("/login", status_code=302)
 
 
 # ── 이메일 인증 ───────────────────────────────────────────────────────────────

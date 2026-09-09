@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 대시보드 시안 · BLEND PICK</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>body{font-family:'Pretendard',sans-serif;}</style>
+<script>tailwind.config={theme:{extend:{colors:{brand:{DEFAULT:'#2f5d3f',dark:'#244a32',light:'#e7f0ea'},accent:'#ff7a1a',ink:'#1b1f1d'}}}}</script>
+</head>
+<!-- 시안 07 — 관리자 대시보드 (데스크탑) -->
+<body class="bg-[#f4f5f7] text-ink">
+<div class="flex min-h-screen">
+  <!-- 사이드바 (공통) -->
+  <aside class="w-56 bg-white border-r border-black/5 flex flex-col shrink-0">
+    <div class="px-5 py-5 border-b border-black/5">
+      <p class="text-[11px] text-black/40 font-semibold">BLEND PICK</p>
+      <p class="font-extrabold text-lg">Admin</p>
+    </div>
+    <nav class="p-3 space-y-1 text-[14px]">
+      <a href="07_admin-dashboard.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-brand-light text-brand font-bold border-l-2 border-brand">📊 대시보드</a>
+      <a href="08_admin-products.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">📦 상품 관리</a>
+      <a href="10_admin-orders.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">🧾 판매 관리</a>
+      <a href="11_admin-shipping.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">🚚 배송 관리</a>
+      <a href="12_admin-settlement.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">💰 정산 관리</a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">⭐ 리뷰 관리</a>
+    </nav>
+  </aside>
+
+  <!-- 본문 -->
+  <main class="flex-1 p-8">
+    <h1 class="text-2xl font-extrabold">대시보드</h1>
+    <p class="text-[13px] text-black/45 mt-1">Blend Pick 어드민</p>
+
+    <div class="grid md:grid-cols-2 gap-5 mt-7">
+      <!-- 판매관리 -->
+      <div class="bg-white rounded-2xl border border-black/5 p-6">
+        <p class="text-[12px] text-black/45 font-semibold">판매 관리</p>
+        <p class="text-3xl font-extrabold mt-2">3건 <span class="text-[13px] font-medium text-black/40">신규 주문</span></p>
+        <div class="flex gap-6 mt-5 text-[13px]">
+          <div><p class="text-black/45">배송준비</p><p class="font-bold text-lg">6개</p></div>
+          <div><p class="text-black/45">배송중</p><p class="font-bold text-lg">3개</p></div>
+          <div><p class="text-black/45">배송완료</p><p class="font-bold text-lg">4개</p></div>
+        </div>
+      </div>
+      <!-- 정산관리 -->
+      <div class="bg-white rounded-2xl border border-black/5 p-6">
+        <p class="text-[12px] text-black/45 font-semibold">정산 관리</p>
+        <p class="text-3xl font-extrabold mt-2">0원 <span class="text-[13px] font-medium text-black/40">오늘 정산액</span></p>
+        <p class="text-[13px] text-black/45 mt-5">총 정산액 <b class="text-ink">678,547원</b></p>
+      </div>
+      <!-- 상품관리 -->
+      <div class="bg-white rounded-2xl border border-black/5 p-6">
+        <p class="text-[12px] text-black/45 font-semibold">상품 관리</p>
+        <p class="text-3xl font-extrabold mt-2">9개 <span class="text-[13px] font-medium text-black/40">판매중 상품</span></p>
+        <div class="flex gap-6 mt-5 text-[13px]">
+          <div><p class="text-black/45">준비중</p><p class="font-bold text-lg">0개</p></div>
+          <div><p class="text-black/45">품절</p><p class="font-bold text-lg">0개</p></div>
+          <div><p class="text-black/45">전체</p><p class="font-bold text-lg">9개</p></div>
+        </div>
+      </div>
+      <!-- 리뷰현황 -->
+      <div class="bg-white rounded-2xl border border-black/5 p-6">
+        <p class="text-[12px] text-black/45 font-semibold">리뷰 현황</p>
+        <p class="text-3xl font-extrabold mt-2">0개 <span class="text-[13px] font-medium text-black/40">최근 7일 새 리뷰</span></p>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 배송관리 시안 · BLEND PICK</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>body{font-family:'Pretendard',sans-serif;}</style>
+<script>tailwind.config={theme:{extend:{colors:{brand:{DEFAULT:'#2f5d3f',dark:'#244a32',light:'#e7f0ea'},accent:'#ff7a1a',ink:'#1b1f1d'}}}}</script>
+</head>
+<!-- 시안 11 — 관리자 배송 관리 -->
+<body class="bg-[#f4f5f7] text-ink">
+<div class="flex min-h-screen">
+  <aside class="w-56 bg-white border-r border-black/5 flex flex-col shrink-0">
+    <div class="px-5 py-5 border-b border-black/5"><p class="text-[11px] text-black/40 font-semibold">BLEND PICK</p><p class="font-extrabold text-lg">Admin</p></div>
+    <nav class="p-3 space-y-1 text-[14px]">
+      <a href="07_admin-dashboard.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">📊 대시보드</a>
+      <a href="08_admin-products.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">📦 상품 관리</a>
+      <a href="10_admin-orders.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">🧾 판매 관리</a>
+      <a href="11_admin-shipping.html" class="flex gap-3 px-3 py-2.5 rounded-lg bg-brand-light text-brand font-bold border-l-2 border-brand">🚚 배송 관리</a>
+      <a href="12_admin-settlement.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">💰 정산 관리</a>
+      <a href="#" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">⭐ 리뷰 관리</a>
+    </nav>
+  </aside>
+
+  <main class="flex-1 p-8">
+    <h1 class="text-2xl font-extrabold mb-6">배송 관리</h1>
+
+    <!-- 상태 탭 -->
+    <div class="flex gap-2 text-[13px] font-semibold overflow-x-auto pb-1">
+      <button class="px-4 py-1.5 rounded-full bg-ink text-white whitespace-nowrap">배송준비</button>
+      <template>
+      </template>
+      <button class="px-4 py-1.5 rounded-full bg-white border border-black/10 text-black/55 whitespace-nowrap">배송중</button>
+      <button class="px-4 py-1.5 rounded-full bg-white border border-black/10 text-black/55 whitespace-nowrap">배송완료</button>
+      <button class="px-4 py-1.5 rounded-full bg-white border border-black/10 text-black/55 whitespace-nowrap">교환신청</button>
+      <button class="px-4 py-1.5 rounded-full bg-white border border-black/10 text-black/55 whitespace-nowrap">반품신청</button>
+      <button class="px-4 py-1.5 rounded-full bg-white border border-black/10 text-black/55 whitespace-nowrap">교환완료</button>
+      <button class="px-4 py-1.5 rounded-full bg-white border border-black/10 text-black/55 whitespace-nowrap">반품완료</button>
+      <button class="px-4 py-1.5 rounded-full bg-white border border-black/10 text-black/55 whitespace-nowrap">취소요청</button>
+      <button class="px-4 py-1.5 rounded-full bg-white border border-black/10 text-black/55 whitespace-nowrap">취소완료</button>
+    </div>
+
+    <!-- 운송장 일괄 입력 -->
+    <div class="bg-white rounded-2xl border border-black/5 p-6 mt-4">
+      <div class="flex items-start justify-between">
+        <div><p class="font-bold text-[14px]">운송장번호 일괄 입력</p><p class="text-[12px] text-black/45 mt-0.5">CSV: 주문번호, 운송장번호 (2컬럼)</p></div>
+        <button class="px-3 py-1.5 rounded-full border border-brand text-brand text-[12px] font-semibold">양식 다운로드</button>
+      </div>
+      <div class="grid grid-cols-3 gap-3 mt-4 items-center">
+        <select class="col-span-1 px-3 py-2.5 rounded-lg border border-black/10 text-[13px]"><option>CJ대한통운</option></select>
+        <div class="col-span-2 border-2 border-dashed border-black/15 rounded-lg py-4 text-center text-black/35 text-[13px]">CSV 파일 선택 또는 클릭</div>
+      </div>
+    </div>
+
+    <!-- 주문 테이블 -->
+    <div class="bg-white rounded-2xl border border-black/5 mt-4 overflow-hidden">
+      <table class="w-full text-[13px]">
+        <thead class="bg-black/[0.02] text-black/45 text-left">
+          <tr><th class="px-5 py-3"><input type="checkbox" class="accent-[#2f5d3f]"></th><th class="font-semibold">주문번호</th><th class="font-semibold">주문일</th><th class="font-semibold">수령인</th><th class="font-semibold">상품</th><th class="font-semibold text-right pr-5">금액</th></tr>
+        </thead>
+        <tbody class="divide-y divide-black/5">
+          <script>
+            const s=[['BP-20260611-C77680','2026. 6. 11.','오동석','010-1231-1231','스텐 보온 텀블러 500ml / 색상: 매트 블…','42,600원'],
+              ['BP-20260610-7022KX','2026. 6. 10.','김민준','010-2341-5678','딥 수분 크림 세트 (50ml+30ml) / 용량…','89,000원'],
+              ['BP-20260609-XI7YP8','2026. 6. 9.','강다인','010-2345-6789','오버핏 반팔 티셔츠 / 블랙/S x2','91,000원'],
+              ['BP-20260608-X1HLOE','2026. 6. 8.','임현우','010-1234-5678','액티브 노이즈캔슬링 무선 이어폰 / 색상…','158,000원'],
+              ['BP-20260607-PNR6M4','2026. 6. 7.','신나은','010-9012-3456','히알루론산 고농축 앰플 30ml x1','28,000원'],
+              ['BP-20260606-ABHFPR','2026. 6. 6.','오태양','010-8901-2345','유기농 그래놀라 오리지널 500g x4','54,100원']];
+            document.write(s.map(r=>`<tr class="hover:bg-black/[0.015]">
+              <td class="px-5 py-3"><input type="checkbox" class="accent-[#2f5d3f]"></td>
+              <td class="text-brand font-semibold">${r[0]}</td><td class="text-black/45">${r[1]}</td>
+              <td><p class="font-semibold">${r[2]}</p><p class="text-black/40 text-[12px]">${r[3]}</p></td>
+              <td class="text-black/60 max-w-xs">${r[4]}</td><td class="text-right pr-5 font-bold">${r[5]}</td></tr>`).join(''));
+          </script>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

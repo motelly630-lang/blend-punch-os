@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
 from app.auth.dependencies import require_super_admin
 from app.models.user import User
@@ -34,14 +35,28 @@ def companies_list(
 ):
     companies = db.query(Company).order_by(Company.created_at.asc()).all()
 
-    # 회사별 통계 (user count, active feature count)
-    stats = {}
-    for c in companies:
-        user_cnt = db.query(User).filter(User.company_id == c.id, User.is_active == True).count()
-        feat_cnt = db.query(CompanyFeature).filter(
-            CompanyFeature.company_id == c.id, CompanyFeature.enabled == True
-        ).count() or len(ALL_FEATURES)  # 행 없으면 전체 활성 기본값
-        stats[c.id] = {"users": user_cnt, "features": feat_cnt}
+    # 회사별 통계 (user count, active feature count) — N+1 방지: GROUP BY 한 번씩
+    cids = [c.id for c in companies]
+    user_counts = dict(
+        db.query(User.company_id, func.count(User.id))
+        .filter(User.company_id.in_(cids), User.is_active == True)
+        .group_by(User.company_id)
+        .all()
+    ) if cids else {}
+    feat_counts = dict(
+        db.query(CompanyFeature.company_id, func.count(CompanyFeature.feature_key))
+        .filter(CompanyFeature.company_id.in_(cids), CompanyFeature.enabled == True)
+        .group_by(CompanyFeature.company_id)
+        .all()
+    ) if cids else {}
+    stats = {
+        c.id: {
+            "users": user_counts.get(c.id, 0),
+            # 행 없으면(=0) 전체 활성 기본값
+            "features": feat_counts.get(c.id) or len(ALL_FEATURES),
+        }
+        for c in companies
+    }
 
     return templates.TemplateResponse("companies/index.html", {
         "request": request,

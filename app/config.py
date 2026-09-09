@@ -13,6 +13,17 @@ class Settings(BaseSettings):
     app_secret: str = "dev-secret"
     secret_key: str = "dev-jwt-secret-change-in-production"
     remove_bg_api_key: str = ""
+    # Google Sheets (제품 소싱 에이전트 → 시트 자동입력)
+    google_sa_json: str = ""        # 서비스계정 키 JSON 파일 경로
+    sourcing_sheet_id: str = ""     # 대상 스프레드시트 ID (URL의 /d/<여기>/edit)
+    integrated_sheet_id: str = ""   # 통합 운영 스프레드시트 ID (마스터 임포트용)
+    sheet_autosync: bool = False        # 통합시트 자동 동기화 (기본 꺼짐 — 로컬이 운영시트를 건드리지 않게)
+    sheet_autosync_minutes: int = 10    # 자동 동기화 주기(분)
+    influencer_enrich: bool = False      # 인스타 프로필 자동수집 (기본 꺼짐)
+    influencer_enrich_limit: int = 10    # 1회(1일) 수집 인원 — 신규 계정 워밍업용 보수값. 늘리면 차단 위험
+    # 네이버 검색 API (제품 URL/이미지 자동 보강)
+    naver_client_id: str = ""
+    naver_client_secret: str = ""
     # S3 백업 설정
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
@@ -22,6 +33,11 @@ class Settings(BaseSettings):
     # Instagram 봇 계정
     instagram_username: str = ""
     instagram_password: str = ""
+    # 내부 알림 웹훅 (슬랙 / 카카오워크 / 디스코드 공용)
+    alert_mock: bool = True              # false 설정 시 실제 발송
+    alert_webhook_url: str = ""          # 발급받은 웹훅 URL 하나만 넣으면 됨
+    campaign_alert: bool = False         # 공구 알림 자동발송 (기본 꺼짐)
+    campaign_alert_hour: int = 8         # 발송 시각 (KST, 정시)
     # 카카오 알림톡 (알리고 비즈메시지)
     kakao_mock: bool = True              # false 설정 시 실제 발송
     kakao_api_key: str = ""

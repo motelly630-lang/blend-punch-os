@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+{% block title %}통합시트 연동 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}통합 운영 스프레드시트 연동{% endblock %}
+
+{% block header_actions %}
+{% if sheet_id %}
+<a href="https://docs.google.com/spreadsheets/d/{{ sheet_id }}/edit" target="_blank" rel="noopener"
+  class="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-gray-600 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+  </svg>
+  시트 열기
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% if not configured %}
+<div class="mb-5 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+  연동이 설정되지 않았습니다. <code class="font-mono">.env</code> 의
+  <code class="font-mono">GOOGLE_SA_JSON</code> · <code class="font-mono">INTEGRATED_SHEET_ID</code> 를 확인하세요.
+</div>
+{% endif %}
+
+<!-- ── 대상 선택 ── -->
+<form method="post" id="sheet-form" action="/settings/sheets/preview"
+  class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-5">
+  <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">가져올 대상</div>
+  <p class="text-xs text-gray-400 mb-4">
+    협력사 → 브랜드 → 상품 → 인플루언서 → 공구 → 정산 순서로 처리됩니다. 뒤쪽이 앞쪽을 참조하기 때문에 이 순서는 고정입니다.<br>
+    <b class="text-gray-500">공구·정산은 OS가 기준</b>이라 내려받기만 됩니다 (시트에서 고쳐도 OS로 올라오지 않습니다).
+  </p>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+    {% for t in targets %}
+    <label class="flex items-start gap-2.5 px-3 py-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
+      <input type="checkbox" name="entities" value="{{ t.key }}"
+        {% if t.key in selected %}checked{% endif %}
+        class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+      <span>
+        <span class="block text-sm font-medium text-gray-700">{{ t.label }}</span>
+        <span class="block text-xs text-gray-400 mt-0.5">{{ t.tab }}</span>
+        {% if not t.import_ok %}
+        <span class="inline-block mt-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-xs">내려받기 전용</span>
+        {% endif %}
+      </span>
+    </label>
+    {% endfor %}
+  </div>
+
+  <div class="flex items-center gap-2">
+    <button type="submit" {% if not configured %}disabled{% endif %}
+      class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+      </svg>
+      미리보기
+    </button>
+    {% if result and result.get('dry_run') and result.get('ok') %}
+    <button type="submit" formaction="/settings/sheets/apply"
+      onclick="return confirm('미리보기 내용대로 OS에 반영합니다. 계속하시겠습니까?')"
+      class="inline-flex items-center gap-1.5 bg-gray-900 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-black transition-colors">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+      </svg>
+      이대로 반영
+    </button>
+    {% endif %}
+    <span class="text-xs text-gray-400 ml-1">미리보기는 DB를 바꾸지 않습니다.</span>
+  </div>
+
+  <!-- ── 반대 방향: OS → 시트 ── -->
+  <div class="mt-5 pt-4 border-t border-gray-100">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">OS → 시트 내려받기</div>
+    <p class="text-xs text-gray-400 mb-3">
+      지금 OS에 있는 마스터를 위에서 고른 탭에 내려씁니다. 예시 행 아래에 이어 붙이고,
+      <b class="text-gray-500">수식 열은 건드리지 않습니다.</b>
+      각 행에 시트ID를 발급해 OS에도 저장하므로, 그 다음부터는 시트에서 고친 내용이 같은 행으로 돌아옵니다.
+    </p>
+    <div class="flex items-center gap-2">
+      <button type="submit" formaction="/settings/sheets/export-preview"
+        {% if not configured %}disabled{% endif %}
+        class="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-gray-600 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        내려받기 미리보기
+      </button>
+      {% if export and export.get('dry_run') and export.get('ok') %}
+      <button type="submit" formaction="/settings/sheets/export-apply"
+        onclick="return confirm('OS 데이터를 시트에 기록합니다. 계속하시겠습니까?')"
+        class="inline-flex items-center gap-1.5 bg-gray-900 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-black transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+        시트에 기록
+      </button>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+{% if export %}
+{% if export.get('error') %}
+<div class="mb-5 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{{ export.error }}</div>
+{% endif %}
+{% if export.get('reports') %}
+{% set et = export.get('totals', {}) %}
+<div class="mb-5 px-4 py-3 rounded-lg text-sm border
+  {% if export.dry_run %}bg-blue-50 border-blue-200 text-blue-800{% elif export.ok %}bg-green-50 border-green-200 text-green-800{% else %}bg-red-50 border-red-200 text-red-700{% endif %}">
+  <span class="font-semibold">
+    {% if export.dry_run %}내려받기 미리보기 — 아직 시트에 쓰지 않았습니다{% elif export.ok %}시트 기록 완료{% else %}기록 실패{% endif %}
+  </span>
+  <span class="ml-2">
+    시트에 추가 {{ et.get('appended', 0) }} · 시트 수정 {{ et.get('updated', 0) }} ·
+    변화없음 {{ et.get('unchanged', 0) }} · 시트ID 발급 {{ et.get('coded', 0) }}
+  </span>
+</div>
+
+<div class="space-y-3 mb-5">
+  {% for rep in export.reports %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+    <div class="flex items-baseline gap-3">
+      <span class="text-sm font-semibold text-gray-800">{{ rep.label }}</span>
+      <span class="text-xs text-gray-400 font-mono">{{ rep.tab }}</span>
+      <span class="ml-auto text-xs text-gray-500 space-x-2">
+        <span class="text-blue-600 font-medium">추가 {{ rep.appended }}</span>
+        <span class="text-amber-600 font-medium">수정 {{ rep.updated }}</span>
+        <span>변화없음 {{ rep.unchanged }}</span>
+        <span class="text-gray-400">시트ID {{ rep.coded }}</span>
+      </span>
+    </div>
+    {% if rep.get('error') %}
+    <div class="mt-2 px-3 py-2 bg-red-50 border border-red-200 text-red-700 rounded text-xs">{{ rep.error }}</div>
+    {% endif %}
+    {% for n in rep.get('notes', []) %}
+    <div class="mt-1 text-xs text-gray-500">· {{ n }}</div>
+    {% endfor %}
+    {% if rep.get('write_ranges') %}
+    <div class="mt-1 text-xs text-gray-400 font-mono">{{ rep.write_ranges | join(' · ') }}</div>
+    {% endif %}
+    {% if rep.get('fixed') %}
+    <div class="mt-2 pt-2 border-t border-gray-50">
+      <div class="text-xs text-amber-600 mb-0.5">OS 상태값 교정 {{ rep.fixed | length }}건</div>
+      {% for f in rep.fixed[:5] %}<div class="text-xs text-gray-500">· {{ f }}</div>{% endfor %}
+      {% if rep.fixed | length > 5 %}<div class="text-xs text-gray-300">그 외 {{ rep.fixed | length - 5 }}건</div>{% endif %}
+    </div>
+    {% endif %}
+    {% if rep.get('skipped_fields') %}
+    <div class="mt-1 text-xs text-gray-400">OS에 대응 없어 비워두는 열: {{ rep.skipped_fields | join(', ') }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
+{% if result %}
+
+{% if result.get('error') %}
+<div class="mb-5 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+  {{ result.error }}
+</div>
+{% endif %}
+
+{% if result.get('reports') %}
+{% set t = result.get('totals', {}) %}
+<div class="mb-5 px-4 py-3 rounded-lg text-sm border
+  {% if result.dry_run %}bg-blue-50 border-blue-200 text-blue-800{% elif result.ok %}bg-green-50 border-green-200 text-green-800{% else %}bg-red-50 border-red-200 text-red-700{% endif %}">
+  <span class="font-semibold">
+    {% if result.dry_run %}미리보기 결과 — 아직 저장되지 않았습니다{% elif result.ok %}반영 완료{% else %}반영 실패 — 전부 되돌렸습니다{% endif %}
+  </span>
+  <span class="ml-2">
+    신규 {{ t.get('created', 0) }} · 수정 {{ t.get('updated', 0) }} ·
+    변화없음 {{ t.get('unchanged', 0) }} · 오류 {{ t.get('failed', 0) }} ·
+    빈행 {{ t.get('skipped', 0) }}
+  </span>
+</div>
+
+<div class="space-y-4">
+  {% for rep in result.reports %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <div class="flex items-baseline gap-3 mb-3">
+      <span class="text-sm font-semibold text-gray-800">{{ rep.label }}</span>
+      <span class="text-xs text-gray-400 font-mono">{{ rep.tab }}</span>
+      <span class="ml-auto text-xs text-gray-500 space-x-2">
+        <span class="text-blue-600 font-medium">신규 {{ rep.created }}</span>
+        <span class="text-amber-600 font-medium">수정 {{ rep.updated }}</span>
+        <span>변화없음 {{ rep.unchanged }}</span>
+        {% if rep.failed %}<span class="text-red-600 font-medium">오류 {{ rep.failed }}</span>{% endif %}
+        {% if rep.skipped %}<span class="text-gray-400">빈행 {{ rep.skipped }}</span>{% endif %}
+      </span>
+    </div>
+
+    {% if rep.get('error') %}
+    <div class="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 rounded text-xs">{{ rep.error }}</div>
+    {% endif %}
+
+    {% set shown = rep.rows | rejectattr('action', 'equalto', 'unchanged') | list %}
+    {% if shown %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-gray-400 border-b border-gray-100">
+            <th class="text-left font-medium py-1.5 pr-3 w-20">상태</th>
+            <th class="text-left font-medium py-1.5 pr-3 w-32">시트 ID</th>
+            <th class="text-left font-medium py-1.5 pr-3">이름</th>
+            <th class="text-left font-medium py-1.5">변경 내용</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in shown[:60] %}
+          {% set cls = {'created': 'bg-blue-100 text-blue-700', 'updated': 'bg-amber-100 text-amber-700',
+                        'failed': 'bg-red-100 text-red-600'}.get(row.action, 'bg-gray-100 text-gray-500') %}
+          {% set label = {'created': '신규', 'updated': '수정', 'failed': '오류'}.get(row.action, row.action) %}
+          <tr class="border-b border-gray-50 last:border-0 align-top">
+            <td class="py-1.5 pr-3">
+              <span class="px-2 py-0.5 rounded-full font-semibold {{ cls }}">{{ label }}</span>
+            </td>
+            <td class="py-1.5 pr-3 font-mono text-gray-400">{{ row.code or '-' }}</td>
+            <td class="py-1.5 pr-3 text-gray-700">{{ row.name or '-' }}</td>
+            <td class="py-1.5 text-gray-500">
+              {% if row.error %}
+              <span class="text-red-500">{{ row.error }}</span>
+              {% else %}
+              {% for c in row.changes[:6] %}<div>{{ c }}</div>{% endfor %}
+              {% if row.changes | length > 6 %}
+              <div class="text-gray-300">그 외 {{ row.changes | length - 6 }}건</div>
+              {% endif %}
+              {% endif %}
+              {% if row.get('missing') %}
+              <div class="text-amber-500 mt-0.5">미입력: {{ row.missing | join(', ') }}</div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if shown | length > 60 %}
+      <div class="text-xs text-gray-400 mt-2">…그 외 {{ shown | length - 60 }}행 (화면에만 생략, 처리는 전부 됩니다)</div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="text-xs text-gray-400">바뀐 행이 없습니다.</div>
+    {% endif %}
+
+    {% if rep.notes %}
+    <div class="mt-3 pt-3 border-t border-gray-50 space-y-1">
+      {% for n in rep.notes %}
+      <div class="text-xs text-gray-500">· {{ n }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if rep.unmapped %}
+    <div class="mt-3 pt-3 border-t border-gray-50">
+      <div class="text-xs text-gray-400">
+        시트에만 있고 OS로 넘어오지 않는 항목: {{ rep.unmapped | join(', ') }}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
+<!-- ── 동기화 이력 ── -->
+<div class="mt-5 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+  <div class="flex items-baseline gap-3 mb-3">
+    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">동기화 이력</span>
+    {% if autosync %}
+    <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+      자동 {{ autosync_minutes }}분마다
+    </span>
+    {% else %}
+    <span class="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold">자동 꺼짐 (버튼만)</span>
+    {% endif %}
+  </div>
+
+  {% if logs %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="text-gray-400 border-b border-gray-100">
+          <th class="text-left font-medium py-1.5 pr-3 w-36">시각</th>
+          <th class="text-left font-medium py-1.5 pr-3 w-24">방향</th>
+          <th class="text-left font-medium py-1.5 pr-3 w-16">실행</th>
+          <th class="text-left font-medium py-1.5 pr-3">결과</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in logs %}
+        <tr class="border-b border-gray-50 last:border-0 align-top">
+          <td class="py-1.5 pr-3 text-gray-400">{{ l.created_at | dt }}</td>
+          <td class="py-1.5 pr-3 text-gray-600">{{ '시트 → OS' if l.direction == 'import' else 'OS → 시트' }}</td>
+          <td class="py-1.5 pr-3">
+            <span class="px-1.5 py-0.5 rounded {{ 'bg-blue-50 text-blue-600' if l.trigger == 'auto' else 'bg-gray-100 text-gray-500' }}">
+              {{ '자동' if l.trigger == 'auto' else '수동' }}
+            </span>
+          </td>
+          <td class="py-1.5">
+            {% if l.ok %}
+            <span class="text-gray-600">
+              신규 {{ l.created }} · 수정 {{ l.updated }} · 변화없음 {{ l.unchanged }}
+              {% if l.failed %}<span class="text-red-500">· 오류 {{ l.failed }}</span>{% endif %}
+            </span>
+            <span class="text-gray-300 ml-1">({{ l.duration_ms }}ms)</span>
+            {% else %}
+            <span class="text-red-500">{{ l.error or '실패' }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-xs text-gray-400">아직 기록이 없습니다. 미리보기가 아닌 '반영'을 하면 여기에 남습니다.</div>
+  {% endif %}
+</div>
+
+<!-- ── 안내 ── -->
+<div class="mt-5 bg-gray-50 rounded-xl border border-gray-100 p-5">
+  <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">시트 입력 규칙</div>
+  <ul class="text-xs text-gray-500 space-y-1.5 leading-relaxed">
+    <li>· <b class="text-gray-600">브랜드 연결</b> — 상품마스터 <code class="font-mono">brand</code> 열의 글자가
+      브랜드마스터 <code class="font-mono">brand_name</code> 과 정확히 같아야 같은 브랜드로 묶입니다.
+      브랜드마스터에 없는 이름이면 그 이름으로 브랜드를 새로 만듭니다.</li>
+    <li>· <b class="text-gray-600">로고·썸네일</b> — 셀에 이미지를 붙여넣지 말고
+      <code class="font-mono">logo_url</code> · <code class="font-mono">thumbnail_url</code> 에
+      이미지 주소(http로 시작)를 넣으세요. 셀에 삽입한 그림은 읽어올 수 없습니다.</li>
+    <li>· <b class="text-gray-600">빈 칸은 유지</b> — 시트에서 비워둔 칸은 OS 값을 지우지 않습니다.
+      지우려면 OS에서 직접 수정하세요.</li>
+    <li>· <b class="text-gray-600">중복 방지</b> — 시트의 ID(<code class="font-mono">product_id</code> 등)로
+      기존 행을 찾아 덮어씁니다. 같은 시트를 여러 번 올려도 중복이 생기지 않습니다.</li>
+    <li>· <b class="text-gray-600">세트옵션</b> — <code class="font-mono">1개입:15000; 2개입:28000</code> 형식으로 적으세요.
+      옵션 사이는 <b class="text-gray-600">세미콜론(;)</b>으로 나눕니다 — 이름에 콤마를 써도 안전합니다.</li>
+    <li>· <b class="text-gray-600">일정·정산·대시보드</b>는 OS가 기준입니다. 시트에서 고쳐도 넘어오지 않습니다.</li>
+  </ul>
+</div>
+
+{% endblock %}

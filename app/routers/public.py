@@ -6,11 +6,26 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Product
 from app.models.brand import Brand as BrandModel
+from app.models.campaign import Campaign
 from app.models.group_buy_application import GroupBuyApplication
 from app.schemas.public_product import PublicProduct
 
 router = APIRouter(prefix="/public")
 templates = Jinja2Templates(directory="app/templates")
+
+PAGE_SIZE = 24
+
+# 정렬 옵션: (key, 표시라벨)
+SORT_OPTIONS = [
+    ("newest", "신상품순"),
+    ("commission", "커미션 높은순"),
+    ("price_asc", "공구가 낮은순"),
+    ("price_desc", "공구가 높은순"),
+]
+
+# 정렬용 유효가격 = 공구가(0이면 소비자가)
+def _eff_price():
+    return func.coalesce(func.nullif(Product.groupbuy_price, 0), Product.consumer_price)
 
 # ── 공개 제품 필터 조건 ────────────────────────────────────────────
 # visibility_status = 'hidden' 제품은 절대 노출 금지
@@ -18,6 +33,7 @@ def _public_filter(query):
     return query.filter(
         Product.status == "active",
         (Product.visibility_status == "active") | (Product.visibility_status == None),
+        Product.is_archived.isnot(True),  # 보관(삭제) 제품 노출 금지
     )
 
 
@@ -57,22 +73,70 @@ FILTER_CATEGORIES = [
 # ── /public/products ─────────────────────────────────────────────
 @router.get("/products")
 def public_product_list(request: Request, db: Session = Depends(get_db),
-                        q: str = "", category: str = ""):
+                        q: str = "", category: str = "", brand: str = "",
+                        sort: str = "newest", sample: str = "", page: int = 1):
     brands = _brand_list(db)
-    products = []
-    if q or category:
-        query = _public_filter(db.query(Product))
-        if q:
-            query = query.filter(
-                Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%")
-            )
-        if category:
-            query = query.filter(Product.category == category)
-        products = [PublicProduct.from_orm(p) for p in query.order_by(Product.created_at.desc()).all()]
+
+    # 필터 적용 여부 (기본 랜딩 = 필터 없음 → 추천 섹션 노출)
+    has_filter = bool(q or category or brand or sample or (sort and sort != "newest"))
+
+    base = _public_filter(db.query(Product))
+    if q:
+        base = base.filter(Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%"))
+    if category:
+        base = base.filter(Product.category == category)
+    if brand:
+        base = base.filter(Product.brand == brand)
+    if sample == "1":
+        base = base.filter(Product.sample_type.in_(["무상", "유상"]))
+
+    # 정렬
+    if sort == "commission":
+        base = base.order_by(Product.seller_commission_rate.desc().nullslast(), Product.created_at.desc())
+    elif sort == "price_asc":
+        base = base.order_by(_eff_price().asc().nullslast(), Product.created_at.desc())
+    elif sort == "price_desc":
+        base = base.order_by(_eff_price().desc().nullslast(), Product.created_at.desc())
+    else:  # newest
+        base = base.order_by(Product.created_at.desc())
+
+    total = base.count()
+    total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+    page = max(1, min(page, total_pages))
+    rows = base.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).all()
+    products = [PublicProduct.from_orm(p) for p in rows]
+
+    # 추천 섹션 (필터 없는 첫 페이지에서만)
+    newest, popular = [], []
+    if not has_filter and page == 1:
+        newest = [
+            PublicProduct.from_orm(p) for p in
+            _public_filter(db.query(Product)).order_by(Product.created_at.desc()).limit(8).all()
+        ]
+        top_ids = (
+            db.query(Campaign.product_id, func.sum(Campaign.actual_revenue).label("rev"))
+            .filter(Campaign.product_id.isnot(None))
+            .group_by(Campaign.product_id)
+            .order_by(func.sum(Campaign.actual_revenue).desc())
+            .limit(8)
+            .all()
+        )
+        id_order = [r.product_id for r in top_ids]
+        if id_order:
+            pop_map = {
+                p.id: p for p in
+                _public_filter(db.query(Product)).filter(Product.id.in_(id_order)).all()
+            }
+            popular = [PublicProduct.from_orm(pop_map[i]) for i in id_order if i in pop_map]
+
     return templates.TemplateResponse(
         "public/products.html",
         {"request": request, "brands": brands, "products": products,
-         "q": q, "category_filter": category, "filter_categories": FILTER_CATEGORIES},
+         "q": q, "category_filter": category, "brand_filter": brand,
+         "sort": sort, "sample_filter": sample,
+         "filter_categories": FILTER_CATEGORIES, "sort_options": SORT_OPTIONS,
+         "has_filter": has_filter, "newest": newest, "popular": popular,
+         "page": page, "total_pages": total_pages, "total": total},
     )
 
 

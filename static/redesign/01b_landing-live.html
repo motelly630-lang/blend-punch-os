@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B · 라이브커머스 에너지 · BLEND PICK</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>body{font-family:'Pretendard',sans-serif;}[x-cloak]{display:none;}
+  @keyframes pulse2{0%,100%{opacity:1}50%{opacity:.55}}.blink{animation:pulse2 1.2s infinite;}</style>
+</head>
+<!-- 무드 B — 라이브커머스 에너지: 강한 그라데이션, 큰 CTA, 긴박감 max, 스티커 배지, 실시간 알림 -->
+<body class="bg-neutral-50">
+<div class="mx-auto max-w-[440px] min-h-screen bg-white relative pb-28">
+
+  <!-- 실시간 알림 바 -->
+  <div class="bg-[#ff2d55] text-white text-[12px] font-bold text-center py-2">
+    🔥 지금 <span class="blink">17명</span>이 함께 보고 있어요!
+  </div>
+
+  <header class="flex items-center justify-between px-4 h-12 border-b border-black/5">
+    <span class="font-black text-[#ff2d55]">BLEND PICK</span>
+    <span class="text-[11px] font-black text-white bg-[#ff2d55] px-2 py-1 rounded-full">공동구매 LIVE</span>
+  </header>
+
+  <!-- 인플루언서 -->
+  <div class="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-[#fff0f3] to-[#fff7e6]">
+    <img src="https://i.pravatar.cc/80?img=47" class="w-9 h-9 rounded-full ring-2 ring-[#ff2d55]">
+    <p class="text-[13px] font-bold">@jieun_daily <span class="text-black/50 font-normal">"이번주만! 강추 🌽"</span></p>
+  </div>
+
+  <!-- 히어로 -->
+  <div class="relative">
+    <img src="https://shop-phinf.pstatic.net/20260224_291/1771908482234RHd76_PNG/1.png?type=w848" class="w-full aspect-square object-cover">
+    <div class="absolute top-3 left-3 flex flex-col gap-1.5">
+      <span class="bg-[#ff2d55] text-white text-[15px] font-black px-3 py-1 rounded-lg shadow-lg -rotate-3">17% ↓</span>
+      <span class="bg-yellow-300 text-black text-[11px] font-black px-2 py-0.5 rounded shadow">무료배송 EVENT</span>
+    </div>
+  </div>
+
+  <div class="px-4 pt-4">
+    <p class="text-[12px] text-black/50 font-semibold">클래식농원</p>
+    <h1 class="text-[20px] font-black mt-0.5">미니옥수수 x 클래식농원</h1>
+    <div class="flex items-baseline gap-2 mt-2">
+      <span class="text-[15px] font-black text-[#ff2d55]">17%</span>
+      <span class="text-[28px] font-black">2,900<span class="text-[18px]">원</span></span>
+      <span class="text-[14px] text-black/30 line-through">3,500원</span>
+    </div>
+  </div>
+
+  <!-- 초강력 긴박감 카운트다운 -->
+  <div class="mx-4 mt-4 rounded-2xl bg-gradient-to-br from-[#ff2d55] to-[#ff7a1a] text-white p-4 shadow-lg">
+    <div class="flex items-center justify-between">
+      <span class="text-[13px] font-bold">⏰ 공구 마감까지</span>
+      <div class="flex gap-1 font-black">
+        <span class="bg-black/25 rounded px-2 py-1 text-[15px]">02</span>:<span class="bg-black/25 rounded px-2 py-1 text-[15px]">14</span>:<span class="bg-black/25 rounded px-2 py-1 text-[15px]">22</span>
+      </div>
+    </div>
+    <div class="mt-3 bg-white/25 rounded-full h-2.5 overflow-hidden"><div class="h-full w-[64%] bg-yellow-300 rounded-full"></div></div>
+    <p class="text-[12px] font-semibold mt-2">🎉 128명 참여 · <b>72명</b> 더 모이면 <b class="bg-yellow-300 text-black px-1 rounded">추가 5%</b></p>
+  </div>
+
+  <!-- 옵션 -->
+  <div class="px-4 mt-5" x-data="{opts:[['1개',2900],['3개',5800],['5개',7500]],sel:null,qty:1,get total(){return this.sel===null?0:this.opts[this.sel][1]*this.qty}}">
+    <p class="text-[14px] font-black mb-2">옵션 선택</p>
+    <div class="space-y-2">
+      <template x-for="(o,i) in opts" :key="i">
+        <button @click="sel=i" class="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl border-2 text-[14px] font-bold transition"
+          :class="sel===i?'border-[#ff2d55] bg-[#fff0f3]':'border-black/10'">
+          <span x-text="'미니 옥수수 '+o[0]"></span><span class="text-[#ff2d55]" x-text="'+'+o[1].toLocaleString()+'원'"></span>
+        </button>
+      </template>
+    </div>
+
+    <div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[440px] bg-white border-t border-black/10 px-4 py-3">
+      <div class="flex justify-between mb-2" x-show="sel!==null" x-cloak><span class="text-[13px] text-black/60">총 결제</span><span class="text-[19px] font-black text-[#ff2d55]" x-text="total.toLocaleString()+'원'"></span></div>
+      <button class="w-full py-4 rounded-2xl bg-gradient-to-r from-[#ff2d55] to-[#ff7a1a] text-white font-black text-[16px] shadow-lg disabled:opacity-40"
+        :disabled="sel===null" x-text="sel===null?'옵션을 선택하세요':'🛒 공구 참여하기'"></button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}답변 템플릿 {% if tpl %}수정{% else %}등록{% endif %} · BLEND PUNCH OS{% endblock %}
+{% block page_title %}답변 템플릿 {% if tpl %}수정{% else %}등록{% endif %}{% endblock %}
+
+{% block content %}
+<form method="post" action="{% if tpl %}/cs/templates/{{ tpl.id }}/edit{% else %}/cs/templates/new{% endif %}" class="max-w-2xl space-y-4">
+  <div class="bg-white border border-gray-100 rounded-xl p-5 space-y-4">
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">템플릿명</label>
+      <input type="text" name="name" required value="{{ tpl.name if tpl else '' }}" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div class="relative" x-data="tplProductPicker()">
+        <label class="block text-xs font-medium text-gray-500 mb-1">적용 상품 <span class="text-gray-400">(미선택 시 공통)</span></label>
+        <input type="hidden" name="product_id" :value="selectedId">
+        <input type="text" x-model="query" @focus="open=true" @input="open=true"
+               placeholder="상품명 검색 (공통이면 비워두세요)" autocomplete="off"
+               class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-400 focus:outline-none">
+        <div x-show="open" @click.outside="open=false" x-cloak
+             class="absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+          <div @click="clear()" class="px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 cursor-pointer border-b border-gray-100">공통 (상품 미지정)</div>
+          <template x-for="p in filtered()" :key="p.id">
+            <div @click="select(p)" class="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer flex items-center justify-between">
+              <span x-text="p.name"></span><span class="text-xs text-gray-400" x-text="p.brand"></span>
+            </div>
+          </template>
+          <div x-show="filtered().length===0" class="px-3 py-2 text-sm text-gray-400">검색 결과가 없습니다</div>
+        </div>
+        <div x-show="selectedId" x-cloak class="mt-1.5 flex items-center gap-2 text-xs">
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">선택: <span x-text="selectedName" class="ml-1"></span></span>
+          <button type="button" @click="clear()" class="text-gray-400 hover:text-gray-600">공통으로</button>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">적용 CS 유형</label>
+        <select name="cs_type_id" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+          <option value="">공통</option>
+          {% for t in cs_types %}<option value="{{ t.id }}" {% if tpl and tpl.cs_type_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">고객 안내문</label>
+      <textarea name="customer_message" rows="5" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">{{ tpl.customer_message if tpl else '' }}</textarea>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">내부 처리 가이드</label>
+      <textarea name="internal_guide" rows="3" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">{{ tpl.internal_guide if tpl else '' }}</textarea>
+    </div>
+    <div class="flex items-center gap-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">정렬 순서</label>
+        <input type="number" name="sort_order" value="{{ tpl.sort_order if tpl else 0 }}" class="w-28 px-3 py-2 rounded-lg border border-gray-200 text-sm">
+      </div>
+      <label class="inline-flex items-center gap-2 text-sm text-gray-700 mt-5">
+        <input type="checkbox" name="is_partner_visible" value="1" {% if tpl and tpl.is_partner_visible %}checked{% endif %} class="rounded border-gray-300"> 협업사 공개
+      </label>
+      {% if tpl %}
+      <label class="inline-flex items-center gap-2 text-sm text-gray-700 mt-5">
+        <input type="checkbox" name="is_active" value="1" {% if tpl.is_active %}checked{% endif %} class="rounded border-gray-300"> 활성
+      </label>
+      {% endif %}
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <button class="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700">저장</button>
+    <a href="/cs/templates" class="px-4 py-2.5 rounded-lg text-sm text-gray-500 hover:text-gray-700">취소</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function tplProductPicker() {
+    return {
+      products: {{ products_json | tojson }},
+      query: '{{ sel_product_name }}', open: false,
+      selectedId: '{{ sel_product_id }}', selectedName: '{{ sel_product_name }}',
+      filtered() {
+        const q = this.query.trim().toLowerCase();
+        if (!q) return this.products.slice(0, 50);
+        return this.products.filter(p => (p.name||'').toLowerCase().includes(q)
+                                      || (p.brand||'').toLowerCase().includes(q)).slice(0, 50);
+      },
+      select(p) { this.selectedId = p.id; this.selectedName = p.name; this.query = p.name; this.open = false; },
+      clear() { this.selectedId = ''; this.selectedName = ''; this.query = ''; this.open = false; },
+    };
+  }
+</script>
+{% endblock %}

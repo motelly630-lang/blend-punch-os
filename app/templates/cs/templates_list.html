@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}답변 템플릿 · BLEND PUNCH OS{% endblock %}
+{% block page_title %}답변 템플릿{% endblock %}
+
+{% block header_actions %}
+<a href="/cs" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:border-gray-300">← CS</a>
+{% if is_admin %}
+<a href="/cs/templates/new" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700">템플릿 등록</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-gray-500 text-xs">
+      <tr>
+        <th class="text-left font-medium px-3 py-2.5">템플릿명</th>
+        <th class="text-left font-medium px-3 py-2.5">적용 상품</th>
+        <th class="text-left font-medium px-3 py-2.5">적용 유형</th>
+        <th class="text-left font-medium px-3 py-2.5">협업사 공개</th>
+        <th class="text-left font-medium px-3 py-2.5">상태</th>
+        <th class="px-3 py-2.5"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for t in tpls %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-3 py-2.5 font-medium text-gray-800">{{ t.name }}</td>
+        <td class="px-3 py-2.5 text-gray-600">{{ prod_map.get(t.product_id, '공통') }}</td>
+        <td class="px-3 py-2.5 text-gray-600">{{ type_map.get(t.cs_type_id, '공통') }}</td>
+        <td class="px-3 py-2.5">{% if t.is_partner_visible %}<span class="text-green-600 text-xs">공개</span>{% else %}<span class="text-gray-400 text-xs">내부</span>{% endif %}</td>
+        <td class="px-3 py-2.5">{% if t.is_active %}<span class="text-blue-600 text-xs">활성</span>{% else %}<span class="text-gray-400 text-xs">비활성</span>{% endif %}</td>
+        <td class="px-3 py-2.5 text-right">{% if is_admin %}<a href="/cs/templates/{{ t.id }}/edit" class="text-xs text-blue-600 hover:underline">수정</a>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="px-3 py-16 text-center text-gray-400 text-sm">등록된 템플릿이 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

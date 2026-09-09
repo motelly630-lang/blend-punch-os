@@ -16,16 +16,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BP OS">
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: { extend: { fontFamily: { sans: ['Noto Sans KR', 'system-ui', 'sans-serif'] } } }
-    }
-  </script>
+  <link rel="stylesheet" href="/static/css/app.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <script src="/static/js/htmx.min.js"></script>
+  <script defer src="/static/js/alpine.min.js"></script>
   <style>
     [x-cloak] { display: none !important; }
     .htmx-indicator { display: none; }
@@ -119,10 +114,6 @@
       ] %}
       {# ── 커머스 ─────────────────────────────────────────── #}
       {% set commerce_nav = [
-        ('sales_pages', '/sales-pages', '판매 페이지',
-         'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1'),
-        ('orders', '/orders', '주문 관리',
-         'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z'),
         ('applications', '/applications', '공구 신청',
          'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4'),
         ('settlements', '/settlements', '정산',
@@ -130,18 +121,16 @@
       ] %}
       {# ── AI & 자동화 ─────────────────────────────────────────── #}
       {% set ai_nav = [
+        ('sourcing', '/sourcing', '제품 소싱',
+         'M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7'),
         ('automation', '/automation', '자동화 센터',
          'M13 10V3L4 14h7v7l9-11h-7z'),
         ('trends', '/trends/feed', '트렌드',
          'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'),
       ] %}
 
-      {% macro render_section(label, items) %}
-        {% if label %}
-        <div class="mx-1 mt-3 mb-1 border-t border-gray-800"></div>
-        <div class="px-3 py-1 text-xs font-semibold text-gray-600 uppercase tracking-wider">{{ label }}</div>
-        {% endif %}
-        {% for page, href, lbl, path in items %}
+      {# 개별 메뉴 링크 렌더링 #}
+      {% macro render_link(page, href, lbl, path) %}
         {% if is_feature_enabled(page) %}
         <a href="{{ href }}"
           class="nav-link flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
@@ -161,12 +150,72 @@
           {% endif %}
         </a>
         {% endif %}
-        {% endfor %}
+      {% endmacro %}
+
+      {# 섹션: 라벨이 있으면 접이식 드롭다운, 없으면 링크만 나열 #}
+      {% macro render_section(label, items) %}
+        {% if label %}
+          {# 현재 페이지가 이 섹션에 속하면 기본으로 펼침 #}
+          {% set ns = namespace(active=false) %}
+          {% for it in items %}{% if it[0] == active_page %}{% set ns.active = true %}{% endif %}{% endfor %}
+          <div x-data="{ open: {{ 'true' if ns.active else 'false' }} }" class="mt-1">
+            <div class="mx-1 mb-1 border-t border-gray-800"></div>
+            <button type="button" @click="open = !open"
+              class="w-full flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-500 uppercase tracking-wider hover:bg-gray-800 hover:text-gray-300 transition-colors">
+              <span>{{ label }}</span>
+              <svg class="w-3.5 h-3.5 ml-auto flex-shrink-0 transition-transform duration-200" :class="open ? 'rotate-180' : ''"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            <div x-show="open" x-cloak class="mt-0.5 space-y-0.5"
+                 x-transition:enter="transition ease-out duration-150"
+                 x-transition:enter-start="opacity-0 -translate-y-1"
+                 x-transition:enter-end="opacity-100 translate-y-0">
+              {% for page, href, lbl, path in items %}
+              {{ render_link(page, href, lbl, path) }}
+              {% endfor %}
+            </div>
+          </div>
+        {% else %}
+          {% for page, href, lbl, path in items %}
+          {{ render_link(page, href, lbl, path) }}
+          {% endfor %}
+        {% endif %}
       {% endmacro %}
 
       {{ render_section(none, home_nav) }}
       {{ render_section('영업', sales_nav) }}
       {{ render_section('자산', assets_nav) }}
+      <a href="/partners"
+        class="nav-link flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+          {% if active_page == 'partners' %}bg-blue-600 text-white{% else %}text-gray-400 hover:bg-gray-800 hover:text-white{% endif %}">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+        협력사
+      </a>
+      {% if is_feature_enabled('cs') %}
+      <a href="/cs"
+        class="nav-link flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+          {% if active_page == 'cs' %}bg-blue-600 text-white{% else %}text-gray-400 hover:bg-gray-800 hover:text-white{% endif %}">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7z"/>
+        </svg>
+        고객 CS
+        <span id="cs-unread-badge" class="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full leading-none bg-red-500 text-white hidden"></span>
+      </a>
+      {% endif %}
+      {% if is_feature_enabled('cs') %}
+      <script>
+        (function(){
+          fetch('/cs/notifications/unread', {headers:{'Accept':'application/json'}})
+            .then(function(r){ return r.ok ? r.json() : null; })
+            .then(function(d){ if(d && d.count>0){ var b=document.getElementById('cs-unread-badge'); if(b){ b.textContent=d.count; b.classList.remove('hidden'); } } })
+            .catch(function(){});
+        })();
+      </script>
+      {% endif %}
       {{ render_section('커머스', commerce_nav) }}
       {{ render_section('AI & 자동화', ai_nav) }}
 
@@ -233,6 +282,14 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
         </svg>
         메뉴얼 관리
+      </a>
+      <a href="/settings/sheets"
+        class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors mb-0.5
+          {% if active_page == 'sheets' %}bg-blue-600 text-white{% else %}text-gray-500 hover:bg-gray-800 hover:text-white{% endif %}">
+        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+        </svg>
+        통합시트 연동
       </a>
       <a href="/settings/backup"
         class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors mb-0.5

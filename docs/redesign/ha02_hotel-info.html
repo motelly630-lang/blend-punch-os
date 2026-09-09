@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A1 호텔 정보 등록 · BLEND PICK Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>body{font-family:'Pretendard',sans-serif;}
+  .fld{width:100%;padding:.65rem .85rem;border:1px solid rgba(0,0,0,.1);border-radius:.7rem;font-size:14px;}
+  .lbl{font-size:13px;font-weight:600;color:rgba(0,0,0,.6);margin-bottom:.35rem;display:block;}
+  .sect{font-size:13px;font-weight:800;color:rgba(0,0,0,.5);margin-bottom:1rem;}</style>
+<script>tailwind.config={theme:{extend:{colors:{brand:{DEFAULT:'#2f5d3f',dark:'#244a32',light:'#e7f0ea'},accent:'#ff7a1a',ink:'#1b1f1d'}}}}</script>
+</head>
+<!-- A1 — 호텔 정보 등록 (호텔 전용 폼 1/4) -->
+<body class="bg-[#f4f5f7] text-ink">
+<div class="flex min-h-screen">
+  <aside class="w-56 bg-white border-r border-black/5 shrink-0">
+    <div class="px-5 py-5 border-b border-black/5"><p class="text-[11px] text-black/40 font-semibold">BLEND PICK</p><p class="font-extrabold text-lg">Admin</p></div>
+    <nav class="p-3 space-y-1 text-[14px]">
+      <a href="07_admin-dashboard.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">📊 대시보드</a>
+      <a href="08_admin-products.html" class="flex gap-3 px-3 py-2.5 rounded-lg bg-brand-light text-brand font-bold border-l-2 border-brand">📦 상품 관리</a>
+      <a href="10_admin-orders.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">🧾 판매 관리</a>
+      <a href="ha05_reservations.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">🏨 예약 관리</a>
+      <a href="12_admin-settlement.html" class="flex gap-3 px-3 py-2.5 rounded-lg text-black/60 hover:bg-black/5">💰 정산 관리</a>
+    </nav>
+  </aside>
+
+  <main class="flex-1 p-8 max-w-3xl">
+    <div class="flex items-center gap-2">🏨 <h1 class="text-2xl font-extrabold">호텔 등록</h1><span class="text-[11px] font-bold text-white bg-accent px-2 py-0.5 rounded-full">호텔 공동구매</span></div>
+    <!-- 4단계 진행 표시 -->
+    <div class="flex gap-2 mt-5 text-[12px] font-semibold">
+      <span class="px-3 py-1.5 rounded-full bg-brand text-white">1. 호텔 정보</span>
+      <span class="px-3 py-1.5 rounded-full bg-black/5 text-black/45">2. 객실 등록</span>
+      <span class="px-3 py-1.5 rounded-full bg-black/5 text-black/45">3. 날짜별 가격·잔여</span>
+      <span class="px-3 py-1.5 rounded-full bg-black/5 text-black/45">4. 확인</span>
+    </div>
+
+    <section class="bg-white rounded-2xl border border-black/5 p-6 mt-6">
+      <p class="sect">기본 정보</p>
+      <label class="lbl">호텔명 *</label><input class="fld mb-4" placeholder="예: 그랜드 오션 리조트 제주">
+      <div class="grid grid-cols-2 gap-4">
+        <div><label class="lbl">지역</label><select class="fld"><option>제주 서귀포</option></select></div>
+        <div><label class="lbl">성급</label><select class="fld"><option>5성급</option></select></div>
+        <div><label class="lbl">체크인 시간</label><input type="time" class="fld" value="15:00"></div>
+        <div><label class="lbl">체크아웃 시간</label><input type="time" class="fld" value="11:00"></div>
+      </div>
+      <div class="mt-4"><label class="lbl">주소</label><input class="fld" placeholder="상세 주소"></div>
+      <div class="mt-4"><label class="lbl">호텔 소개</label><textarea class="fld h-24" placeholder="호텔 설명"></textarea></div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-black/5 p-6 mt-5">
+      <p class="sect">이미지</p>
+      <div class="border-2 border-dashed border-black/15 rounded-xl aspect-video flex flex-col items-center justify-center text-black/30 text-sm"><span class="text-3xl">+</span>대표 이미지</div>
+      <div class="grid grid-cols-4 gap-2 mt-3">
+        <div class="border-2 border-dashed border-black/15 rounded-xl aspect-square flex items-center justify-center text-black/25 text-2xl">+</div>
+        <div class="border-2 border-dashed border-black/15 rounded-xl aspect-square flex items-center justify-center text-black/25 text-2xl">+</div>
+        <div class="border-2 border-dashed border-black/15 rounded-xl aspect-square flex items-center justify-center text-black/25 text-2xl">+</div>
+        <div class="border-2 border-dashed border-black/15 rounded-xl aspect-square flex items-center justify-center text-black/25 text-2xl">+</div>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-black/5 p-6 mt-5">
+      <p class="sect">편의시설</p>
+      <div class="flex flex-wrap gap-2 text-[13px]">
+        <label class="px-3 py-1.5 rounded-full border border-brand bg-brand-light text-brand font-semibold">✓ 수영장</label>
+        <label class="px-3 py-1.5 rounded-full border border-black/10 text-black/55">조식</label>
+        <label class="px-3 py-1.5 rounded-full border border-brand bg-brand-light text-brand font-semibold">✓ 주차</label>
+        <label class="px-3 py-1.5 rounded-full border border-black/10 text-black/55">스파</label>
+        <label class="px-3 py-1.5 rounded-full border border-black/10 text-black/55">피트니스</label>
+        <label class="px-3 py-1.5 rounded-full border border-black/10 text-black/55">반려동물</label>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-black/5 p-6 mt-5">
+      <p class="sect">공동구매 · 취소 규정</p>
+      <div class="grid grid-cols-2 gap-4">
+        <div><label class="lbl">공구 판매 시작</label><input type="date" class="fld"></div>
+        <div><label class="lbl">공구 판매 마감</label><input type="date" class="fld"></div>
+      </div>
+      <div class="mt-4"><label class="lbl">취소 규정</label><select class="fld"><option>투숙 3일 전까지 무료취소</option><option>투숙 7일 전까지 무료취소</option><option>환불 불가 (특가)</option></select></div>
+    </section>
+
+    <div class="flex justify-between mt-6 pb-10">
+      <a href="ha01_product-type.html" class="px-6 py-3 rounded-xl border border-black/10 bg-white font-bold text-[14px]">← 이전</a>
+      <a href="ha03_room-register.html" class="px-6 py-3 rounded-xl bg-brand text-white font-bold text-[14px]">다음: 객실 등록 →</a>
+    </div>
+  </main>
+</div>
+</body>
+</html>

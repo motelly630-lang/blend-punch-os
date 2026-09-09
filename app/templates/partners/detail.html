@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}{{ partner.name }} | 협력사 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}협력사 · {{ partner.name }}{% endblock %}
+{% block header_actions %}
+<a href="/portal/switch?partner_id={{ partner.id }}"
+  class="px-4 py-2 mr-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
+  포털 화면 보기
+</a>
+<a href="/partners" class="px-3 py-2 text-sm text-gray-500 hover:text-gray-800">← 목록</a>
+{% endblock %}
+
+{% block content %}
+{% if request.query_params.get('msg') %}
+<div class="mb-4 px-4 py-3 bg-green-50 border border-green-200 text-green-800 text-sm rounded-lg">{{ request.query_params.get('msg') }}</div>
+{% endif %}
+{% if request.query_params.get('err') %}
+<div class="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg">{{ request.query_params.get('err') }}</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- ── 기본 정보 ── -->
+  <div class="lg:col-span-1 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-800 mb-4">기본 정보</h2>
+    <form method="post" action="/partners/{{ partner.id }}/update" class="space-y-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">협력사명 *</label>
+        <input name="name" required value="{{ partner.name }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">담당자</label>
+          <input name="contact_name" value="{{ partner.contact_name or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">연락처</label>
+          <input name="phone" value="{{ partner.phone or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">이메일</label>
+        <input name="email" value="{{ partner.email or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+      </div>
+
+      <!-- 사업자 정보 -->
+      <div class="pt-2 mt-1 border-t border-gray-100"><span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">사업자 정보</span></div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">사업자명</label>
+          <input name="business_name" value="{{ partner.business_name or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">사업자등록번호</label>
+          <input name="biz_reg_number" value="{{ partner.biz_reg_number or '' }}" placeholder="000-00-00000" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">대표자명</label>
+          <input name="representative_name" value="{{ partner.representative_name or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">업태/종목</label>
+          <input name="business_type" value="{{ partner.business_type or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">사업장 주소</label>
+        <input name="business_address" value="{{ partner.business_address or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">세금계산서 이메일</label>
+        <input name="tax_invoice_email" value="{{ partner.tax_invoice_email or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+      </div>
+
+      <!-- 정산 계좌 -->
+      <div class="pt-2 mt-1 border-t border-gray-100"><span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">정산 계좌</span></div>
+      <div class="grid grid-cols-3 gap-2">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">은행</label>
+          <input name="bank_name" value="{{ partner.bank_name or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">계좌번호</label>
+          <input name="account_number" value="{{ partner.account_number or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">예금주</label>
+          <input name="account_holder" value="{{ partner.account_holder or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+      </div>
+
+      <!-- 계약 -->
+      <div class="pt-2 mt-1 border-t border-gray-100"><span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">계약</span></div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">계약 시작</label>
+          <input type="date" name="contract_start" value="{{ partner.contract_start }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">계약 종료</label>
+          <input type="date" name="contract_end" value="{{ partner.contract_end }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">수수료율(%)</label>
+          <input name="commission_rate" value="{{ partner.commission_rate if partner.commission_rate is not none else '' }}" inputmode="decimal" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">담당 매니저</label>
+          <select name="manager_user_id" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+            <option value="">미지정</option>
+            {% for u in staff_users %}<option value="{{ u.id }}" {% if partner.manager_user_id == u.id %}selected{% endif %}>{{ u.username }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      {% if partner.last_login_at %}
+      <p class="text-xs text-gray-400">최근 로그인: {{ partner.last_login_at | dt }}</p>
+      {% endif %}
+
+      <!-- 정산 안내 -->
+      <div class="pt-2 mt-1 border-t border-gray-100"><span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">정산 안내</span></div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">정산 소요일</label>
+          <input name="settlement_days" type="number" value="{{ partner.settlement_days }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">정산주기 안내</label>
+          <input name="settlement_cycle" value="{{ partner.settlement_cycle or '' }}" placeholder="공구종료 +14일" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">계약/공급 조건</label>
+        <textarea name="contract_terms" rows="2" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">{{ partner.contract_terms or '' }}</textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">내부 메모</label>
+        <textarea name="notes" rows="2" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">{{ partner.notes or '' }}</textarea>
+      </div>
+      <label class="flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" name="is_active" {% if partner.is_active %}checked{% endif %}> 활성
+      </label>
+      <button class="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">저장</button>
+    </form>
+
+    <!-- 담당자 -->
+    <div class="mt-6 pt-5 border-t border-gray-100">
+      <h2 class="text-sm font-semibold text-gray-800 mb-1">담당자 <span class="text-gray-400 font-normal">({{ contact_rows|length }})</span></h2>
+      <p class="text-xs text-gray-400 mb-3">담당자별로 포털 로그인 계정을 발급할 수 있습니다. 계정으로 <span class="font-mono">os.blendpunch.com/login</span> 접속 시 자기 협력사 일정만 보기 전용으로 확인합니다.</p>
+
+      <div class="space-y-2">
+        {% for row in contact_rows %}
+        {% set c = row.c %}{% set a = row.account %}
+        <div class="border border-gray-100 rounded-lg p-3" x-data="{ pw: false, reset: false }">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-sm font-medium text-gray-800">
+                {{ c.name }}{% if c.title %} <span class="text-xs font-normal text-gray-400">· {{ c.title }}</span>{% endif %}
+              </div>
+              <div class="text-xs text-gray-400 mt-0.5">
+                {{ c.phone or '' }}{% if c.phone and c.email %} · {% endif %}{{ c.email or '' }}{% if not c.phone and not c.email %}-{% endif %}
+              </div>
+            </div>
+            <form method="post" action="/partners/{{ partner.id }}/contacts/{{ c.id }}/delete"
+                  onsubmit="return confirm('담당자{% if a %}와 포털 계정{% endif %}를 삭제할까요?')">
+              <button class="text-xs text-red-400 hover:text-red-600">삭제</button>
+            </form>
+          </div>
+
+          <!-- 포털 계정 상태 -->
+          <div class="mt-2 pt-2 border-t border-gray-50">
+            {% if a %}
+            <div class="flex items-center gap-2 text-xs">
+              <span class="text-gray-400">계정</span>
+              <span class="font-mono font-medium text-gray-700">{{ a.username }}</span>
+              {% if a.is_active %}
+              <span class="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">활성</span>
+              {% else %}
+              <span class="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">중지</span>
+              {% endif %}
+              <button @click="reset = !reset" type="button" class="ml-auto text-blue-600 hover:underline">비번초기화</button>
+              <form method="post" action="/partners/{{ partner.id }}/account/{{ a.id }}/toggle">
+                <button class="text-gray-400 hover:text-gray-700">{% if a.is_active %}중지{% else %}활성화{% endif %}</button>
+              </form>
+            </div>
+            <form x-show="reset" x-cloak method="post" action="/partners/{{ partner.id }}/account/{{ a.id }}/reset" class="flex gap-1 mt-2">
+              <input name="new_password" type="text" placeholder="새 비밀번호(6자+)" class="flex-1 px-2 py-1 border border-gray-200 rounded text-xs">
+              <button class="px-2 py-1 bg-gray-800 text-white rounded text-xs whitespace-nowrap">변경</button>
+            </form>
+            {% else %}
+            <button @click="pw = !pw" type="button" class="text-xs text-blue-600 hover:underline">+ 포털 계정 발급</button>
+            <form x-show="pw" x-cloak method="post" action="/partners/{{ partner.id }}/contacts/{{ c.id }}/account" class="flex gap-1 mt-2">
+              <input name="username" required placeholder="아이디" class="flex-1 px-2 py-1 border border-gray-200 rounded text-xs">
+              <input name="password" required placeholder="비밀번호(6자+)" class="flex-1 px-2 py-1 border border-gray-200 rounded text-xs">
+              <button class="px-2 py-1 bg-gray-800 text-white rounded text-xs whitespace-nowrap">발급</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <p class="text-xs text-gray-400 py-2">등록된 담당자가 없습니다. 아래에서 추가하세요.</p>
+        {% endfor %}
+      </div>
+
+      <!-- 담당자 추가 -->
+      <form method="post" action="/partners/{{ partner.id }}/contacts/new" class="mt-3 grid grid-cols-2 gap-2">
+        <input name="name" required placeholder="담당자명 *" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        <input name="title" placeholder="직책/역할" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        <input name="phone" placeholder="연락처" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        <input name="email" placeholder="이메일" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        <button class="col-span-2 px-4 py-2 bg-gray-800 text-white text-sm font-medium rounded-lg hover:bg-gray-900">+ 담당자 추가</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── 배정 제품 ── -->
+  <div class="lg:col-span-2 space-y-6">
+
+    <!-- 고객 CS 요약 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-gray-800">고객 CS 현황</h2>
+        <a href="/cs?partner_id={{ partner.id }}" class="text-xs text-blue-600 hover:underline">전체 CS 보기 →</a>
+      </div>
+      <div class="grid grid-cols-4 gap-2 sm:gap-3">
+        <div class="text-center p-3 rounded-lg bg-gray-50 border border-gray-100">
+          <div class="text-base sm:text-xl font-bold text-gray-900">{{ cs_summary.total }}</div>
+          <div class="text-xs text-gray-500 mt-1">전체</div>
+        </div>
+        <div class="text-center p-3 rounded-lg bg-amber-50 border border-amber-100">
+          <div class="text-base sm:text-xl font-bold text-amber-600">{{ cs_summary.open }}</div>
+          <div class="text-xs text-gray-500 mt-1">미처리</div>
+        </div>
+        <div class="text-center p-3 rounded-lg bg-purple-50 border border-purple-100">
+          <div class="text-base sm:text-xl font-bold text-purple-600">{{ cs_summary.partner_waiting }}</div>
+          <div class="text-xs text-gray-500 mt-1">답변대기</div>
+        </div>
+        <div class="text-center p-3 rounded-lg bg-green-50 border border-green-100">
+          <div class="text-base sm:text-xl font-bold text-green-600">{{ cs_summary.completed }}</div>
+          <div class="text-xs text-gray-500 mt-1">완료</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 판매 현황 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">판매 현황 <span class="text-gray-400 font-normal text-xs">· 공구(캠페인) 기록 기준</span></h2>
+      <div class="grid grid-cols-3 gap-2 sm:gap-3">
+        <div class="text-center p-3 rounded-lg bg-gray-900 text-white">
+          <div class="text-base sm:text-xl font-bold">{{ sales.qty | num }}</div>
+          <div class="text-xs text-gray-300 mt-1">판매 수량</div>
+        </div>
+        <div class="text-center p-3 rounded-lg bg-gray-900 text-white">
+          <div class="text-sm sm:text-xl font-bold break-all leading-tight">{{ sales.revenue | won }}</div>
+          <div class="text-xs text-gray-300 mt-1">총 매출</div>
+        </div>
+        <div class="text-center p-3 rounded-lg bg-gray-50 border border-gray-100">
+          <div class="text-base sm:text-xl font-bold text-gray-900">{{ sales.deal_count | num }}</div>
+          <div class="text-xs text-gray-500 mt-1">판매 공구</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">배정된 제품 <span class="text-gray-400 font-normal">({{ assigned|length }})</span></h2>
+      <p class="text-xs text-gray-400 mb-3">배정된 제품 기준으로 협력사 포털의 공구·정산·검수·샘플 일정이 자동으로 채워집니다.</p>
+      <div class="divide-y divide-gray-50">
+        {% for p in assigned %}
+        {% set ps = sales.by_product.get(p.id) %}
+        <div class="flex items-center justify-between py-2.5 text-sm gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            {% if p.product_image %}<img src="{{ p.product_image }}" class="w-9 h-9 rounded object-cover flex-shrink-0">{% endif %}
+            <div class="min-w-0">
+              <div class="font-medium text-gray-800 truncate">{{ p.name }}</div>
+              <div class="text-xs text-gray-400">{{ p.brand }} · {{ p.category }}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 flex-shrink-0">
+            <div class="text-right">
+              <div class="text-gray-800 font-medium">{{ (ps.qty if ps else 0) | num }}개</div>
+              <div class="text-xs text-gray-400">{{ (ps.revenue if ps else 0) | won }}</div>
+            </div>
+            <form method="post" action="/partners/{{ partner.id }}/products/{{ p.id }}/remove">
+              <button class="text-xs text-red-500 hover:underline">해제</button>
+            </form>
+          </div>
+        </div>
+        {% else %}
+        <div class="py-8 text-center text-gray-400 text-sm">배정된 제품이 없습니다.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- 제품 배정 -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <h2 class="text-sm font-semibold text-gray-800 mb-3">제품 배정</h2>
+      {% if unassigned %}
+      <div class="relative mb-3">
+        <input id="prod-search" type="text" oninput="filterProducts()" autocomplete="off"
+               placeholder="제품명 · 브랜드 · 카테고리 검색"
+               class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm">
+        <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </div>
+      <form method="post" action="/partners/{{ partner.id }}/products/assign">
+        <div class="flex items-center justify-between mb-2 text-xs text-gray-400">
+          <button type="button" onclick="toggleAllProducts(this)" class="text-blue-600 hover:underline">전체 선택</button>
+          <span id="prod-count"></span>
+        </div>
+        <div id="prod-list" class="max-h-72 overflow-y-auto border border-gray-100 rounded-lg divide-y divide-gray-50 mb-3">
+          {% for p in unassigned %}
+          <label class="prod-item flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                 data-search="{{ (p.name ~ ' ' ~ p.brand ~ ' ' ~ p.category) | lower }}">
+            <input type="checkbox" name="product_ids" value="{{ p.id }}">
+            <span class="font-medium text-gray-800">{{ p.name }}</span>
+            <span class="text-xs text-gray-400">{{ p.brand }}{% if p.category %} · {{ p.category }}{% endif %}</span>
+          </label>
+          {% endfor %}
+          <div id="prod-empty" class="hidden px-3 py-6 text-center text-gray-400 text-sm">검색 결과가 없습니다.</div>
+        </div>
+        <button class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">선택한 제품 배정</button>
+      </form>
+      {% else %}
+      <p class="text-sm text-gray-400 py-4 text-center">배정 가능한 미배정 제품이 없습니다.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function filterProducts() {
+    const q = (document.getElementById('prod-search').value || '').trim().toLowerCase();
+    const items = document.querySelectorAll('#prod-list .prod-item');
+    let shown = 0;
+    items.forEach(el => {
+      const hit = !q || (el.dataset.search || '').includes(q);
+      el.style.display = hit ? '' : 'none';
+      if (hit) shown++;
+    });
+    const empty = document.getElementById('prod-empty');
+    if (empty) empty.classList.toggle('hidden', shown > 0);
+    const cnt = document.getElementById('prod-count');
+    if (cnt) cnt.textContent = shown + '개 표시';
+  }
+  function toggleAllProducts(btn) {
+    // 현재 화면에 보이는 항목만 토글
+    const items = document.querySelectorAll('#prod-list .prod-item');
+    const visible = Array.from(items).filter(el => el.style.display !== 'none');
+    const allChecked = visible.every(el => el.querySelector('input').checked);
+    visible.forEach(el => { el.querySelector('input').checked = !allChecked; });
+    btn.textContent = allChecked ? '전체 선택' : '전체 해제';
+  }
+  document.addEventListener('DOMContentLoaded', filterProducts);
+</script>
+{% endblock %}

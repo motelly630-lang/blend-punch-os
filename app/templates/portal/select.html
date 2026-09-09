@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>협력사 포털 미리보기 | BLEND PUNCH</title>
+  <link rel="icon" type="image/png" href="/static/logo.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="bg-gray-50 font-sans text-gray-900 antialiased min-h-screen">
+
+  <header class="bg-gray-900 text-white">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <img src="/static/logo.png" alt="BP" class="w-7 h-7 object-contain" onerror="this.style.display='none'">
+        <div>
+          <div class="text-xs font-bold tracking-widest uppercase leading-none">BLEND PUNCH</div>
+          <div class="text-gray-400 text-xs mt-0.5 leading-none">협력사 포털 미리보기</div>
+        </div>
+      </div>
+      <a href="/partners" class="text-gray-400 hover:text-white text-xs">← OS 협력사 관리</a>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-8">
+    <h1 class="text-lg font-bold text-gray-900">어떤 협력사 포털을 보시겠어요?</h1>
+    <p class="text-sm text-gray-500 mt-1 mb-6">
+      선택한 협력사가 로그인했을 때 보는 화면 그대로 열립니다. <span class="font-medium text-gray-700">보기 전용</span>이라
+      답변·CS 접수 같은 쓰기 동작은 막혀 있습니다.
+    </p>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {% for p in partners %}
+      <a href="/portal/switch?partner_id={{ p.id }}"
+         class="block bg-white rounded-xl border {% if p.id == current_partner_id %}border-gray-900{% else %}border-gray-100 hover:border-gray-300{% endif %} p-4">
+        <div class="flex items-center justify-between gap-2">
+          <div class="font-semibold text-gray-900">{{ p.name }}</div>
+          {% if p.id == current_partner_id %}
+          <span class="text-[11px] px-2 py-0.5 rounded-full bg-gray-900 text-white">최근 선택</span>
+          {% endif %}
+        </div>
+        <div class="text-xs text-gray-500 mt-1">{{ p.contact_name or '담당자 미등록' }} · {{ p.phone or '연락처 없음' }}</div>
+      </a>
+      {% else %}
+      <div class="sm:col-span-2 bg-white rounded-xl border border-gray-100 px-4 py-12 text-center text-gray-400 text-sm">
+        등록된 협력사가 없습니다. <a href="/partners" class="text-blue-600 hover:underline">협력사 관리</a>에서 먼저 추가하세요.
+      </div>
+      {% endfor %}
+    </div>
+  </main>
+</body>
+</html>

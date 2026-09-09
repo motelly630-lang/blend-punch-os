@@ -35,6 +35,7 @@ from app.api import ai_product, ai_proposal, ai_playbook, ai_dm, ai_seller_conte
 from app.routers import trend_engine as trend_engine_router
 from app.routers import outreach as outreach_router
 from app.routers import crm as crm_router
+from app.routers import sourcing as sourcing_router
 from app.routers import brands as brands_router
 from app.routers import shop as shop_router
 from app.routers import orders as orders_router
@@ -52,6 +53,11 @@ from app.routers import transactions as transactions_router
 from app.routers import attendance as attendance_router
 from app.api import public_v1 as public_v1_router
 from app.routers import inquiry as inquiry_router
+from app.routers import partners as partners_router
+from app.routers import portal as portal_router
+from app.routers import cs as cs_router
+from app.routers import portal_cs as portal_cs_router
+from app.routers import sheets as sheets_router
 from app.auth.dependencies import RequiresLogin, InsufficientPermissions, FeatureDisabled
 
 
@@ -171,6 +177,7 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
         company_id = 1
         is_super   = False
         enabled    = frozenset()
+        role       = ""
 
         token = request.cookies.get("access_token")
         if token:
@@ -178,6 +185,7 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
                 payload = decode_token(token)
                 if payload:
                     username = payload.get("sub", "")
+                    role     = payload.get("role", "")
                     if username:
                         cached = _user_context_cache.get(username)
                         now = time.monotonic()
@@ -208,6 +216,12 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
 
         # ── ContextVar 설정 (Jinja2 global에서 사용) ──────────────────
         set_request_context(company_id, is_super, enabled)
+
+        # ── 협력사(partner) 전면 격리 ─────────────────────────────────
+        # partner 계정은 /portal 외의 어떤 OS 경로에도 접근 불가.
+        # (정적/로그인/로그아웃/공개 스토어 경로는 위 skip_parse 에서 이미 통과)
+        if role == "partner" and not path.startswith("/portal"):
+            return RedirectResponse("/portal", status_code=302)
 
         # ── ALWAYS_ALLOW 경로는 feature gate 건너뜀 ───────────────────
         always_allow = (
@@ -298,9 +312,11 @@ def _is_api_request(request: Request) -> bool:
 
 @app.exception_handler(RequiresLogin)
 async def requires_login_handler(request: Request, exc: RequiresLogin):
+    # 협력사 포털 경로는 협력사 전용 로그인으로 유도 (OS 로그인과 분리)
+    login_url = "/portal/login" if request.url.path.startswith("/portal") else "/login"
     if _is_api_request(request):
-        return JSONResponse({"error": "로그인이 필요합니다", "redirect": "/login"}, status_code=401)
-    return RedirectResponse(url="/login", status_code=302)
+        return JSONResponse({"error": "로그인이 필요합니다", "redirect": login_url}, status_code=401)
+    return RedirectResponse(url=login_url, status_code=302)
 
 
 @app.exception_handler(InsufficientPermissions)
@@ -374,6 +390,7 @@ app.include_router(trend_engine_router.router)
 app.include_router(catalog_router.router)
 app.include_router(outreach_router.router)
 app.include_router(crm_router.router)
+app.include_router(sourcing_router.router)
 app.include_router(brands_router.router)
 app.include_router(shop_router.router)
 app.include_router(orders_router.router)
@@ -391,6 +408,11 @@ app.include_router(transactions_router.router)
 app.include_router(attendance_router.router)
 app.include_router(public_v1_router.router)
 app.include_router(inquiry_router.router)
+app.include_router(partners_router.router)
+app.include_router(portal_router.router)
+app.include_router(cs_router.router)
+app.include_router(portal_cs_router.router)
+app.include_router(sheets_router.router)
 
 
 # ── Jinja2 template filters ───────────────────────────────────────────────────
@@ -468,6 +490,7 @@ def _setup_filters():
     import app.routers.trend_engine as teng
     import app.routers.outreach as out
     import app.routers.crm as crm
+    import app.routers.sourcing as srcg
     import app.routers.brands as br
     import app.routers.orders as ord_
     import app.routers.sales_pages as sp
@@ -493,7 +516,12 @@ def _setup_filters():
 
     import app.routers.attendance as att
     import app.routers.inquiry as inq
-    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, br, ord_, sp, sel, appl, biz, ff, comp, man, eml, bkp, agp, att, inq]:
+    import app.routers.partners as prt
+    import app.routers.portal as ptl
+    import app.routers.cs as cs_mod
+    import app.routers.portal_cs as pcs_mod
+    import app.routers.sheets as sht_mod
+    for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, srcg, br, ord_, sp, sel, appl, biz, ff, comp, man, eml, bkp, agp, att, inq, prt, ptl, cs_mod, pcs_mod, sht_mod]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
         env.filters["num"] = format_num

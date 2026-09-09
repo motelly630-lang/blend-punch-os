@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}고객 CS · BLEND PUNCH OS{% endblock %}
+{% block page_title %}고객 CS{% endblock %}
+
+{% block header_actions %}
+<a href="/cs/stats" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:border-gray-300 whitespace-nowrap">통계</a>
+<a href="/cs/export{% if q or f_status or f_type or f_partner or f_urgent %}?q={{ q }}&status={{ f_status }}&cs_type_id={{ f_type }}&partner_id={{ f_partner }}&urgent={{ f_urgent }}{% endif %}" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:border-gray-300 whitespace-nowrap">엑셀</a>
+<a href="/cs/guides" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:border-gray-300 whitespace-nowrap">가이드</a>
+<a href="/cs/templates" class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:border-gray-300 whitespace-nowrap">템플릿</a>
+<a href="/cs/new"
+   class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors whitespace-nowrap">
+  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+  </svg>
+  CS 등록
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- 빠른 탭 -->
+<div class="flex items-center gap-1.5 overflow-x-auto pb-1 mb-4 header-actions">
+  {% for key, label in quick_tabs %}
+  <a href="/cs?tab={{ key }}"
+     class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+       {% if current_tab == key %}bg-gray-900 text-white{% else %}bg-white text-gray-500 border border-gray-200 hover:border-gray-300{% endif %}">
+    {{ label }}
+    {% if counts.get(key) is not none %}
+    <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none
+      {% if current_tab == key %}bg-white/20{% else %}bg-gray-100 text-gray-600{% endif %}">{{ counts.get(key) }}</span>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+<!-- 검색 + 필터 -->
+<form method="get" action="/cs" class="bg-white border border-gray-100 rounded-xl p-3 mb-4 flex flex-wrap items-center gap-2">
+  <input type="hidden" name="tab" value="{{ current_tab }}">
+  <input type="text" name="q" value="{{ q }}" placeholder="CS번호·주문번호·고객명·연락처·상품명·송장"
+         class="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-400 focus:outline-none">
+  <select name="status" class="px-2 py-2 rounded-lg border border-gray-200 text-sm text-gray-600">
+    <option value="">상태 전체</option>
+    {% for code, label, _ in STATUSES %}
+    <option value="{{ code }}" {% if f_status == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="cs_type_id" class="px-2 py-2 rounded-lg border border-gray-200 text-sm text-gray-600">
+    <option value="">유형 전체</option>
+    {% for t in cs_types %}
+    <option value="{{ t.id }}" {% if f_type == t.id %}selected{% endif %}>{{ t.name }}</option>
+    {% endfor %}
+  </select>
+  <select name="partner_id" class="px-2 py-2 rounded-lg border border-gray-200 text-sm text-gray-600">
+    <option value="">협업사 전체</option>
+    {% for p in partners %}
+    <option value="{{ p.id }}" {% if f_partner == p.id %}selected{% endif %}>{{ p.name }}</option>
+    {% endfor %}
+  </select>
+  <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 px-2">
+    <input type="checkbox" name="urgent" value="1" {% if f_urgent == '1' %}checked{% endif %} class="rounded border-gray-300"> 긴급만
+  </label>
+  <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gray-800 hover:bg-gray-900">검색</button>
+  {% if q or f_status or f_type or f_partner or f_urgent %}
+  <a href="/cs?tab={{ current_tab }}" class="px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-600">초기화</a>
+  {% endif %}
+</form>
+
+<!-- 목록 -->
+<div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-gray-500 text-xs">
+      <tr>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">CS 번호</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">접수일</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">상태</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">고객</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">주문번호</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">상품</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">유형</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">협업사</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">담당자</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">처리방법</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">경과</th>
+        <th class="text-left font-medium px-3 py-2.5 whitespace-nowrap">예정일</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for t in tickets %}
+      <tr class="hover:bg-gray-50 cursor-pointer" onclick="location.href='/cs/{{ t.id }}'">
+        <td class="px-3 py-2.5 whitespace-nowrap font-medium text-gray-800">
+          {% if t.is_urgent %}<span class="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mr-1 align-middle" title="긴급"></span>{% endif %}
+          {{ t.cs_number }}
+          {% if t.submitted_by_partner %}<span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-50 text-teal-700" title="협업사가 포털에서 직접 접수">협업사</span>{% endif %}
+        </td>
+        <td class="px-3 py-2.5 whitespace-nowrap text-gray-500">{{ t.received_at | date }}</td>
+        <td class="px-3 py-2.5 whitespace-nowrap">
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_BADGES.get(t.status, 'bg-gray-100 text-gray-600') }}">
+            {{ STATUS_LABELS.get(t.status, t.status) }}
+          </span>
+        </td>
+        <td class="px-3 py-2.5 whitespace-nowrap text-gray-700">{{ t.customer_name or '-' }}</td>
+        <td class="px-3 py-2.5 whitespace-nowrap text-gray-500">{{ t.external_order_number or '-' }}</td>
+        <td class="px-3 py-2.5 whitespace-nowrap text-gray-700 max-w-[180px] truncate">
+          {% if t.product_id %}{{ maps.products.get(t.product_id, '(삭제된 상품)') }}
+          {% elif t.external_product_name %}{{ t.external_product_name }}
+          {% else %}-{% endif %}
+        </td>
+        <td class="px-3 py-2.5 whitespace-nowrap text-gray-600">{{ maps.types.get(t.cs_type_id, '-') }}</td>
+        <td class="px-3 py-2.5 whitespace-nowrap text-gray-600">{{ maps.partners.get(t.partner_id, '-') }}</td>
+        <td class="px-3 py-2.5 whitespace-nowrap text-gray-600">{{ maps.users.get(t.assigned_user_id, '-') }}</td>
+        <td class="px-3 py-2.5 whitespace-nowrap text-gray-500">{{ RESOLUTION_LABELS.get(t.resolution_type, '-') }}</td>
+        <td class="px-3 py-2.5 whitespace-nowrap text-gray-500">
+          {% if t.received_at %}{{ (now - t.received_at).days }}일{% else %}-{% endif %}
+        </td>
+        <td class="px-3 py-2.5 whitespace-nowrap {% if t.due_at and t.due_at < now and t.status not in ['completed','closed'] %}text-red-600 font-medium{% else %}text-gray-500{% endif %}">
+          {{ t.due_at | date if t.due_at else '-' }}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="12" class="px-3 py-16 text-center text-gray-400 text-sm">해당 조건의 CS가 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-xs text-gray-400 mt-3">총 {{ tickets | length }}건</p>
+{% endblock %}

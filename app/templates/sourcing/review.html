@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}소싱 검수 | BLEND PUNCH OS{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-5">
+  <div class="flex items-center gap-2">
+    <a href="/sourcing" class="text-gray-500 hover:text-gray-300">← 소싱</a>
+    <h1 class="text-2xl font-bold text-white">검수 — {{ batch.source_filename or batch.id[:8] }}</h1>
+    <span class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300">{{ batch.status }}</span>
+  </div>
+  <div class="flex gap-2">
+    {% if sheets_configured %}
+    <button onclick="syncSheet('{{ batch.id }}', this)"
+            class="px-3 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg text-sm">📊 구글시트 동기화</button>
+    {% endif %}
+    <a href="/sourcing/{{ batch.id }}/export"
+       class="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-sm">⬇ 엑셀 내보내기</a>
+  </div>
+</div>
+{% if batch.sheet_url %}
+<div class="mb-3 text-xs text-green-400">✓ 시트 동기화됨 — <a href="{{ batch.sheet_url }}" target="_blank" class="underline">시트 열기</a></div>
+{% endif %}
+
+<div class="text-sm text-gray-400 mb-4">
+  추출 {{ batch.extracted_count }}건 · 오류 {{ batch.error_count }}건
+  {% if batch.error_log %}
+  <details class="inline-block ml-2">
+    <summary class="cursor-pointer text-rose-400">오류 보기</summary>
+    <ul class="mt-1 text-xs text-rose-300">
+      {% for e in batch.error_log %}<li>· {{ e.row }}행: {{ e.message }}</li>{% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</div>
+
+{% if rows %}
+<div class="space-y-4">
+  {% for r in rows %}
+  {% set p = r.product %}
+  <div id="prod-{{ p.id }}" class="border border-gray-800 rounded-lg p-4 bg-gray-900/40">
+    <div class="flex items-start justify-between gap-4">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-semibold text-white">{{ p.name or '(상품명 없음)' }}</span>
+          <span class="text-xs text-gray-400">{{ p.brand }}</span>
+          {% if p.category %}<span class="text-xs px-1.5 py-0.5 bg-gray-800 rounded text-gray-400">{{ p.category }}</span>{% endif %}
+          <span class="text-xs px-1.5 py-0.5 rounded
+            {{ 'bg-emerald-800 text-emerald-200' if p.review_status == 'approved' else 'bg-amber-800/60 text-amber-200' }}">
+            {{ p.review_status }}</span>
+        </div>
+        <div class="text-xs text-gray-400 mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          <span>소비자가 <b class="text-gray-200">{{ p.consumer_price | won }}</b></span>
+          <span>공급가 <b class="text-gray-200">{{ p.supplier_price | won }}</b></span>
+          <span>공구가 <b class="text-gray-200">{{ p.groupbuy_price | won }}</b></span>
+          <span>할인율 <b class="text-gray-200">{{ p.discount_rate | pct }}</b></span>
+          <span>마진율 <b class="text-emerald-300">{{ p.margin_rate | pct }}</b></span>
+          {% if p.shipping_cost is not none %}<span>배송비 <b class="text-gray-200">{{ p.shipping_cost | won }}</b></span>{% endif %}
+          {% if p.dispatch_days %}<span>출고 <b class="text-gray-200">{{ p.dispatch_days }}</b></span>{% endif %}
+        </div>
+        {% if p.missing_fields %}
+        <div class="text-xs text-amber-400 mt-1">⚠ 누락: {{ p.missing_fields | join(', ') }}</div>
+        {% endif %}
+      </div>
+      <div class="shrink-0 flex flex-col gap-1.5">
+        <button onclick="enrich('{{ p.id }}', this)"
+                class="text-xs px-3 py-1.5 bg-violet-700 hover:bg-violet-600 rounded text-white">✨ AI 보강</button>
+        <button onclick="approve('{{ p.id }}', this)"
+                class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded text-white">✓ 승인</button>
+      </div>
+    </div>
+
+    {# AI 보강 결과 (규제표현 분리 + 카피) #}
+    <div id="enrich-{{ p.id }}" class="mt-3 {% if not (p.compliance or p.generated_copy) %}hidden{% endif %}">
+      {% if p.compliance %}
+      <div class="border border-gray-800 rounded p-3 bg-gray-950/40 mb-2">
+        <div class="text-xs font-semibold text-gray-300 mb-1">
+          🛡 광고표현 검토 — {{ p.compliance.category }}
+          {% if p.compliance.is_regulated %}<span class="text-amber-400">(규제대상)</span>{% endif %}
+        </div>
+        {% if p.compliance.risky_expressions %}
+        <div class="text-xs text-rose-300 mb-1">⛔ 위험표현:
+          {% for r in p.compliance.risky_expressions %}
+          <div class="ml-3">· "{{ r.phrase }}" → <span class="text-emerald-300">{{ r.alternative or '삭제' }}</span>
+            <span class="text-gray-600">({{ r.reason }})</span></div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if p.compliance.safe_expressions %}
+        <div class="text-xs text-emerald-300">✅ 사용가능: {{ p.compliance.safe_expressions | join(' · ') }}</div>
+        {% endif %}
+        {% if p.compliance.disclaimer %}<div class="text-xs text-gray-500 mt-1">※ {{ p.compliance.disclaimer }}</div>{% endif %}
+      </div>
+      {% endif %}
+      {% if p.generated_copy %}
+      <div class="border border-gray-800 rounded p-3 bg-gray-950/40 text-xs space-y-1.5">
+        <div class="font-semibold text-gray-300">✍ 생성 카피</div>
+        {% if p.generated_copy.card_news %}<div><span class="text-gray-500">카드뉴스:</span> {{ p.generated_copy.card_news | join(' / ') }}</div>{% endif %}
+        {% if p.generated_copy.reels_hooks %}<div><span class="text-gray-500">릴스훅:</span> {{ p.generated_copy.reels_hooks | join(' / ') }}</div>{% endif %}
+        {% if p.generated_copy.seller_message %}<div><span class="text-gray-500">셀러문구:</span> {{ p.generated_copy.seller_message }}</div>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    {# 셀러 유형 × 수수료율별 정산 시뮬 (1건=공구가 기준, 세금공제 반영) #}
+    <div class="mt-3 overflow-x-auto">
+      <div class="text-xs text-gray-500 mb-1">셀러 정산 시뮬 — 총판매 = 공구가 {{ r.settlement.basis | won }} (1건) 기준</div>
+      <table class="text-xs w-full">
+        <thead class="text-gray-500">
+          <tr><th class="text-left py-1">셀러 유형</th>
+            {% for rate in r.settlement.rates %}<th class="text-right py-1 px-2">{{ rate | pct }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody class="text-gray-300">
+          {% for row in r.settlement.rows %}
+          <tr>
+            <td class="py-1 pr-2">{{ row.seller_type }}<span class="text-gray-600 ml-1">({{ row.note }})</span></td>
+            {% for amt in row.cells %}<td class="text-right px-2">{{ amt | won }}</td>{% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="p-10 border border-gray-800 rounded-lg text-center text-gray-400">추출된 상품이 없습니다.</div>
+{% endif %}
+
+<script>
+async function syncSheet(batchId, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '📊 동기화 중…';
+  try {
+    const r = await fetch(`/sourcing/${batchId}/sync-sheet`, { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) { btn.textContent = `✓ ${d.rows}건 입력됨`; setTimeout(() => location.reload(), 800); }
+    else { btn.textContent = '⚠ ' + (d.error || '실패'); setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 4000); }
+  } catch (e) { btn.textContent = '⚠ 오류'; btn.disabled = false; }
+}
+
+async function enrich(id, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '✨ 보강 중…(웹서치)';
+  try {
+    const r = await fetch(`/sourcing/product/${id}/enrich`, { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) { btn.textContent = '✓ 보강완료'; setTimeout(() => location.reload(), 600); }
+    else { btn.textContent = '⚠ ' + (d.error || '실패'); btn.disabled = false; }
+  } catch (e) { btn.textContent = '⚠ 오류'; btn.disabled = false; }
+}
+
+async function approve(id, btn) {
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch(`/sourcing/product/${id}/approve`, { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) { btn.textContent = '✓ 승인됨'; btn.classList.remove('bg-blue-600','hover:bg-blue-500'); btn.classList.add('bg-emerald-700'); }
+    else { btn.textContent = '실패'; btn.disabled = false; }
+  } catch (e) { btn.textContent = '오류'; btn.disabled = false; }
+}
+</script>
+{% endblock %}

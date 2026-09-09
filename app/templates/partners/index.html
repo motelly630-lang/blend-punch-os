@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}협력사 관리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}협력사 관리{% endblock %}
+{% block header_actions %}
+<a href="/portal/select"
+  class="px-4 py-2 mr-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
+  포털 미리보기
+</a>
+<button onclick="document.getElementById('new-partner').classList.toggle('hidden')"
+  class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+  + 새 협력사
+</button>
+{% endblock %}
+
+{% block content %}
+{% if request.query_params.get('msg') %}
+<div class="mb-4 px-4 py-3 bg-green-50 border border-green-200 text-green-800 text-sm rounded-lg">{{ request.query_params.get('msg') }}</div>
+{% endif %}
+{% if request.query_params.get('err') %}
+<div class="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg">{{ request.query_params.get('err') }}</div>
+{% endif %}
+
+<!-- 새 협력사 등록 폼 -->
+<div id="new-partner" class="hidden mb-6 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+  <form method="post" action="/partners/new" class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+    <div class="md:col-span-2">
+      <label class="block text-xs font-medium text-gray-500 mb-1">협력사명 *</label>
+      <input name="name" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="예: OO식품">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">담당자</label>
+      <input name="contact_name" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">연락처</label>
+      <input name="phone" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">정산 소요일</label>
+      <input name="settlement_days" type="number" value="14" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+    </div>
+    <div class="md:col-span-5 flex justify-end">
+      <button class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">등록</button>
+    </div>
+  </form>
+</div>
+
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="text-left px-5 py-3 font-medium text-gray-500">협력사명</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500">담당자</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500">연락처</th>
+        <th class="text-right px-5 py-3 font-medium text-gray-500">배정 제품</th>
+        <th class="text-right px-5 py-3 font-medium text-gray-500">포털 계정</th>
+        <th class="text-center px-5 py-3 font-medium text-gray-500">상태</th>
+        <th class="px-5 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for p in partners %}
+      <tr class="hover:bg-gray-50 cursor-pointer" onclick="location.href='/partners/{{ p.id }}'">
+        <td class="px-5 py-3.5 font-medium text-gray-800">{{ p.name }}</td>
+        <td class="px-5 py-3.5 text-gray-600">{{ p.contact_name or '-' }}</td>
+        <td class="px-5 py-3.5 text-gray-600">{{ p.phone or '-' }}</td>
+        <td class="px-5 py-3.5 text-right text-gray-700">{{ stats[p.id].products }}</td>
+        <td class="px-5 py-3.5 text-right text-gray-700">{{ stats[p.id].accounts }}</td>
+        <td class="px-5 py-3.5 text-center">
+          {% if p.is_active %}
+          <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">활성</span>
+          {% else %}
+          <span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">중지</span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3.5 text-right whitespace-nowrap">
+          <a href="/portal/switch?partner_id={{ p.id }}" class="text-gray-500 hover:underline text-xs mr-3" onclick="event.stopPropagation()">포털 보기</a>
+          <a href="/partners/{{ p.id }}" class="text-blue-600 hover:underline text-xs" onclick="event.stopPropagation()">관리 →</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="px-5 py-12 text-center text-gray-400">등록된 협력사가 없습니다. 우측 상단에서 추가하세요.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

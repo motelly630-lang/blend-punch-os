@@ -20,6 +20,11 @@ def dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 협력사(partner) 계정은 OS 대시보드 대신 협력사 포털로
+    if current_user.role == "partner":
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/portal", status_code=302)
+
     cid = get_company_id(current_user)
     now = datetime.now()
 

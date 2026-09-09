@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}제품 소싱 | BLEND PUNCH OS{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-white">제품 소싱 에이전트</h1>
+    <p class="text-sm text-gray-400 mt-1">공급사 엑셀/CSV를 올리면 AI가 상품 정보를 추출하고 마진을 계산합니다.</p>
+  </div>
+  <a href="/sourcing/upload" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium">
+    + 새 소싱 업로드
+  </a>
+</div>
+
+{% if batches %}
+<div class="overflow-x-auto border border-gray-800 rounded-lg">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-900 text-gray-400">
+      <tr>
+        <th class="text-left px-4 py-3">파일</th>
+        <th class="text-left px-4 py-3">상태</th>
+        <th class="text-right px-4 py-3">행</th>
+        <th class="text-right px-4 py-3">추출</th>
+        <th class="text-right px-4 py-3">오류</th>
+        <th class="text-left px-4 py-3">생성일</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-800">
+      {% for b in batches %}
+      <tr class="hover:bg-gray-900/50">
+        <td class="px-4 py-3 text-gray-200">{{ b.source_filename or '—' }}</td>
+        <td class="px-4 py-3"><span class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300">{{ b.status }}</span></td>
+        <td class="px-4 py-3 text-right text-gray-400">{{ b.total_rows }}</td>
+        <td class="px-4 py-3 text-right text-emerald-400">{{ b.extracted_count }}</td>
+        <td class="px-4 py-3 text-right {{ 'text-rose-400' if b.error_count else 'text-gray-600' }}">{{ b.error_count }}</td>
+        <td class="px-4 py-3 text-gray-500">{{ b.created_at | dt }}</td>
+        <td class="px-4 py-3 text-right">
+          <a href="/sourcing/{{ b.id }}/review" class="text-blue-400 hover:text-blue-300">검수 →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="p-10 border border-gray-800 rounded-lg text-center text-gray-400">
+  아직 소싱 업로드가 없습니다. <a href="/sourcing/upload" class="text-blue-400">첫 파일을 올려보세요.</a>
+</div>
+{% endif %}
+{% endblock %}

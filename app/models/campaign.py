@@ -10,6 +10,7 @@ class Campaign(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
+    partner_id = Column(String(36), ForeignKey("partners.id"), nullable=True, index=True)  # 협력사(공급사) 출처
     name = Column(String(300), nullable=False)
     product_id = Column(String(36), ForeignKey("products.id"), nullable=True)
     influencer_id = Column(String(36), ForeignKey("influencers.id"), nullable=True)
@@ -39,6 +40,10 @@ class Campaign(Base):
     # 내부/외부 구분
     campaign_type = Column(String(20), default="internal")  # internal|external
     external_url = Column(Text, nullable=True)               # 외부 링크 (external일 때)
+
+    # 통합 운영 스프레드시트 미러 (OS가 진실, 시트는 읽기전용)
+    sheet_code   = Column(String(50), nullable=True, index=True)
+    sheet_status = Column(String(30), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

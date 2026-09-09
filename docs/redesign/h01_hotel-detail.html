@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>H01 호텔 상세 · BLEND PICK</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>body{font-family:'Pretendard',sans-serif;}.no-sb::-webkit-scrollbar{display:none;}</style>
+<script>tailwind.config={theme:{extend:{colors:{brand:{DEFAULT:'#2f5d3f',dark:'#244a32',light:'#e7f0ea'},accent:'#ff7a1a',ink:'#1b1f1d',paper:'#faf9f5'}}}}</script>
+</head>
+<!-- H01 — 호텔 상세/랜딩 : 기존 공구 상세와 동일 디자인, CTA만 '예약하기' -->
+<body class="bg-paper text-ink">
+<div class="mx-auto max-w-[440px] bg-white min-h-screen shadow-sm relative pb-24">
+  <header class="sticky top-0 z-30 flex items-center justify-between px-4 h-12 bg-white/90 backdrop-blur border-b border-black/5">
+    <span class="font-extrabold text-brand">BLEND<span class="text-ink">PICK</span></span>
+    <span class="text-[11px] font-semibold text-brand bg-brand-light px-2 py-1 rounded-full">호텔 공동구매</span>
+  </header>
+
+  <!-- 인플루언서 훅 (기존과 동일) -->
+  <section class="flex items-center gap-3 px-4 py-3 bg-brand-light/60">
+    <img src="https://i.pravatar.cc/80?img=32" class="w-11 h-11 rounded-full object-cover ring-2 ring-white">
+    <div class="leading-tight"><p class="text-[13px] font-bold">@travel_yuna <span class="text-brand">추천</span></p>
+    <p class="text-[12px] text-black/60">"인생 오션뷰 🏝️ 이 가격 실화 아니에요"</p></div>
+  </section>
+
+  <!-- 이미지 갤러리 -->
+  <div class="flex gap-1 overflow-x-auto no-sb snap-x">
+    <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800" class="w-[85%] shrink-0 aspect-[4/3] object-cover snap-center">
+    <img src="https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800" class="w-[85%] shrink-0 aspect-[4/3] object-cover snap-center">
+    <img src="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800" class="w-[85%] shrink-0 aspect-[4/3] object-cover snap-center">
+  </div>
+
+  <!-- 호텔 정보 -->
+  <section class="px-4 pt-4">
+    <div class="flex items-center gap-1 text-[12px] text-accent font-bold">★★★★★ <span class="text-black/45 font-normal ml-1">5성급 · 제주 서귀포</span></div>
+    <h1 class="text-[20px] font-extrabold mt-1">그랜드 오션 리조트 제주</h1>
+    <div class="flex items-baseline gap-2 mt-2">
+      <span class="text-[12px] text-black/50">1박 최저</span>
+      <span class="text-[24px] font-extrabold text-brand">129,000원</span>
+      <span class="text-[14px] text-black/35 line-through">240,000원</span>
+      <span class="text-[12px] font-bold text-accent bg-accent/10 px-1.5 py-0.5 rounded">-46%</span>
+    </div>
+  </section>
+
+  <!-- 공구 마감 바 (기존과 동일 컴포넌트) -->
+  <section class="mx-4 mt-4 rounded-2xl bg-brand text-white p-4">
+    <div class="flex items-center justify-between">
+      <div><p class="text-[11px] text-white/70">공동구매 마감까지</p><p class="text-[18px] font-extrabold">3일 08:14:00</p></div>
+      <div class="text-right"><p class="text-[11px] text-white/70">투숙 가능 기간</p><p class="text-[14px] font-bold">8/1 ~ 8/31</p></div>
+    </div>
+  </section>
+
+  <!-- 편의시설 -->
+  <section class="px-4 mt-6">
+    <p class="text-[13px] font-bold mb-2">편의시설</p>
+    <div class="flex flex-wrap gap-2 text-[12px]">
+      <span class="px-3 py-1.5 rounded-full bg-black/5">🏊 인피니티풀</span>
+      <span class="px-3 py-1.5 rounded-full bg-black/5">🍳 조식뷔페</span>
+      <span class="px-3 py-1.5 rounded-full bg-black/5">🅿️ 무료주차</span>
+      <span class="px-3 py-1.5 rounded-full bg-black/5">💆 스파</span>
+      <span class="px-3 py-1.5 rounded-full bg-black/5">🌊 오션뷰</span>
+    </div>
+  </section>
+
+  <!-- 객실 미리보기 -->
+  <section class="px-4 mt-6">
+    <p class="text-[13px] font-bold mb-2">객실 안내</p>
+    <div class="space-y-2">
+      <div class="flex gap-3 p-3 rounded-xl border border-black/8">
+        <img src="https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=300" class="w-20 h-20 rounded-lg object-cover">
+        <div class="text-[13px]"><p class="font-bold">디럭스 오션뷰</p><p class="text-black/50">기준 2인 · 최대 3인</p><p class="text-brand font-bold mt-1">129,000원~ / 1박</p></div>
+      </div>
+      <div class="flex gap-3 p-3 rounded-xl border border-black/8">
+        <img src="https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=300" class="w-20 h-20 rounded-lg object-cover">
+        <div class="text-[13px]"><p class="font-bold">프리미어 스위트</p><p class="text-black/50">기준 2인 · 최대 4인</p><p class="text-brand font-bold mt-1">219,000원~ / 1박</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 안내 -->
+  <section class="px-4 mt-6 text-[12px] text-black/55 leading-relaxed border-t border-black/5 pt-4">
+    <p class="font-bold text-ink mb-1">투숙 · 취소 안내</p>
+    체크인 15:00 / 체크아웃 11:00 · 투숙 3일 전까지 무료취소 · 공구 특가는 날짜별 잔여 객실 한정
+  </section>
+
+  <!-- 하단 고정: 예약하기 (옵션 아님!) -->
+  <div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[440px] bg-white border-t border-black/10 px-4 py-3">
+    <a href="h02_booking.html" class="block w-full py-3.5 rounded-xl bg-brand text-white font-bold text-[15px] text-center">예약하기</a>
+  </div>
+</div>
+</body>
+</html>

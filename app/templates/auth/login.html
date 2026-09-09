@@ -6,12 +6,7 @@
   <title>로그인 | BLEND PUNCH OS</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23111827'/><path d='M19.5 4.5L9.5 17h7v10.5L26 15h-7z' fill='white'/></svg>">
   <link rel="icon" type="image/png" href="/static/logo.png">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: { extend: { fontFamily: { sans: ['Noto Sans KR', 'system-ui', 'sans-serif'] } } }
-    }
-  </script>
+  <link rel="stylesheet" href="/static/css/app.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -93,9 +88,9 @@
       </form>
     </div>
 
-    <div class="mt-4 flex justify-between text-sm text-gray-500">
-      <a href="/signup" class="hover:text-gray-700">회원가입</a>
-      <a href="/forgot-password" class="hover:text-gray-700">비밀번호 찾기</a>
+    <div class="mt-4 flex items-center justify-between text-sm">
+      <a href="/portal/login" class="{% if login_bg_image %}text-white/80 hover:text-white{% else %}text-indigo-600 hover:text-indigo-800{% endif %} font-medium">협력사이신가요? 협력사 로그인 →</a>
+      <a href="/forgot-password" class="{% if login_bg_image %}text-white/70 hover:text-white{% else %}text-gray-500 hover:text-gray-700{% endif %}">비밀번호 찾기</a>
     </div>
     <div class="mt-4 text-center text-xs text-gray-400">
       v0.1 · BLEND PUNCH OS · 내부 전용

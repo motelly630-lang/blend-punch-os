@@ -61,4 +61,6 @@ def init_db():
     import app.models.pipeline_job  # noqa
     import app.models.shop_user  # noqa
     import app.models.inquiry  # noqa
+    import app.models.sourcing_batch  # noqa
+    import app.models.cs  # noqa
     Base.metadata.create_all(bind=engine)
