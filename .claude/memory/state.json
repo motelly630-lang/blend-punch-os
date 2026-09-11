@@ -1,14 +1,24 @@
 {
   "schema": 1,
   "project": "blend-punch-os",
-  "state": "idle",
-  "current_task": null,
-  "tasks": [],
+  "state": "active",
+  "current_task": "AI 작업환경 고도화 Phase 2 (자동화)",
+  "tasks": [
+    { "id": "T1", "title": "Context Router — UserPromptSubmit 훅 (어휘 일치, 포인터만)", "status": "done" },
+    { "id": "T2", "title": "수정 저널 — PostToolUse(Write|Edit) 기계 기록", "status": "done" },
+    { "id": "T3", "title": "state 플러시 — SessionEnd + PreCompact 훅", "status": "done" },
+    { "id": "T4", "title": "공용 래퍼 os-hook.sh + settings.json 등록", "status": "done" },
+    { "id": "T5", "title": "상태바에 state.json 연동 (3번째 줄)", "status": "done" },
+    { "id": "T6", "title": "/os-checkpoint 스킬", "status": "done" },
+    { "id": "T7", "title": "CLAUDE.md 갱신 + 전체 검증(기존 훅 회귀 포함)", "status": "done" },
+    { "id": "T8", "title": "Phase 2 커밋 + push", "status": "doing" }
+  ],
   "last_checkpoint": {
-    "id": "CP-004",
+    "id": "CP-005",
     "at": "2026-09-11",
-    "git": "6820fcb",
-    "note": "IS-002 해소 완료 — EC2 HEAD=origin/master, deploy.sh git 정석 경로 복구, 노출 토큰 폐기 확인(401). 다음 후보: Phase 2 (Context Router · 수정 저널 · 상태바 상태 연동 · 체크포인트 스킬)."
+    "git": "8849ad2",
+    "note": "Phase 2 구현 완료 — 라우터/저널/플러시 훅, 상태바 연동, 체크포인트 스킬. 기존 훅 4개 회귀 없음 확인.",
+    "verified": "각 훅 --selftest + 공용 래퍼로 실제 stdin JSON 호출 + 상태바 4시나리오 렌더. 자동 테스트는 없음(IS-001)."
   },
   "memory": {
     "dirty": false,

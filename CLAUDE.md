@@ -98,6 +98,10 @@ Windows·WSL 양쪽에서 같이 쓰는 **프로젝트 공용 설정**. 개인 �
 | `.claude/hooks/os-build-css.sh` | 템플릿 수정 시 Tailwind 재빌드 (규칙 2 자동화) |
 | `.claude/hooks/os-router-parity.sh` → `.py` | 라우터 3점세트 정합성 검사 (규칙 1 자동화) |
 | `.claude/hooks/os-mem-load.sh` → `.py` | SessionStart에 프로젝트 메모리 INDEX + 현재 상태 주입 |
+| `.claude/hooks/os-mem-route.py` | UserPromptSubmit에 요청 관련 메모리 **포인터만** 주입 (어휘 일치) |
+| `.claude/hooks/os-mem-journal.py` | PostToolUse(Write\|Edit)에 수정 파일을 기계적으로만 저널링 |
+| `.claude/hooks/os-mem-flush.py` | SessionEnd·PreCompact에 state 확정 (SessionEnd는 1.5초 예산) |
+| `.claude/hooks/os-hook.sh` | 훅 파이썬을 WSL python3으로 실행시키는 공용 래퍼 |
 | `.claude/lib/osmem.py` | 메모리·상태 공유 라이브러리 (python3 stdlib만). UNC→POSIX 정규화 포함 |
 | `.claude/memory/` | **프로젝트 메모리** (커밋 대상). 아래 「프로젝트 메모리」 참조 |
 | `.claude/state/` | 머신 로컬 작업 상태 (gitignore). 세션 스크래치·저널·체크포인트 |
@@ -121,6 +125,9 @@ project/ decisions/ preferences/ workflows/ issues/ regression/
 ```
 
 - 읽기·쓰기·검색은 `/os-mem` 스킬로 한다 (`save` `find <키워드>` `state` `update` `supersede`).
+- 위험한 작업(마이그레이션·대규모 수정·배포) 전과 검증 통과 후에는 `/os-checkpoint create`.
+- 세션 시작 시 INDEX + 현재 상태가 자동 주입되고, 요청마다 관련 메모리 **포인터**가 붙는다.
+  포인터는 어휘 일치로 고르므로 놓칠 수 있다 — 그때는 `/os-mem find <키워드>`.
 - **쓰기 전에 검색한다.** 같은 내용이 있으면 새로 만들지 말고 update/merge 한다.
 - 결론이 뒤바뀌면 새 문서에 `supersedes:`, 옛 문서는 `status: superseded`. 삭제하지 않는다.
 - **비밀값을 쓰지 않는다** — 커밋되는 디렉터리다. 위치만 가리킨다.

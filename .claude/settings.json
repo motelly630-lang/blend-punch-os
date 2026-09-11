@@ -121,6 +121,41 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/blendpunch/blend-punch-os/.claude/hooks/os-hook.sh os-mem-route.py",
+            "timeout": 10,
+            "statusMessage": "관련 메모리 탐색 중..."
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/blendpunch/blend-punch-os/.claude/hooks/os-hook.sh os-mem-flush.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/blendpunch/blend-punch-os/.claude/hooks/os-hook.sh os-mem-flush.py",
+            "timeout": 10,
+            "statusMessage": "압축 전 상태 저장 중..."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
@@ -130,6 +165,16 @@
             "command": "bash /home/blendpunch/blend-punch-os/.claude/hooks/os-build-css.sh",
             "timeout": 60,
             "statusMessage": "Tailwind 재빌드 중..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/blendpunch/blend-punch-os/.claude/hooks/os-hook.sh os-mem-journal.py",
+            "timeout": 10
           }
         ]
       },
