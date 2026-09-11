@@ -1,30 +1,38 @@
 ---
 id: IS-002
 type: issue
-title: EC2 git HEAD 드리프트 + origin 미push 5커밋 + GitHub 키/토큰 작업 대기
+title: EC2 배포키가 GitHub에 미등록 — deploy.sh git 경로가 막혀 있다 (드리프트·push 는 해소)
 status: active
-tags: [ec2, git, 드리프트, push, origin, deploy-key, 토큰, pat, 배포, 미해결]
+tags: [ec2, git, 드리프트, push, origin, deploy-key, 토큰, pat, 배포, bundle]
 paths: [".claude/skills/ec2-deploy/**"]
 updated: 2026-09-11
 ---
 
-**상태 (2026-09-11 기준, 미해결):**
+## 해소된 것 (2026-09-11)
 
-1. **EC2 git HEAD 가 `e562af4` 에 멈춰 있다.** 운영 파일은 2026-09-10 에 18개를 배포해 최신이지만
-   git 트리는 정리되지 않아 dirty 하다(수정 49 / 추적외 포함 105항목). 따라서 **EC2 의 git 상태는
-   실제 배포 내용을 알려주지 않는다.** `git pull` 은 충돌해서 동작하지 않는다.
-2. **로컬 `master`(`a6b7975`)가 origin 보다 5커밋 앞서 있다.** origin/master = `e562af4`.
-3. **GitHub 작업 2건 대기 중** — 사용자 웹 작업이 필요하다:
-   - Deploy key 등록 (`~/.ssh/bp_github` 공개키, **Allow write access 체크**) — 미완료
-     확인: `wsl -d Ubuntu -- ssh -T git@github.com` → 현재 `Permission denied (publickey)`
-   - 노출됐던 classic PAT revoke — 미완료. 로컬 remote 는 이미 SSH 로 전환해 `.git/config` 에서
-     토큰을 제거했다. GitHub 토큰 목록에서 **Last used 가 2026-09-10 인 것**이 해당 토큰이다
-     (값·프리픽스는 여기 적지 않는다 — 이 디렉터리는 커밋된다)
+- **origin 미push 8커밋 → push 완료** (`e562af4..7cd863b`). 로컬 remote 는 SSH 키
+  `~/.ssh/bp_github` 를 쓴다(GitHub Deploy keys 에 write access 로 등록됨).
+- **EC2 git 트리 드리프트 해소.** `e562af4` → `7cd863b`, 추적파일 수정 **113 → 0건**.
+  GitHub fetch 가 막혀 있어 `git bundle` 로 우회했다:
+  ```bash
+  git bundle create /tmp/bpos.bundle ^e562af4 master     # 로컬
+  scp ... && git fetch /tmp/bpos.bundle master:refs/remotes/origin/master && git reset --hard origin/master
+  ```
+  사전검증(동일 359 / 다름 2 / 없음 67) + 백업 `pre-reset-20260911-133536.tar.gz` 후 실행.
+  `app/` 코드 차이는 0건이었으므로 **운영 코드는 한 줄도 바뀌지 않았고 재시작도 불필요**했다.
+  검증: `systemctl is-active` active, 에러로그 0건, `/` 302 · `/login` 200 · `/public/products` 200.
 
-**막힌 이유:** 키가 등록되기 전에는 push 가 불가능하고, push 없이는 EC2 `git reset --hard origin/master`
-로 트리를 정리할 수 없다.
+## 남은 것
 
-**해소 순서:** 키 등록 → 토큰 revoke → push 5커밋 → (백업 + [[RG-004]] 전수 비교 후)
-EC2 `fetch` + `reset --hard origin/master` → 이후 배포는 `deploy.sh git` 정석 경로.
+1. **EC2 배포키가 GitHub 에 등록돼 있지 않다** → `deploy.sh git`(`git pull`) 이 여전히 막힌다.
+   EC2 쪽 설정은 정상이다 (`~/.ssh/config` 의 `Host github.com` → `IdentityFile ~/.ssh/bp_deploy_key`).
+   GitHub 이 그 키를 거부한다: `Permission denied (publickey)`.
+   - 키: `~/.ssh/bp_deploy_key.pub`, 이름 `ec2-deploy-blend-punch-os`,
+     지문 `SHA256:zQw4Sa37d4iwxEl+SSZoNENUuXgV8VN84EaOEYFyzcA`
+   - 해소: 그 공개키를 저장소 Deploy keys 에 등록한다. **write access 는 주지 않는다**(EC2 는 pull 만 한다).
+   - 등록 전까지 배포는 [[DE-002]] 의 `git archive HEAD` 또는 위 bundle 방식을 쓴다.
+2. **노출됐던 classic PAT revoke 미완료.** 로컬 `.git/config` 에서는 이미 제거했고 커밋 이력에도
+   없지만, GitHub 에서 폐기하지 않았다. 토큰 목록에서 **Last used 가 2026-09-10 인 것**이 해당 토큰이다
+   (값·프리픽스는 여기 적지 않는다 — 이 디렉터리는 커밋된다).
 
-관련: [[DE-002]], [[RG-004]]
+관련: [[DE-002]], [[RG-004]], [[IS-004]]
