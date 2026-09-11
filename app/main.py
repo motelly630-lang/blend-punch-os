@@ -569,8 +569,11 @@ _setup_filters()
 # ── PWA 파일 서빙 ──────────────────────────────────────────────────────────────
 @app.get("/sw.js", include_in_schema=False)
 async def service_worker():
+    # no-cache: SW 스크립트가 HTTP 캐시에 묶이면 새 버전이 배포돼도 갱신이 늦어진다.
+    # (v1 의 영구 Cache-First 사고를 다시 만들지 않기 위한 안전장치)
     return FileResponse("static/sw.js", media_type="application/javascript",
-                        headers={"Service-Worker-Allowed": "/"})
+                        headers={"Service-Worker-Allowed": "/",
+                                 "Cache-Control": "no-cache"})
 
 
 @app.get("/manifest.json", include_in_schema=False)

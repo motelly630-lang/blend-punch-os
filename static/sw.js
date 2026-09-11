@@ -1,5 +1,14 @@
 // BLEND PUNCH OS — Service Worker
-const CACHE_NAME = 'bpos-v1';
+//
+// 이 SW 는 "오프라인 폴백" 하나만 담당한다. 자산 캐싱은 하지 않는다.
+// 이유(2026-09-11 성능 조사):
+//   - v1 은 /static/ 을 Cache-First 로 영구 저장했고 CACHE_NAME 이 한 번도 안 바뀌어,
+//     8849ad2 의 app.css 1.34MB → 263KB(gzip 27KB) 개선이 기존 방문자에게 전혀 전달되지 않았다.
+//     캐시 무효화 수단이 없는 Cache-First 는 nginx 의 Cache-Control 보다 나쁘다.
+//   - 모든 GET 을 respondWith 로 가로채면 요청마다 SW 를 깨우는 비용이 선행된다.
+//     내비게이션은 navigationPreload 로 SW 기동과 네트워크를 겹쳐서 이 비용을 없앤다.
+// CACHE_NAME 을 올리면 activate 가 옛 캐시를 지운다. v1 잔재 제거가 v2 의 핵심 목적이다.
+const CACHE_NAME = 'bpos-v2';
 
 // ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -8,47 +17,36 @@ self.addEventListener('install', (event) => {
 
 // ── Activate ─────────────────────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      ))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    // 옛 버전 캐시 전부 제거 (v1 에 박혀 있던 구 app.css 포함)
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)));
+    // 내비게이션 요청을 SW 기동과 동시에 보낸다 — 클릭당 SW 웜업 지연 제거
+    if (self.registration.navigationPreload) {
+      await self.registration.navigationPreload.enable();
+    }
+    await self.clients.claim();
+  })());
 });
 
 // ── Fetch ────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET') return;
 
-  const url = new URL(req.url);
+  // 내비게이션(주소 이동)만 처리한다. 나머지(/static/·API·이미지)는 건드리지 않아야
+  // 브라우저 HTTP 캐시와 nginx 의 Cache-Control 이 그대로 동작한다.
+  if (req.mode !== 'navigate') return;
 
-  // Cross-origin (CDN 등): 그냥 통과
-  if (url.origin !== self.location.origin) return;
-
-  // /static/ 자산: Cache-First
-  if (url.pathname.startsWith('/static/')) {
-    event.respondWith(
-      caches.open(CACHE_NAME).then(cache =>
-        cache.match(req).then(cached => {
-          if (cached) return cached;
-          return fetch(req).then(res => {
-            if (res.ok) cache.put(req, res.clone());
-            return res;
-          }).catch(() => cached);
-        })
-      )
-    );
-    return;
-  }
-
-  // HTML 페이지 / API: Network-First, 오프라인 폴백
-  event.respondWith(
-    fetch(req).catch(() =>
-      caches.match(req).then(cached => cached || offlinePage())
-    )
-  );
+  event.respondWith((async () => {
+    try {
+      // navigationPreload 가 이미 띄워 둔 응답이 있으면 그대로 쓴다
+      const preloaded = await event.preloadResponse;
+      if (preloaded) return preloaded;
+      return await fetch(req);
+    } catch (e) {
+      return offlinePage();
+    }
+  })());
 });
 
 function offlinePage() {
