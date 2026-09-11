@@ -1,7 +1,7 @@
 ---
 id: IS-002
 type: issue
-title: EC2 배포키가 GitHub에 미등록 — deploy.sh git 경로가 막혀 있다 (드리프트·push 는 해소)
+title: EC2 배포키가 GitHub에 미등록 — deploy.sh git 경로가 막혀 있다 (드리프트·push·토큰은 해소)
 status: active
 tags: [ec2, git, 드리프트, push, origin, deploy-key, 토큰, pat, 배포, bundle]
 paths: [".claude/skills/ec2-deploy/**"]
@@ -31,8 +31,15 @@ updated: 2026-09-11
      지문 `SHA256:zQw4Sa37d4iwxEl+SSZoNENUuXgV8VN84EaOEYFyzcA`
    - 해소: 그 공개키를 저장소 Deploy keys 에 등록한다. **write access 는 주지 않는다**(EC2 는 pull 만 한다).
    - 등록 전까지 배포는 [[DE-002]] 의 `git archive HEAD` 또는 위 bundle 방식을 쓴다.
-2. **노출됐던 classic PAT revoke 미완료.** 로컬 `.git/config` 에서는 이미 제거했고 커밋 이력에도
-   없지만, GitHub 에서 폐기하지 않았다. 토큰 목록에서 **Last used 가 2026-09-10 인 것**이 해당 토큰이다
-   (값·프리픽스는 여기 적지 않는다 — 이 디렉터리는 커밋된다).
+(끝)
+
+## 노출 토큰 — 해소 완료 (2026-09-11)
+
+로컬 `.git/config` 에서 제거 → GitHub 에서도 삭제됨. **`api.github.com/user` 인증 시도 → HTTP 401**
+로 폐기를 확인했다. classic 토큰 목록에는 만료본 2개(`blend punch-ods` Jul 4 만료 / `blend-punch`
+Jun 10 만료)만 남아 있고 문제의 토큰은 목록에 없다 — GitHub 은 만료본도 목록에 남기므로
+"목록에 없다 = 삭제됐다" 가 성립한다. 커밋 이력에도 들어간 적이 없어 히스토리 재작성은 불필요하다.
+
+남은 만료본 2개는 인증이 불가능해 위험하지 않다. 목록 정리 차원에서 지워도 되고 둬도 된다.
 
 관련: [[DE-002]], [[RG-004]], [[IS-004]]
