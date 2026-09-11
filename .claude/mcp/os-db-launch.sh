@@ -35,6 +35,15 @@ set +a
 CONN="${!VAR:-}"
 [ -n "$CONN" ] || die "$ENV_FILE 에 $VAR 가 정의되어 있지 않습니다"
 
+# RDS 는 SSL 을 강제한다(rds.force_ssl). sslmode 없이 붙으면 서버가 끊는다:
+#   no pg_hba.conf entry for host "...", user "claude_ro", database "...", no encryption
+# SSL 정책은 여기(버전관리 대상)에 두고 자격증명 파일은 순수 credential 로 유지한다.
+case "$CONN" in
+  *sslmode=*) : ;;
+  *\?*)       CONN="$CONN&sslmode=require" ;;
+  *)          CONN="$CONN?sslmode=require" ;;
+esac
+
 # node 는 nvm 설치라 비대화형 셸 PATH 에 없다 — 직접 찾는다.
 # (/mnt/c 의 Windows node 를 절대 쓰지 않도록 nvm 경로를 앞에 붙인다)
 if ! command -v node >/dev/null 2>&1 || case "$(command -v node)" in /mnt/*) true ;; *) false ;; esac; then
@@ -53,6 +62,10 @@ if [ "$MODE" = "--check" ]; then
   echo "env file    : $ENV_FILE (읽기 OK)" >&2
   echo "node        : $(node -v)  ($(command -v node))" >&2
   echo "conn string : 설정됨 (내용 미출력)" >&2
+  case "$POSTGRES_CONNECTION_STRING" in
+    *sslmode=*) echo "sslmode     : 적용됨" >&2 ;;
+    *)          echo "sslmode     : ⚠️ 없음 — RDS 가 연결을 거부한다" >&2 ;;
+  esac
   echo "mcp package : $MCP_PKG" >&2
   exit 0
 fi
