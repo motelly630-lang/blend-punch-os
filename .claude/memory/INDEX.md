@@ -20,6 +20,7 @@
 | DE-001 | 편집은 Windows, 실행·빌드·git 은 전부 WSL (uv/npm 을 Windows 에서 쓰면 환경이 깨진다) | `decisions/DE-001-*.md` |
 | DE-002 | EC2 파일 배포는 작업트리가 아니라 `git archive HEAD` 로 보낸다 (WIP 혼입 방지) | `decisions/DE-002-*.md` |
 | DE-003 | 프로젝트 메모리는 repo 안 파일 — DB·harness memory 가 아니다 | `decisions/DE-003-*.md` |
+| DE-004 | 정적 파일은 nginx 가 직접 서빙·압축. uvicorn 워커 증설은 스케줄러 중복 때문에 금지 | `decisions/DE-004-*.md` |
 
 ## PREFERENCES — 반복 요구하는 작업 방식
 
@@ -36,6 +37,7 @@
 | RG-002 | 모든 조회·생성은 `get_company_id(user)` 로 스코프 (자동 생성 경로 포함) | R3 심사형 | `regression/RG-002-*.md` |
 | RG-003 | `products.status`/`visibility_status` 는 영문 소문자 정규화값만 | R2 SQL | `regression/RG-003-*.md` |
 | RG-004 | EC2 `reset --hard`/`pull` 전에 blob SHA 전수 비교 + 백업 | R2 수동 | `regression/RG-004-*.md` |
+| RG-005 | tailwind safelist 정규식의 `^...$` 앵커 유지 (없으면 CSS 가 5배 부풂) | R2 용량확인 | `regression/RG-005-*.md` |
 
 ## ISSUES — 미해결 문제·기술부채
 
@@ -44,6 +46,7 @@
 | IS-001 | **테스트·CI·린트가 전무하다** — regression guard 의 근본 공백 (Phase 3) | `issues/IS-001-*.md` |
 | IS-003 | WSL 개인 설정이 프로젝트 설정을 덮어쓴다 (전부 내용 다름, Phase 4) | `issues/IS-003-*.md` |
 | IS-004 | EC2 에만 있는 미추적 파일 9개 — 전부 미참조 잔재, 정리 대상 | `issues/IS-004-*.md` |
+| IS-005 | `static/logo.png` 이 없는데 템플릿 10곳 이상이 참조 (로고 안 보임) | `issues/IS-005-*.md` |
 
 해소됨(`status: resolved`, 절차 재사용 목적으로 보존):
 `IS-002` EC2 git 드리프트 · origin 미push · 노출 토큰 — 2026-09-11 전부 해소
