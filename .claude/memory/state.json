@@ -1,23 +1,14 @@
 {
   "schema": 1,
   "project": "blend-punch-os",
-  "state": "active",
-  "current_task": "IS-002 마무리 — EC2 배포키 GitHub 등록 (deploy.sh git 복구)",
-  "tasks": [
-    { "id": "T1", "title": "로컬 git remote 를 SSH 로 전환 (.git/config 에서 PAT 제거)", "status": "done" },
-    { "id": "T2", "title": "로컬 push 키(bp_github) GitHub Deploy keys 등록", "status": "done" },
-    { "id": "T3", "title": "origin 으로 8커밋 push (e562af4..7cd863b)", "status": "done" },
-    { "id": "T4", "title": "EC2 백업 + blob SHA 전수 비교 (RG-004)", "status": "done" },
-    { "id": "T5", "title": "EC2 git 트리 정리 — bundle 우회 + reset --hard", "status": "done" },
-    { "id": "T6", "title": "배포 검증 (is-active, 에러로그, curl 3경로)", "status": "done" },
-    { "id": "T7", "title": "노출된 classic PAT 폐기 확인 (api.github.com 401)", "status": "done" },
-    { "id": "T8", "title": "EC2 배포키(bp_deploy_key) GitHub 등록 — read only, deploy.sh git 복구", "status": "todo" }
-  ],
+  "state": "idle",
+  "current_task": null,
+  "tasks": [],
   "last_checkpoint": {
-    "id": "CP-003",
+    "id": "CP-004",
     "at": "2026-09-11",
-    "git": "02558f5",
-    "note": "EC2 트리 드리프트 해소 + 노출 토큰 폐기 확인(401). 남은 것은 EC2 배포키 등록 1건."
+    "git": "6820fcb",
+    "note": "IS-002 해소 완료 — EC2 HEAD=origin/master, deploy.sh git 정석 경로 복구, 노출 토큰 폐기 확인(401). 다음 후보: Phase 2 (Context Router · 수정 저널 · 상태바 상태 연동 · 체크포인트 스킬)."
   },
   "memory": {
     "dirty": false,

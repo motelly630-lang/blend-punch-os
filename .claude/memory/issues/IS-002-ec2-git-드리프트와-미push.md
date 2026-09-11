@@ -1,45 +1,50 @@
 ---
 id: IS-002
 type: issue
-title: EC2 배포키가 GitHub에 미등록 — deploy.sh git 경로가 막혀 있다 (드리프트·push·토큰은 해소)
-status: active
-tags: [ec2, git, 드리프트, push, origin, deploy-key, 토큰, pat, 배포, bundle]
+title: EC2 git 드리프트 · origin 미push · 노출 토큰 — 전부 해소됨
+status: resolved
+tags: [ec2, git, 드리프트, push, origin, deploy-key, 토큰, pat, 배포, bundle, 해소됨]
 paths: [".claude/skills/ec2-deploy/**"]
 updated: 2026-09-11
 ---
 
-## 해소된 것 (2026-09-11)
+**2026-09-11 전부 해소.** 기록을 남기는 이유는 같은 상황이 다시 생겼을 때 절차를 재사용하기 위해서다.
 
-- **origin 미push 8커밋 → push 완료** (`e562af4..7cd863b`). 로컬 remote 는 SSH 키
-  `~/.ssh/bp_github` 를 쓴다(GitHub Deploy keys 에 write access 로 등록됨).
-- **EC2 git 트리 드리프트 해소.** `e562af4` → `7cd863b`, 추적파일 수정 **113 → 0건**.
-  GitHub fetch 가 막혀 있어 `git bundle` 로 우회했다:
-  ```bash
-  git bundle create /tmp/bpos.bundle ^e562af4 master     # 로컬
-  scp ... && git fetch /tmp/bpos.bundle master:refs/remotes/origin/master && git reset --hard origin/master
-  ```
-  사전검증(동일 359 / 다름 2 / 없음 67) + 백업 `pre-reset-20260911-133536.tar.gz` 후 실행.
-  `app/` 코드 차이는 0건이었으므로 **운영 코드는 한 줄도 바뀌지 않았고 재시작도 불필요**했다.
-  검증: `systemctl is-active` active, 에러로그 0건, `/` 302 · `/login` 200 · `/public/products` 200.
+## 무엇이 문제였나
 
-## 남은 것
+EC2 는 그동안 scp 로 배포돼 와서 **git 상태가 실제 배포 내용을 알려주지 않았다** — HEAD 는
+`e562af4` 에 멈춘 채 추적파일 113 항목이 dirty 였고 `git pull` 은 충돌했다. 로컬은 origin 보다
+8커밋 앞서 있었고, 로컬 remote URL 에는 classic PAT 가 평문으로 박혀 있었다.
 
-1. **EC2 배포키가 GitHub 에 등록돼 있지 않다** → `deploy.sh git`(`git pull`) 이 여전히 막힌다.
-   EC2 쪽 설정은 정상이다 (`~/.ssh/config` 의 `Host github.com` → `IdentityFile ~/.ssh/bp_deploy_key`).
-   GitHub 이 그 키를 거부한다: `Permission denied (publickey)`.
-   - 키: `~/.ssh/bp_deploy_key.pub`, 이름 `ec2-deploy-blend-punch-os`,
-     지문 `SHA256:zQw4Sa37d4iwxEl+SSZoNENUuXgV8VN84EaOEYFyzcA`
-   - 해소: 그 공개키를 저장소 Deploy keys 에 등록한다. **write access 는 주지 않는다**(EC2 는 pull 만 한다).
-   - 등록 전까지 배포는 [[DE-002]] 의 `git archive HEAD` 또는 위 bundle 방식을 쓴다.
-(끝)
+## 어떻게 해소했나
 
-## 노출 토큰 — 해소 완료 (2026-09-11)
+1. **remote 를 SSH 로 전환** — `.git/config` 에서 토큰 제거. push 용 키 `~/.ssh/bp_github` 를
+   저장소 Deploy keys 에 **write access 로** 등록.
+2. **push 8커밋** — `e562af4..7cd863b`.
+3. **EC2 트리 정리** — 이 시점엔 EC2 배포키가 미등록이라 `fetch` 가 막혀 **`git bundle` 로 우회**했다:
+   ```bash
+   git bundle create /tmp/bpos.bundle ^e562af4 master          # 로컬
+   scp ... ubuntu@<ip>:/tmp/
+   git fetch /tmp/bpos.bundle master:refs/remotes/origin/master # EC2
+   git reset --hard refs/remotes/origin/master
+   ```
+   사전에 백업(`pre-reset-<stamp>.tar.gz`)과 blob SHA 전수 비교([[RG-004]])를 했다 —
+   동일 359 / 다름 2(`.gitignore`·`uv.lock`, 런타임 무관) / 없음 67(개발용 문서).
+   **`app/` 코드 차이 0건** 이었으므로 운영 코드는 바뀌지 않았고 재시작도 불필요했다.
+   결과: 추적파일 수정 **113 → 0건**.
+4. **EC2 배포키 등록** — `~/.ssh/bp_deploy_key.pub`(`ec2-deploy-blend-punch-os`,
+   지문 `SHA256:zQw4Sa37d4iwxEl+SSZoNENUuXgV8VN84EaOEYFyzcA`)를 Deploy keys 에
+   **write access 없이** 등록. EC2 는 pull 만 한다.
+5. **노출 토큰 폐기 확인** — `api.github.com/user` 인증 시도 → **HTTP 401**. GitHub classic 토큰
+   목록에도 없다(만료본도 목록에 남으므로 "없다 = 삭제됨"). 커밋 이력에 들어간 적이 없어
+   히스토리 재작성은 불필요했다.
 
-로컬 `.git/config` 에서 제거 → GitHub 에서도 삭제됨. **`api.github.com/user` 인증 시도 → HTTP 401**
-로 폐기를 확인했다. classic 토큰 목록에는 만료본 2개(`blend punch-ods` Jul 4 만료 / `blend-punch`
-Jun 10 만료)만 남아 있고 문제의 토큰은 목록에 없다 — GitHub 은 만료본도 목록에 남기므로
-"목록에 없다 = 삭제됐다" 가 성립한다. 커밋 이력에도 들어간 적이 없어 히스토리 재작성은 불필요하다.
+## 확인된 최종 상태
 
-남은 만료본 2개는 인증이 불가능해 위험하지 않다. 목록 정리 차원에서 지워도 되고 둬도 된다.
+`git pull --ff-only origin master` 가 EC2 에서 정상 동작한다 → **`deploy.sh git` 정석 경로 복구.**
+EC2 HEAD = origin/master, 추적파일 수정 0건, `systemctl is-active` active,
+`/` 302 · `/login` 200 · `/public/products` 200.
+
+잔재 파일 9개는 [[IS-004]] 로 분리했다.
 
 관련: [[DE-002]], [[RG-004]], [[IS-004]]

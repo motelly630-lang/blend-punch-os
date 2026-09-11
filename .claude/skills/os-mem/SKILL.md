@@ -26,6 +26,8 @@ wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && python3 .claude/lib/osmem
    그 문서를 update/merge** 한다. 중복 문서를 쌓는 것이 이 시스템을 망치는 첫 번째 경로다.
 3. **충돌하면 최신 확정을 우선한다.** 새 문서에 `supersedes: <옛 id>` 를 적고 옛 문서를
    `status: superseded` + `superseded_by:` 로 내린다. **삭제하지 않는다.**
+   issue 가 해결되면 `status: resolved` 로 바꾸고 **무엇을 어떻게 해소했는지 절차를 남긴다**
+   (같은 상황이 다시 왔을 때 재사용할 수 있어야 한다). 기본 조회는 `active` 만 본다.
 4. **비밀값을 쓰지 않는다.** 이 디렉터리는 커밋된다. 비밀번호·API 키·토큰·접속문자열은
    값이 아니라 **위치만** 가리킨다. 커밋 전 `git diff` 로 확인한다.
 5. **검증한 것만 쓴다.** 수치·경로·커밋 해시는 실제 확인한 값만. 미확인은 "미확인"으로 적는다.

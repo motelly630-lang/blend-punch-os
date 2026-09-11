@@ -42,9 +42,11 @@
 | id | 내용 | 파일 |
 |---|---|---|
 | IS-001 | **테스트·CI·린트가 전무하다** — regression guard 의 근본 공백 (Phase 3) | `issues/IS-001-*.md` |
-| IS-002 | EC2 배포키 미등록 → `deploy.sh git` 막힘 + PAT revoke 대기 (드리프트·push 는 해소) | `issues/IS-002-*.md` |
 | IS-003 | WSL 개인 설정이 프로젝트 설정을 덮어쓴다 (전부 내용 다름, Phase 4) | `issues/IS-003-*.md` |
 | IS-004 | EC2 에만 있는 미추적 파일 9개 — 전부 미참조 잔재, 정리 대상 | `issues/IS-004-*.md` |
+
+해소됨(`status: resolved`, 절차 재사용 목적으로 보존):
+`IS-002` EC2 git 드리프트 · origin 미push · 노출 토큰 — 2026-09-11 전부 해소
 
 ## WORKFLOWS
 
@@ -66,9 +68,11 @@ diff 는 옮겨 적지 않는다(커밋 해시로 `git show`). 최신: `changelo
 .claude/lib/osmem.py     공유 라이브러리 (python3 stdlib 만). 확인: --selftest
 ```
 
-프론트매터: `id` `type` `title` `status(active|superseded)` `supersedes` `tags` `paths` `updated`.
-오래된 내용이 현재와 충돌하면 새 문서에 `supersedes:` 를 적고 과거 문서를 `status: superseded`
-로 내린다. **삭제하지 않는다** — git 이력이 감사 기록이다.
+프론트매터: `id` `type` `title` `status` `supersedes` `tags` `paths` `updated`.
+`status` 는 `active`(기본) · `superseded`(결론이 뒤바뀜) · `resolved`(issue 가 해결됨) 셋이다.
+기본 조회는 `active` 만 본다. 오래된 내용이 현재와 충돌하면 새 문서에 `supersedes:` 를 적고
+과거 문서를 `superseded` 로 내린다. **어느 경우에도 삭제하지 않는다** — git 이력이 감사 기록이고,
+해결된 issue 도 절차를 재사용하려면 남아 있어야 한다.
 
 **비밀값을 쓰지 않는다.** 이 디렉터리는 커밋된다. 비밀번호·API 키·접속문자열은 위치만 가리킨다
 (예: "접속정보는 WSL `~/.claude/os-db-ro.env`").
