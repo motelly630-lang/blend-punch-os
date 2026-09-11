@@ -1,20 +1,23 @@
 {
   "schema": 1,
   "project": "blend-punch-os",
-  "state": "active",
-  "current_task": "AI 작업환경 고도화 Phase 1 (영구 메모리 토대)",
+  "state": "blocked",
+  "current_task": "IS-002 해소 — GitHub deploy key 등록 대기 → push → EC2 git 트리 정리",
   "tasks": [
-    { "id": "T1", "title": "공유 라이브러리 .claude/lib/osmem.py", "status": "done" },
-    { "id": "T2", "title": "SessionStart 로더 훅 os-mem-load.sh/.py", "status": "done" },
-    { "id": "T3", "title": "memory 디렉터리 + INDEX.md + state.json 스키마", "status": "done" },
-    { "id": "T4", "title": "/os-mem 큐레이션 스킬", "status": "done" },
-    { "id": "T5", "title": "시드 콘텐츠 14건 (기존 문서에서 포인터 추출)", "status": "done" },
-    { "id": "T6", "title": ".gitignore / CLAUDE.md / settings.json 등록", "status": "done" },
-    { "id": "T7", "title": "claude-mem 비활성화 (훅 4개 충돌 제거)", "status": "done" },
-    { "id": "T8", "title": "전체 검증 — 기존 훅 2개 셀프테스트 회귀 포함", "status": "done" },
-    { "id": "T9", "title": "Phase 1 커밋 (.claude/ + CLAUDE.md + .gitignore)", "status": "doing" }
+    { "id": "T1", "title": "로컬 git remote 를 SSH 로 전환 (.git/config 에서 PAT 제거)", "status": "done" },
+    { "id": "T2", "title": "GitHub deploy key 등록 (사용자 웹 작업, write access 체크)", "status": "todo" },
+    { "id": "T3", "title": "노출된 classic PAT revoke (사용자 웹 작업)", "status": "todo" },
+    { "id": "T4", "title": "origin 으로 미push 7커밋 push", "status": "todo" },
+    { "id": "T5", "title": "EC2 백업 + blob SHA 전수 비교 (RG-004)", "status": "todo" },
+    { "id": "T6", "title": "EC2 fetch + reset --hard origin/master 로 드리프트 해소", "status": "todo" },
+    { "id": "T7", "title": "배포 검증 (systemctl is-active, curl, 에러로그)", "status": "todo" }
   ],
-  "last_checkpoint": null,
+  "last_checkpoint": {
+    "id": "CP-001",
+    "at": "2026-09-11",
+    "git": "e6e448b",
+    "note": "AI 작업환경 고도화 Phase 1 완료 (영구 메모리 토대). 기존 훅 2개 회귀 없음 확인."
+  },
   "memory": {
     "dirty": false,
     "updated": "2026-09-11"

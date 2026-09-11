@@ -49,6 +49,11 @@
 
 아직 없음. 반복 절차가 2회 이상 확인되면 `/os-mem save` 로 기록한다.
 
+## CHANGELOG
+
+`changelog/YYYY-MM.md` — 무엇을 언제 왜 고쳤는지. append-only, 월 단위.
+diff 는 옮겨 적지 않는다(커밋 해시로 `git show`). 최신: `changelog/2026-09.md`
+
 ## 저장소 규약
 
 ```
