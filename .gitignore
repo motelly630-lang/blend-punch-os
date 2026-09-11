@@ -45,9 +45,13 @@ secrets.yaml
 instagram_session*.json
 
 # Claude Code 개인(로컬) 설정 — 프로젝트 공용 설정만 커밋한다
-# (.claude/settings.json, hooks/, skills/, agents/, mcp/ 는 커밋 대상)
+# (.claude/settings.json, hooks/, skills/, agents/, mcp/, lib/, memory/ 는 커밋 대상)
 .claude/settings.local.json
 .claude/worktrees/
+
+# 머신 로컬 작업 상태 — 세션 스크래치·기계 저널·체크포인트 (공유 대상 아님)
+# 영구 지식은 .claude/memory/ 에 두고 커밋한다
+.claude/state/
 
 # Node
 node_modules/

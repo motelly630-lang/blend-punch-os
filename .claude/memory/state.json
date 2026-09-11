@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "project": "blend-punch-os",
+  "state": "active",
+  "current_task": "AI 작업환경 고도화 Phase 1 (영구 메모리 토대)",
+  "tasks": [
+    { "id": "T1", "title": "공유 라이브러리 .claude/lib/osmem.py", "status": "done" },
+    { "id": "T2", "title": "SessionStart 로더 훅 os-mem-load.sh/.py", "status": "done" },
+    { "id": "T3", "title": "memory 디렉터리 + INDEX.md + state.json 스키마", "status": "done" },
+    { "id": "T4", "title": "/os-mem 큐레이션 스킬", "status": "done" },
+    { "id": "T5", "title": "시드 콘텐츠 14건 (기존 문서에서 포인터 추출)", "status": "done" },
+    { "id": "T6", "title": ".gitignore / CLAUDE.md / settings.json 등록", "status": "done" },
+    { "id": "T7", "title": "claude-mem 비활성화 (훅 4개 충돌 제거)", "status": "done" },
+    { "id": "T8", "title": "전체 검증 — 기존 훅 2개 셀프테스트 회귀 포함", "status": "done" },
+    { "id": "T9", "title": "Phase 1 커밋 (.claude/ + CLAUDE.md + .gitignore)", "status": "doing" }
+  ],
+  "last_checkpoint": null,
+  "memory": {
+    "dirty": false,
+    "updated": "2026-09-11"
+  },
+  "session": {
+    "id": null,
+    "started": null,
+    "last_seen": null
+  }
+}

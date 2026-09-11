@@ -97,14 +97,37 @@ Windows·WSL 양쪽에서 같이 쓰는 **프로젝트 공용 설정**. 개인 �
 | `.claude/settings.json` | 민감파일 Read/Edit deny + DB MCP의 mutation·DDL deny 82건 + 훅 등록 |
 | `.claude/hooks/os-build-css.sh` | 템플릿 수정 시 Tailwind 재빌드 (규칙 2 자동화) |
 | `.claude/hooks/os-router-parity.sh` → `.py` | 라우터 3점세트 정합성 검사 (규칙 1 자동화) |
-| `.claude/mcp/os-db-launch.sh` | `os-db-local`/`os-db-prod` MCP를 WSL 안에서 기동 |
-| `.claude/skills/`, `.claude/agents/` | `ec2-deploy` · `os-locate` · `os-ai-pipeline` · `tenant-scope-reviewer` |
+| `.claude/hooks/os-mem-load.sh` → `.py` | SessionStart에 프로젝트 메모리 INDEX + 현재 상태 주입 |
+| `.claude/lib/osmem.py` | 메모리·상태 공유 라이브러리 (python3 stdlib만). UNC→POSIX 정규화 포함 |
+| `.claude/memory/` | **프로젝트 메모리** (커밋 대상). 아래 「프로젝트 메모리」 참조 |
+| `.claude/state/` | 머신 로컬 작업 상태 (gitignore). 세션 스크래치·저널·체크포인트 |
+| `.claude/mcp/os-db-launch.sh` | `os-db-local`/`os-db-prod` MCP를 WSL 안에서 기동 (sslmode 부착) |
+| `.claude/skills/`, `.claude/agents/` | `ec2-deploy` · `os-locate` · `os-ai-pipeline` · `os-mem` · `tenant-scope-reviewer` |
 
 훅은 `bash <POSIX 절대경로>` 로 등록돼 있다. Windows에서 `bash`는 WSL 런처이므로 훅은 항상
 WSL 안에서 실행되고, 훅이 받는 UNC 경로(`\\wsl$\...`)는 스크립트가 POSIX로 정규화한다.
 정규화 동작 확인: `wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && bash .claude/hooks/os-build-css.sh --selftest"`
 
 **DB 자격증명은 WSL의 `~/.claude/os-db-ro.env`(읽기전용 롤)에만 있다. Windows 디스크로 복사하지 않는다.**
+
+## 프로젝트 메모리 (`.claude/memory/`)
+
+세션이 끊겨도 맥락이 남도록 **구조화된 것만** 파일로 저장한다. 대화를 요약해 쌓지 않는다.
+
+```
+INDEX.md     세션 시작 시 자동 주입되는 유일한 파일 (120줄 상한)
+state.json   현재 작업 · task 체크리스트 · 체크포인트  ← 진행률의 유일한 근거
+project/ decisions/ preferences/ workflows/ issues/ regression/
+```
+
+- 읽기·쓰기·검색은 `/os-mem` 스킬로 한다 (`save` `find <키워드>` `state` `update` `supersede`).
+- **쓰기 전에 검색한다.** 같은 내용이 있으면 새로 만들지 말고 update/merge 한다.
+- 결론이 뒤바뀌면 새 문서에 `supersedes:`, 옛 문서는 `status: superseded`. 삭제하지 않는다.
+- **비밀값을 쓰지 않는다** — 커밋되는 디렉터리다. 위치만 가리킨다.
+- **진행률은 `state.json`의 `tasks[]` done/total 로만 계산한다.** 체크리스트가 없으면 `—`.
+- 수정 작업 전 `regression/` 에 관련 불변조건이 있는지 확인하고, 수정 후 그 조건을 확인한다.
+
+확인: `wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && python3 .claude/lib/osmem.py --selftest"`
 
 ## 배포
 
