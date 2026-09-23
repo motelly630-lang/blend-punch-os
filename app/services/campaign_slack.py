@@ -54,8 +54,18 @@ def send_digest(db, company_id: int = 1) -> dict:
     from app.services.campaign_alerts import build_digest, render_slack_text
     d = build_digest(db, company_id=company_id)
     review_url = settings.app_base_url.rstrip("/") + "/campaigns/progress-review"
-    res = sn.post(EV_DIGEST, CHANNEL, render_slack_text(d, review_url=review_url),
-                  company_id=company_id, dedupe_key=f"digest:{d['date']}")
+    text = render_slack_text(d, review_url=review_url)
+    key = f"digest:{d['date']}"
+    try:   # AI 우선순위는 덤 — 실패해도 보고는 나간다. 이미 보낸 날은 AI 비용을 쓰지 않는다
+        if sn.is_done(company_id, key):
+            raise RuntimeError("이미 보낸 날")
+        from app.services.slack_reports import ai_priorities, render_priorities
+        pri = ai_priorities(d)
+        if pri:
+            text += "\n" + render_priorities(pri)
+    except Exception as e:
+        logger.warning("아침 보고 AI 우선순위 생략: %s", e)
+    res = sn.post(EV_DIGEST, CHANNEL, text, company_id=company_id, dedupe_key=key)
     res["counts"] = {k: len(d[k]) for k in ("ending_today", "ending_tomorrow", "starting_today",
                                             "starting_tomorrow", "running", "no_end_date")}
     return res
@@ -81,50 +91,60 @@ def scan(db, company_id: int) -> dict:
 
 def _scan_created(campaigns, company_id: int, out: dict) -> None:
     since = datetime.utcnow() - NEW_WINDOW
-    done = _handled_created_keys(company_id)
-    fresh = sorted((c for c in campaigns if c.created_at and c.created_at >= since
-                    and f"campaign_created:{c.id}" not in done),
-                   key=lambda c: c.created_at)
+    notify_new(
+        [c for c in campaigns if c.created_at and c.created_at >= since],
+        company_id=company_id, event=EV_CREATED, channel=CHANNEL, key_prefix="campaign_created",
+        header="[오픈예정] 새 캠페인", line=lambda c: f"{c.name} ({_period(c.start_date, c.end_date)})",
+        single=lambda c: (f"[오픈예정] 새 캠페인 등록 — *{c.name}*\n"
+                          f"기간 {_period(c.start_date, c.end_date)}\n→ {_url(c.id)}"),
+        out=out, count_key="created", batch_key="created_batched",
+    )
+
+
+def notify_new(items, *, company_id: int, event: str, channel: str, key_prefix: str,
+               header: str, line, single, out: dict, count_key: str, batch_key: str) -> None:
+    """새로 생긴 항목 알림 (캠페인·브랜드 공용). 이미 알린 건 빼고, BATCH_LIMIT 초과면 요약 1통.
+
+    items: 알림 후보 (id·created_at 속성). line(item) = 요약 한 줄, single(item) = 단건 본문.
+    """
+    done = _handled_keys(company_id, event)
+    fresh = sorted((i for i in items if f"{key_prefix}:{i.id}" not in done), key=lambda i: i.created_at)
     if not fresh:
         return
     if len(fresh) > BATCH_LIMIT:
-        # 엑셀 임포트 등 대량 등록 — 요약 1통, 개별 건은 '이미 처리' 로 기록해 따로 안 나가게
-        pending = [c for c in fresh if sn.record(company_id, EV_CREATED, CHANNEL,
-                                                  f"campaign_created:{c.id}", "sending",
-                                                  "대량 등록 요약에 포함")]
+        # 엑셀 임포트 등 대량 등록 — 요약 1통, 개별 건은 선점 후 결과로 확정해 따로 안 나가게
+        pending = [i for i in fresh if sn.record(company_id, event, channel, f"{key_prefix}:{i.id}",
+                                                 "sending", "요약 발송 대기")]
         if not pending:
             return
-        lines = [f"[오픈예정] 새 캠페인 {len(pending)}건 등록"]
-        lines += [f"· {c.name} ({_period(c.start_date, c.end_date)})" for c in pending[:BATCH_LIMIT]]
+        lines = [f"{header} {len(pending)}건 등록"]
+        lines += [f"· {line(i)}" for i in pending[:BATCH_LIMIT]]
         if len(pending) > BATCH_LIMIT:
             lines.append(f"· 외 {len(pending) - BATCH_LIMIT}건")
-        res = sn.post(EV_CREATED, CHANNEL, "\n".join(lines), company_id=company_id)
-        _settle_batch([f"campaign_created:{c.id}" for c in pending], company_id, res)
+        res = sn.post(event, channel, "\n".join(lines), company_id=company_id)
+        _settle_batch([f"{key_prefix}:{i.id}" for i in pending], company_id, res)
         if res["status"] in ("sent", "mock"):
-            out["created_batched"] += len(pending)
+            out[batch_key] = out.get(batch_key, 0) + len(pending)
         else:
-            out["failed"] += 1
+            out["failed"] = out.get("failed", 0) + 1
         return
-    for c in fresh:
-        text = (f"[오픈예정] 새 캠페인 등록 — *{c.name}*\n"
-                f"기간 {_period(c.start_date, c.end_date)}\n→ {_url(c.id)}")
-        res = sn.post(EV_CREATED, CHANNEL, text, company_id=company_id,
-                      dedupe_key=f"campaign_created:{c.id}")
+    for i in fresh:
+        res = sn.post(event, channel, single(i), company_id=company_id, dedupe_key=f"{key_prefix}:{i.id}")
         if res["status"] in ("sent", "mock"):
-            out["created"] += 1
+            out[count_key] = out.get(count_key, 0) + 1
         elif res["status"] == "failed":
-            out["failed"] += 1
+            out["failed"] = out.get("failed", 0) + 1
 
 
-def _handled_created_keys(company_id: int) -> set[str]:
-    """이미 알렸거나 알리는 중인 새 캠페인 키 (현재 모드 기준)."""
+def _handled_keys(company_id: int, event: str) -> set[str]:
+    """이미 알렸거나 알리는 중인 키 (모드 무관 — mock 으로 알린 것도 알린 것)."""
     from app.models.slack_notification_log import SlackNotificationLog as L
     db = sn._session()
     try:
         now = datetime.utcnow()
         since = now - NEW_WINDOW - timedelta(days=1)
         rows = db.query(L.dedupe_key, L.status, L.created_at).filter(
-            L.company_id == company_id, L.event == EV_CREATED, L.created_at >= since,
+            L.company_id == company_id, L.event == event, L.created_at >= since,
             L.status.in_(DONE + ("sending",))).all()
         # 요약 도중 프로세스가 죽어 남은 오래된 sending 은 처리 안 된 것으로 본다
         return {k for k, st, at in rows if st != "sending" or at >= now - sn._STALE_SENDING}

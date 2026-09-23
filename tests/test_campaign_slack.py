@@ -39,6 +39,7 @@ def _archive_all():
     db = SessionLocal()
     try:
         db.query(Campaign).filter(Campaign.company_id == CID).update({"is_archived": True})
+        db.query(SlackNotificationLog).filter(SlackNotificationLog.company_id == CID).delete()
         db.commit()
     finally:
         db.close()

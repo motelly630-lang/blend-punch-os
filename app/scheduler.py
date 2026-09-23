@@ -138,14 +138,37 @@ def _campaign_alert_job():
         db.close()
 
 
+def _slack_report_job(name: str):
+    """정기 Slack 리포트 (trend_digest · product_daily · weekly_summary). 실패는 대표님 DM (하루 1번)."""
+    from app.database import SessionLocal
+    from app.services import slack_reports as rep
+    fn = {"trend_digest": rep.send_trend_digest, "product_daily": rep.send_product_daily,
+          "weekly_summary": rep.send_weekly_summary}[name]
+    db = SessionLocal()
+    try:
+        r = fn(db, company_id=1)
+        print(f"[Scheduler] Slack report {name} — {r.get('status')}: {r.get('reason')}")
+        if r.get("status") == "failed":
+            _admin_alert(f"Slack 리포트 '{name}' 발송 실패 — {r.get('reason')}"[:300], f"report_{name}")
+    except Exception as e:
+        print(f"[Scheduler] Slack report {name} error: {e}")
+        _admin_alert(f"Slack 리포트 '{name}' 오류 — {type(e).__name__}: {e}"[:300], f"report_{name}")
+    finally:
+        db.close()
+
+
 def _campaign_slack_scan_job():
-    """새 캠페인·일정 변경 → Slack 02 (10분마다). 등록 경로(화면·시트·엑셀)와 무관하게 잡는다."""
+    """새 캠페인·일정 변경 → Slack 02, 새 브랜드 → 03 (10분마다). 등록 경로(화면·시트·엑셀)와 무관하게 잡는다."""
     from app.database import SessionLocal
     from app.services.campaign_slack import scan
+    from app.services.slack_reports import scan_brands
     db = SessionLocal()
     try:
         out = scan(db, company_id=1)
-        if any(out.get(k) for k in ("created", "created_batched", "schedule_changed", "schedule_batched", "failed")):
+        for k, v in scan_brands(db, company_id=1).items():
+            out[k] = out.get(k, 0) + v
+        if any(out.get(k) for k in ("created", "created_batched", "schedule_changed", "schedule_batched",
+                                     "brand_created", "brand_batched", "failed")):
             print(f"[Scheduler] Campaign Slack scan — {out}")
         if out.get("failed"):
             _admin_alert(f"캠페인 Slack 알림 {out['failed']}건 발송 실패 — 봇 초대·토큰·채널 설정 확인", "campaign_scan")
@@ -223,7 +246,8 @@ def start_scheduler():
 
     # 새 캠페인·일정 변경 → Slack (이벤트를 켰을 때만)
     # 토큰도 없고 mock 도 아니면 매번 실패만 쌓이므로 등록하지 않는다
-    if (_sn.is_enabled("campaign_created") or _sn.is_enabled("campaign_schedule_changed")) \
+    if (_sn.is_enabled("campaign_created") or _sn.is_enabled("campaign_schedule_changed")
+            or _sn.is_enabled("brand_created")) \
             and (_cfg.slack_bot_token or _cfg.alert_mock):
         _scheduler.add_job(
             _campaign_slack_scan_job,
@@ -235,6 +259,16 @@ def start_scheduler():
             coalesce=True,
         )
         extra += " | campaign slack scan 10m"
+
+    # 정기 Slack 리포트 (켠 것만, 토큰 또는 mock 일 때)
+    if _cfg.slack_bot_token or _cfg.alert_mock:
+        for name, trig in (("trend_digest", dict(hour=9, minute=10)),       # 트렌드 브리핑(09:00) 뒤
+                           ("product_daily", dict(hour=9, minute=30)),
+                           ("weekly_summary", dict(day_of_week="mon", hour=9, minute=0))):
+            if _sn.is_enabled(name):
+                _scheduler.add_job(_slack_report_job, trigger="cron", args=[name], id=f"slack_{name}",
+                                   replace_existing=True, max_instances=1, **trig)
+                extra += f" | slack {name}"
 
     _scheduler.start()
     print("[Scheduler] Started — trend briefing 09:00 KST | S3 backup 02:00 KST | "

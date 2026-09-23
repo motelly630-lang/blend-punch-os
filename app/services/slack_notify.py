@@ -42,6 +42,12 @@ _STALE_SENDING = timedelta(minutes=10)   # 이보다 오래된 sending 은 프�
 _resolved: dict[str, tuple[str | None, float]] = {}   # 이름 → (ID 또는 None, 저장 시각)
 
 
+def escape(text: str) -> str:
+    """Slack 제어 문자 무력화. `<!channel>`·`<!here>`·`<주소|위장글자>` 가 이름·AI 문장에 섞여
+    전원 알림이나 링크 위장이 되지 않게 한다. 우리 메시지는 <> 링크 문법을 쓰지 않으므로 전체에 적용한다."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def channel_map() -> dict[str, str]:
     from app.config import settings
     m = dict(CHANNELS)
@@ -219,7 +225,7 @@ def post(event: str, channel: str, text: str, company_id: int,
         if not target_id:
             return done("failed", reason)
 
-        res = _api("chat.postMessage", {"channel": target_id, "text": text,
+        res = _api("chat.postMessage", {"channel": target_id, "text": escape(text),
                                         "unfurl_links": False, "unfurl_media": False})
         if res.get("ok"):
             return done("sent", "ok", sent=True)
@@ -253,6 +259,19 @@ def record(company_id: int, event: str, channel: str, dedupe_key: str, status: s
     except Exception as e:
         db.rollback()
         logger.warning("Slack 기록 실패 (%s): %s", dedupe_key, e)
+        return False
+    finally:
+        db.close()
+
+
+def is_done(company_id: int, dedupe_key: str) -> bool:
+    """이미 알린(sent/mock) 키인가. AI 처럼 비용이 드는 준비 전에 확인하는 용도. 조회 실패면 False."""
+    from app.models.slack_notification_log import SlackNotificationLog as L
+    db = _session()
+    try:
+        return db.query(L.id).filter(L.company_id == company_id, L.dedupe_key == dedupe_key,
+                                     L.status == done_status()).first() is not None
+    except Exception:
         return False
     finally:
         db.close()
