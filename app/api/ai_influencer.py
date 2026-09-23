@@ -46,8 +46,12 @@ def _extract_handle_from_url(url: str, platform: str) -> str:
         clean = url.split("?")[0].split("#")[0].rstrip("/")
         parts = clean.split("/")
         if platform == "instagram":
-            # instagram.com/handle
-            return parts[-1].lstrip("@")
+            # instagram.com/handle — 게시물·릴스·스토리 주소는 아이디가 아니다 (엉뚱한 계정 조회 방지)
+            idx = next((i for i, p in enumerate(parts) if "instagram.com" in p), None)
+            path = parts[idx + 1:] if idx is not None else parts[-1:]
+            if not path or path[0].lower() in ("p", "reel", "reels", "tv", "stories", "explore", "accounts"):
+                return ""
+            return path[0].lstrip("@")
         if platform == "tiktok":
             # tiktok.com/@handle
             return parts[-1].lstrip("@")
@@ -231,12 +235,16 @@ def _result_html(data: dict, profile_image_path: str, original_url: str) -> str:
     followers = data.get("followers") or 0
     followers_str = f"{int(followers):,}" if followers else "-"
 
+    display_name = _esc(str(data.get("display_name") or ""))
     preview = " &nbsp;·&nbsp; ".join(filter(None, [
         f"<b>{name}</b>" if name else "",
         f"@{handle}" if handle else "",
         platform,
         f"팔로워 {followers_str}" if followers else "",
+        "사진 ✓" if profile_image_path else "",
     ]))
+    if display_name:
+        preview += f"<br>인스타 표시 이름: {display_name} <span class=\"text-gray-400\">(참고용 — 이름은 직접 적어주세요)</span>"
 
     payload = {**data, "profile_image_path": profile_image_path, "profile_url": original_url}
     data_json = _esc(_json.dumps(payload, ensure_ascii=False))
@@ -263,7 +271,26 @@ def _result_html(data: dict, profile_image_path: str, original_url: str) -> str:
 # ── URL import ────────────────────────────────────────────────────────────────
 
 async def _fill_instagram(url: str, handle: str) -> tuple[dict, str]:
-    """instagrapi로 Instagram 프로필 수집. (data, profile_image_path) 반환."""
+    """Instagram 프로필 수집. (data, profile_image_path) 반환.
+
+    Meta 공식 API 가 설정돼 있으면 그걸 쓴다 (DE-006). 이름은 채우지 않는다 — 인스타 표시 이름은
+    '식비절약 도와주는 ○○' 같은 소개 문구인 경우가 많아, 이름은 담당자가 직접 적는다 (display_name 은 참고용).
+    """
+    from app.services import meta_instagram
+    if meta_instagram.available():
+        prof = await asyncio.to_thread(meta_instagram.fetch_profile, handle)   # MetaError → 호출자가 안내
+        image_path = await asyncio.to_thread(meta_instagram.save_profile_image, prof["profile_picture_url"])
+        data = {
+            "name": "",
+            "display_name": prof["display_name"],
+            "handle": prof["handle"],
+            "platform": "instagram",
+            "followers": prof["followers"],
+            "bio": prof["biography"],
+            "profile_url": f"https://www.instagram.com/{prof['handle']}/",
+        }
+        return data, image_path
+
     from app.services.instagram import fetch_instagram_profile
     try:
         result = await asyncio.to_thread(fetch_instagram_profile, handle)
@@ -339,11 +366,16 @@ async def influencer_url_fill(
     profile_image_path = ""
     error_msg = ""
 
+    if platform == "instagram" and not handle:
+        return HTMLResponse('<div class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">'
+                            '게시물·릴스 주소예요 — 프로필 주소(instagram.com/아이디)를 넣어주세요.</div>')
     if platform == "instagram":
         try:
             data, profile_image_path = await _fill_instagram(url, handle)
         except Exception as e:
-            error_msg = str(e)
+            from app.services.meta_instagram import MetaError
+            from app.services.meta_instagram import _redact
+            error_msg = str(e) if isinstance(e, MetaError) else ("Instagram 조회 실패: " + _redact(str(e))[:150])
             # Instagram 실패 시 handle만 fallback
             data = {"handle": handle, "platform": "instagram", "profile_url": url}
     else:
@@ -354,7 +386,7 @@ async def influencer_url_fill(
     if error_msg:
         result_html += f"""
 <div class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-  Instagram 연동 오류: {_esc(error_msg)} — 핸들만 입력되었습니다.
+  {_esc(error_msg)} — 아이디만 입력되었습니다.
 </div>"""
 
     return HTMLResponse(result_html)

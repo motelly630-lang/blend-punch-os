@@ -18,6 +18,10 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+# httpx/httpcore 는 요청마다 INFO 로 전체 주소를 남긴다 — 주소 쿼리에 API 키·토큰이 붙는 호출이 있어
+# 로그에 비밀값이 찍히지 않도록 WARNING 이상만 남긴다 (Meta 토큰 유출 경로, 2026-09-24 리뷰)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger("blendpunch")
 
 limiter = Limiter(key_func=get_remote_address)

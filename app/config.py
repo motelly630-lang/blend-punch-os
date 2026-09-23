@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     aws_region: str = "ap-northeast-2"
     s3_backup_bucket: str = ""
     s3_assets_bucket: str = ""  # 이미지 서빙용 퍼블릭 버킷 (미설정 시 s3_backup_bucket 사용)
-    # Instagram 봇 계정
+    # Meta 공식 Instagram API (Business Discovery) — DE-006. 페이지 토큰은 서버 .env 에만
+    meta_page_token: str = ""
+    meta_ig_user_id: str = ""            # 조회에 쓰는 우리 인스타 계정 ID (@blend_punch)
+    meta_graph_version: str = "v25.0"
+    # Instagram 봇 계정 (구 방식 — Meta 설정이 없을 때만 사용)
     instagram_username: str = ""
     instagram_password: str = ""
     # 내부 알림 웹훅 (슬랙 / 카카오워크 / 디스코드 공용)
