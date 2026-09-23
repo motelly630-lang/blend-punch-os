@@ -140,6 +140,34 @@ def _pending_lines(d: dict, review_url: str | None) -> list[str]:
     return out
 
 
+def render_slack_text(d: dict, review_url: str | None = None) -> str:
+    """Slack 02-공동구매-운영 채널용 아침 보고. 채널 태그 규칙([오픈] [마감] 등)을 붙인다.
+
+    내용은 render_text 와 같고 머리말·태그만 다르다 (Obsidian `08_Slack/Slack_02_GroupBuy`).
+    """
+    day = d["date"].strftime("%m월 %d일")
+    parts = [f"*[BP OS] {day} 공구 아침 보고*"]
+    for key, tag, label, show_end in (
+        ("ending_today", "[마감]", "오늘 종료", False),
+        ("ending_tomorrow", "[마감예정]", "내일 종료", False),
+        ("starting_today", "[오픈]", "오늘 시작", True),
+        ("starting_tomorrow", "[오픈예정]", "내일 시작", True),
+    ):
+        if d[key]:
+            parts.append(f"\n{tag} {label} {len(d[key])}건")
+            parts += _lines(d[key], show_end=show_end)
+    if d["running"]:
+        parts.append(f"\n[진행중] 총 {len(d['running'])}건")
+    if len(parts) == 1:
+        parts.append("\n오늘 시작·종료하는 공구가 없습니다.")
+    parts += _pending_lines(d, review_url)
+    if (d.get("pending") or {}).get("no_settlement"):
+        parts.append(f"\n※ 완료인데 정산 없음 {d['pending']['no_settlement']}건")
+    if d["no_end_date"]:
+        parts.append(f"\n※ 종료일 미입력 {len(d['no_end_date'])}건 — OS에서 채워주세요")
+    return "\n".join(parts)
+
+
 def render_text(d: dict, include_running: bool = True,
                 review_url: str | None = None) -> str:
     """카카오톡·이메일·슬랙에 그대로 넣을 수 있는 짧은 텍스트.

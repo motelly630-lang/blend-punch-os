@@ -19,8 +19,9 @@ from app.models.partner import Partner, PartnerContact
 # 스크립트에서 모델만 임포트했을 때 flush 시 NoReferencedTableError 가 난다
 from app.models.feature_flag import Company, CompanyFeature
 from app.models.sheet_sync_log import SheetSyncLog
+from app.models.slack_notification_log import SlackNotificationLog
 from app.models.cs import (
     CSTicket, CSActivity, CSAttachment, CSType, CSGuide, CSTemplate, CSNotification, CSDownloadLog,
 )
 
-__all__ = ["User", "Product", "Influencer", "Campaign", "Proposal", "Settlement", "TrendItem", "Playbook", "TrendBriefing", "OutreachLog", "CrmPipeline", "SampleLog", "AutomationNote", "CampaignRecommendation", "Brand", "GroupBuyApplication", "Transaction", "SourcingBatch", "Partner", "PartnerContact", "Company", "CompanyFeature", "SheetSyncLog", "CSTicket", "CSActivity", "CSAttachment", "CSType", "CSGuide", "CSTemplate", "CSNotification", "CSDownloadLog"]
+__all__ = ["User", "Product", "Influencer", "Campaign", "Proposal", "Settlement", "TrendItem", "Playbook", "TrendBriefing", "OutreachLog", "CrmPipeline", "SampleLog", "AutomationNote", "CampaignRecommendation", "Brand", "GroupBuyApplication", "Transaction", "SourcingBatch", "Partner", "PartnerContact", "Company", "CompanyFeature", "SheetSyncLog", "SlackNotificationLog", "CSTicket", "CSActivity", "CSAttachment", "CSType", "CSGuide", "CSTemplate", "CSNotification", "CSDownloadLog"]

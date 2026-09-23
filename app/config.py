@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     alert_webhook_url: str = ""          # 발급받은 웹훅 URL 하나만 넣으면 됨
     campaign_alert: bool = False         # 공구 알림 자동발송 (기본 꺼짐)
     campaign_alert_hour: int = 8         # 발송 시각 (KST, 정시)
+    # Slack 앱 (채널별 발송 — app/services/slack_notify.py). 위 웹훅(아침 보고)과 별개로 동작하며,
+    # 토큰이 없으면 발송하지 않고 실패로 기록한다. 실발송 여부는 alert_mock 을 따른다.
+    slack_bot_token: str = ""            # xoxb-... (Bot User OAuth Token)
+    slack_channels: str = ""             # "groupbuy=C0123,seller=C0456" — 채널 ID 또는 이름. 비우면 기본 이름
+    slack_dm_user: str = ""              # 시스템 이상 알림을 받을 대표님 Slack 멤버 ID (U...)
+    slack_events: str = ""               # 켤 자동 알림 이벤트 (쉼표). 비우면 전부 꺼짐
     # 카카오 알림톡 (알리고 비즈메시지)
     kakao_mock: bool = True              # false 설정 시 실제 발송
     kakao_api_key: str = ""
