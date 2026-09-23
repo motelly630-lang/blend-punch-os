@@ -20,6 +20,8 @@ aws_credentials
 
 # 키 / 인증서 (개인키류)
 *.pem
+# 예외: AWS RDS 공개 CA 번들 (개인키 아님 — DB MCP 가 RDS 인증서 검증에 사용)
+!.claude/mcp/rds-global-bundle.pem
 *.key
 *.p12
 *.pfx

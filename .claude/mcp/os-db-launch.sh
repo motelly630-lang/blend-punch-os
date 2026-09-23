@@ -15,7 +15,11 @@ set -uo pipefail
 TARGET="${1:-}"
 MODE="${2:-run}"
 ENV_FILE="${OS_DB_ENV_FILE:-$HOME/.claude/os-db-ro.env}"
-MCP_PKG="@henkey/postgres-mcp-server"
+# 버전 고정 — npx -y 가 새 버전을 받아 동작(SSL 해석 등)이 조용히 바뀌지 않게
+MCP_PKG="@henkey/postgres-mcp-server@1.0.7"
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# AWS RDS 공개 CA 번들 (비밀 아님, https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem)
+RDS_CA="$HERE/rds-global-bundle.pem"
 
 die() { echo "os-db-launch: $*" >&2; exit 1; }
 
@@ -54,6 +58,12 @@ fi
 export PATH
 command -v node >/dev/null 2>&1 || die "node 실행 파일을 찾지 못했습니다"
 
+# pg-connection-string 2.7+ 는 sslmode=require 를 verify-full 로 해석한다 → 인증서 검증을 한다.
+# RDS CA 는 Node 기본 신뢰목록에 없어 "self-signed certificate in certificate chain" 으로 실패했다.
+# 검증을 끄지 않고(no-verify 금지) RDS 공개 CA 를 신뢰목록에 추가한다.
+[ -r "$RDS_CA" ] || die "RDS CA 번들이 없습니다: $RDS_CA"
+export NODE_EXTRA_CA_CERTS="$RDS_CA"
+
 export POSTGRES_CONNECTION_STRING="$CONN"
 unset CLAUDE_RO_LOCAL CLAUDE_RO_PROD CONN
 
@@ -66,6 +76,7 @@ if [ "$MODE" = "--check" ]; then
     *sslmode=*) echo "sslmode     : 적용됨" >&2 ;;
     *)          echo "sslmode     : ⚠️ 없음 — RDS 가 연결을 거부한다" >&2 ;;
   esac
+  echo "rds ca      : $RDS_CA ($(grep -c 'BEGIN CERTIFICATE' "$RDS_CA") certs)" >&2
   echo "mcp package : $MCP_PKG" >&2
   exit 0
 fi
