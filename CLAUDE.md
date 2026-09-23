@@ -119,7 +119,7 @@ Windows·WSL 양쪽에서 같이 쓰는 **프로젝트 공용 설정**. 개인 �
 | `.claude/memory/` | **프로젝트 메모리** (커밋 대상). 아래 「프로젝트 메모리」 참조 |
 | `.claude/state/` | 머신 로컬 작업 상태 (gitignore). 세션 스크래치·저널·체크포인트 |
 | `.claude/mcp/os-db-launch.sh` | `os-db-local`/`os-db-prod` MCP를 WSL 안에서 기동 (sslmode 부착) |
-| `.claude/skills/`, `.claude/agents/` | `ec2-deploy` · `os-locate` · `os-ai-pipeline` · `os-mem` · `tenant-scope-reviewer` |
+| `.claude/skills/`, `.claude/agents/` | `ec2-deploy` · `os-locate` · `os-ai-pipeline` · `os-mem` · `create-migration` · `gen-test` · `tenant-scope-reviewer` |
 
 훅은 `bash .claude/hooks/<파일>` (**프로젝트 루트 기준 상대경로**)로 등록돼 있어 Windows·macOS 공용이다.
 Windows 는 훅을 PowerShell 로 실행하고 `bash`(WSL 런처)가 UNC cwd 를 POSIX 로 바꿔 주므로 항상
