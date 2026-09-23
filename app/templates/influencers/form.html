@@ -114,7 +114,7 @@
   </div>
 
   <form method="post"
-    action="/influencers{% if influencer %}/{{ influencer.id }}/edit{% else %}new{% endif %}"
+    action="/influencers/{% if influencer %}{{ influencer.id }}/edit{% else %}new{% endif %}"
     enctype="multipart/form-data"
     @submit="beforeSubmit()"
     class="space-y-5">

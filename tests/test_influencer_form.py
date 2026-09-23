@@ -20,6 +20,13 @@ class InfluencerFormTest(unittest.TestCase):
         finally:
             db.close()
 
+    def test_폼이_보내는_주소가_실제_저장주소다(self):
+        r = self.c.get("/influencers/new")
+        self.assertIn('action="/influencers/new"', r.text)
+        iid = self._make()
+        r = self.c.get(f"/influencers/{iid}/edit")
+        self.assertIn(f'action="/influencers/{iid}/edit"', r.text)
+
     def test_카테고리가_있어도_편집화면_속성이_깨지지_않는다(self):
         iid = self._make(categories=["뷰티", "푸드"])
         r = self.c.get(f"/influencers/{iid}/edit")
