@@ -46,7 +46,7 @@ class Influencer(Base):
     tax_invoice_email = Column(String(200), nullable=True)
     # 프리랜서
     legal_name = Column(String(100), nullable=True)
-    resident_registration_number = Column(String(30), nullable=True)
+    resident_registration_number = Column(String(30), nullable=True)  # 사용 안 함 — DE-005 (값은 항상 비어 있어야 한다)
 
     is_archived = Column(Boolean, default=False)
 

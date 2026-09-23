@@ -21,6 +21,8 @@
 | DE-002 | EC2 파일 배포는 작업트리가 아니라 `git archive HEAD` 로 보낸다 (WIP 혼입 방지) | `decisions/DE-002-*.md` |
 | DE-003 | 프로젝트 메모리는 repo 안 파일 — DB·harness memory 가 아니다 | `decisions/DE-003-*.md` |
 | DE-004 | 정적 파일은 nginx 가 직접 서빙·압축. uvicorn 워커 증설은 스케줄러 중복 때문에 금지 | `decisions/DE-004-*.md` |
+| DE-005 | 인플루언서 주민등록번호는 OS 에 저장하지 않는다 (세무 쪽 별도 관리, 평문 저장 금지) | `decisions/DE-005-*.md` |
+| DE-006 | 인스타 프로필 자동 수집은 Meta 공식 Business Discovery API (봇 로그인 금지) | `decisions/DE-006-*.md` |
 
 ## PREFERENCES — 반복 요구하는 작업 방식
 

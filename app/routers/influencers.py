@@ -210,7 +210,6 @@ def influencer_create(
     business_address: str = Form(""),
     tax_invoice_email: str = Form(""),
     legal_name: str = Form(""),
-    resident_registration_number: str = Form(""),
     saved_profile_image_path: str = Form(""),
 ):
     cid = get_company_id(current_user)
@@ -246,7 +245,6 @@ def influencer_create(
         business_address=business_address or None,
         tax_invoice_email=tax_invoice_email or None,
         legal_name=legal_name or None,
-        resident_registration_number=resident_registration_number or None,
     )
     db.add(influencer)
     db.commit()
@@ -315,7 +313,6 @@ def influencer_update(
     business_address: str = Form(""),
     tax_invoice_email: str = Form(""),
     legal_name: str = Form(""),
-    resident_registration_number: str = Form(""),
     saved_profile_image_path: str = Form(""),
 ):
     cid = get_company_id(current_user)
@@ -355,7 +352,7 @@ def influencer_update(
     influencer.business_address = business_address or None
     influencer.tax_invoice_email = tax_invoice_email or None
     influencer.legal_name = legal_name or None
-    influencer.resident_registration_number = resident_registration_number or None
+    influencer.resident_registration_number = None  # DE-005: 주민번호는 OS 에 저장하지 않는다 (수정 시 남은 값도 지움)
     if new_image:
         influencer.profile_image = new_image
 
