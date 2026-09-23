@@ -9,20 +9,25 @@
 {% block content %}
 <div class="max-w-2xl"
   x-data="{
-    selected: {{ (influencer.categories or []) | tojson if influencer else '[]' }},
+    selected: {{ (influencer.categories or []) | tojson | forceescape if influencer else '[]' }},
     toggle(cat) {
       const i = this.selected.indexOf(cat);
       if (i >= 0) this.selected.splice(i, 1);
       else this.selected.push(cat);
     },
     has(cat) { return this.selected.includes(cat); },
-    showOptional: {{ 'true' if influencer and (influencer.contact_kakao or influencer.agency_name or influencer.commission_preference) else 'false' }},
+    showMore: {{ 'true' if influencer and (influencer.status != 'active' or influencer.has_campaign_history == 'true' or influencer.audience_age_range or influencer.audience_gender_ratio or influencer.avg_views_per_post or influencer.agency_name or influencer.commission_preference or influencer.past_gmv) else 'false' }},
     imagePreview: '{{ influencer.profile_image or '' if influencer else '' }}',
     bt: '{{ influencer.business_type or '' if influencer else '' }}',
+    hasBank: {{ 'true' if influencer and (influencer.bank_name or influencer.account_number or influencer.account_holder) else 'false' }},
     hasCampaign: {{ 'true' if influencer and influencer.has_campaign_history == 'true' else 'false' }},
-    showPayout: {{ 'true' if influencer and (influencer.business_type or influencer.bank_name) else 'false' }},
     aiTab: 'url',
-    aiFilename: ''
+    aiFilename: '',
+    beforeSubmit() {
+      this.$refs.categoriesJson.value = JSON.stringify(this.selected);
+      this.$refs.businessType.value = this.bt;
+      this.$refs.hasCampaignHistory.value = this.hasCampaign ? 'true' : 'false';
+    }
   }"
   @inf-ai-fill.window="
     if ($event.detail.imagePreview) imagePreview = $event.detail.imagePreview;
@@ -35,8 +40,8 @@
       <svg class="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
       </svg>
-      <span class="text-sm font-semibold text-gray-700">AI 자동 입력</span>
-      <span class="text-xs text-gray-400">Instagram · YouTube · TikTok URL 또는 프로필 스크린샷</span>
+      <span class="text-sm font-semibold text-gray-700">① 주소로 가져오기</span>
+      <span class="text-xs text-gray-400">인스타 주소를 넣으면 아이디·사진·팔로워가 자동으로 채워져요</span>
     </div>
 
     <!-- Tabs -->
@@ -109,22 +114,30 @@
   </div>
 
   <form method="post"
-    action="/influencers/{% if influencer %}{{ influencer.id }}/edit{% else %}new{% endif %}"
+    action="/influencers{% if influencer %}/{{ influencer.id }}/edit{% else %}new{% endif %}"
     enctype="multipart/form-data"
+    @submit="beforeSubmit()"
     class="space-y-5">
 
     <!-- Hidden: AI-downloaded profile image path -->
     <input type="hidden" id="saved_profile_image_path" name="saved_profile_image_path" value="">
+    <!-- Alpine 값은 @submit(beforeSubmit)에서 채운다 (CLAUDE.md 규칙 5) -->
+    <input type="hidden" name="categories_json" x-ref="categoriesJson" value="{{ (influencer.categories or []) | tojson | forceescape if influencer else '[]' }}">
+    <input type="hidden" name="business_type" x-ref="businessType" value="{{ influencer.business_type or '' if influencer else '' }}">
+    <input type="hidden" name="has_campaign_history" x-ref="hasCampaignHistory" value="{{ influencer.has_campaign_history or 'false' if influencer else 'false' }}">
 
-    <!-- 기본 정보 -->
+    <!-- ② 기본 정보 -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">기본 정보</h3>
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">② 기본 정보</h3>
 
-      <!-- Profile image upload -->
-      <div class="mb-5">
-        <label class="block text-sm font-medium text-gray-700 mb-2">프로필 이미지</label>
-        <div class="flex items-start gap-4">
-          <div class="w-20 h-20 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+      <div class="flex items-start gap-4">
+        <!-- 프로필 사진 (클릭해서 변경) -->
+        <div class="flex-shrink-0 text-center">
+          <input type="file" name="profile_image" accept="image/*" id="profileImageInput"
+            class="hidden"
+            @change="imagePreview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : imagePreview">
+          <label for="profileImageInput" title="사진 바꾸기 (jpg·png·webp, 최대 5MB)"
+            class="w-20 h-20 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-blue-400 transition">
             <template x-if="imagePreview">
               <img :src="imagePreview" class="w-full h-full object-cover">
             </template>
@@ -133,217 +146,152 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
               </svg>
             </template>
-          </div>
-          <div class="flex-1">
-            <input type="file" name="profile_image" accept="image/*" id="profileImageInput"
-              class="hidden"
-              @change="imagePreview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : imagePreview">
-            <label for="profileImageInput"
-              class="inline-flex items-center gap-1.5 text-sm px-3 py-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-              <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-              </svg>
-              이미지 선택
-            </label>
-            <div class="text-xs text-gray-400 mt-1.5">jpg, png, webp 최대 5MB</div>
-          </div>
+          </label>
+          <div class="text-xs text-gray-400 mt-1">사진 변경</div>
         </div>
-      </div>
 
-      <div class="grid grid-cols-2 gap-4">
-        <div>
+        <div class="flex-1">
           <label class="block text-sm font-medium text-gray-700 mb-1">이름 <span class="text-red-500">*</span></label>
           <input type="text" name="name" required value="{{ influencer.name if influencer else '' }}"
+            placeholder="실제로 부르는 이름 (인스타 표시 이름 X)"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">플랫폼 <span class="text-red-500">*</span></label>
-          <select name="platform" required
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            {% for p in platforms %}
-            <option value="{{ p }}" {% if influencer and influencer.platform == p %}selected{% endif %}>{{ p | platform_label }}</option>
-            {% endfor %}
-          </select>
+      </div>
+
+      <!-- 카테고리 -->
+      <div class="mt-5">
+        <label class="block text-sm font-medium text-gray-700 mb-1">카테고리 <span class="text-xs font-normal text-gray-400">클릭해서 선택 · 여러 개 가능</span></label>
+        <div class="flex flex-wrap gap-2">
+          {% for cat in preset_categories %}
+          <button type="button" @click="toggle('{{ cat }}')"
+            :class="has('{{ cat }}') ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-200 hover:border-purple-400 hover:text-purple-600'"
+            class="text-sm px-3 py-1.5 rounded-full border font-medium transition-colors">
+            {{ cat }}
+          </button>
+          {% endfor %}
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">핸들 / 채널명 <span class="text-red-500">*</span></label>
-          <input type="text" name="handle" required value="{{ influencer.handle if influencer else '' }}" placeholder="@없이 입력"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">팔로워 수</label>
-          <input type="number" name="followers" value="{{ influencer.followers if influencer else 0 }}" min="0"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">프로필 URL</label>
-          <input type="url" name="profile_url" value="{{ influencer.profile_url or '' if influencer else '' }}" placeholder="https://"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">상태</label>
-          <select name="status"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            <option value="active" {% if not influencer or influencer.status == 'active' %}selected{% endif %}>활성</option>
-            <option value="inactive" {% if influencer and influencer.status == 'inactive' %}selected{% endif %}>비활성</option>
-            <option value="blacklist" {% if influencer and influencer.status == 'blacklist' %}selected{% endif %}>블랙리스트</option>
-          </select>
+      </div>
+
+      <!-- 자동 입력 칸 -->
+      <div class="mt-5 pt-4 border-t border-gray-50">
+        <p class="text-xs text-gray-400 mb-3">아래는 주소로 가져오면 자동으로 채워져요. 직접 고쳐도 돼요.</p>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">플랫폼 <span class="text-red-500">*</span></label>
+            <select name="platform" required
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              {% for p in platforms %}
+              <option value="{{ p }}" {% if influencer and influencer.platform == p %}selected{% endif %}>{{ p | platform_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">아이디 / 채널명 <span class="text-red-500">*</span></label>
+            <input type="text" name="handle" required value="{{ influencer.handle if influencer else '' }}" placeholder="@없이 입력"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">팔로워 수</label>
+            <input type="number" name="followers" value="{{ influencer.followers if influencer else 0 }}" min="0"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">프로필 주소</label>
+            <input type="url" name="profile_url" value="{{ influencer.profile_url or '' if influencer else '' }}" placeholder="https://"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 카테고리 태그 피커 -->
+    <!-- ③ 연락처 -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">콘텐츠 카테고리</h3>
-      <p class="text-xs text-gray-400 mb-3">클릭하여 선택 (복수 선택 가능)</p>
-      <input type="hidden" name="categories_json" :value="JSON.stringify(selected)">
-      <div class="flex flex-wrap gap-2">
-        {% for cat in preset_categories %}
-        <button type="button" @click="toggle('{{ cat }}')"
-          :class="has('{{ cat }}') ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-200 hover:border-purple-400 hover:text-purple-600'"
-          class="text-sm px-3 py-1.5 rounded-full border font-medium transition-colors">
-          {{ cat }}
-        </button>
-        {% endfor %}
-      </div>
-      <div class="mt-2 text-xs text-gray-400" x-show="selected.length > 0">
-        선택됨: <span x-text="selected.join(', ')" class="text-gray-600"></span>
-      </div>
-    </div>
-
-    <!-- 오디언스 정보 -->
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">오디언스 정보</h3>
-      <div class="grid grid-cols-2 gap-4">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">③ 연락처</h3>
+      <div class="grid grid-cols-3 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">연령대</label>
-          <input type="text" name="audience_age_range" value="{{ influencer.audience_age_range or '' if influencer else '' }}"
-            placeholder="예: 20-34세"
+          <label class="block text-xs font-medium text-gray-600 mb-1">전화번호</label>
+          <input type="text" name="contact_phone" value="{{ influencer.contact_phone or '' if influencer else '' }}"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">성별 비율</label>
-          <input type="text" name="audience_gender_ratio" value="{{ influencer.audience_gender_ratio or '' if influencer else '' }}"
-            placeholder="예: 여성 75%"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">게시물 평균 조회수</label>
-          <input type="number" name="avg_views_per_post" value="{{ influencer.avg_views_per_post if influencer else 0 }}" min="0"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-      </div>
-    </div>
-
-    <!-- 연락처 (필수) -->
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">연락처</h3>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">이메일</label>
+          <label class="block text-xs font-medium text-gray-600 mb-1">이메일</label>
           <input type="email" name="contact_email" value="{{ influencer.contact_email or '' if influencer else '' }}"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">전화번호</label>
-          <input type="text" name="contact_phone" value="{{ influencer.contact_phone or '' if influencer else '' }}"
+          <label class="block text-xs font-medium text-gray-600 mb-1">카카오톡 ID</label>
+          <input type="text" name="contact_kakao" value="{{ influencer.contact_kakao or '' if influencer else '' }}"
             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-      </div>
-
-      <!-- Collapsible optional contact fields -->
-      <div class="mt-3">
-        <button type="button" @click="showOptional = !showOptional"
-          class="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
-          <svg class="w-3 h-3 transition-transform" :class="showOptional ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
-          <span x-text="showOptional ? '선택 항목 접기' : '카카오톡 · 에이전시 · 커미션 입력'"></span>
-        </button>
-        <div x-show="showOptional" x-cloak class="mt-3 grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">카카오톡 ID</label>
-            <input type="text" name="contact_kakao" value="{{ influencer.contact_kakao or '' if influencer else '' }}"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">소속 에이전시</label>
-            <input type="text" name="agency_name" value="{{ influencer.agency_name or '' if influencer else '' }}"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">선호 커미션율 (%)</label>
-            <input type="number" name="commission_preference_pct" step="0.1" min="0" max="100"
-              value="{{ (influencer.commission_preference * 100) | round(1) if influencer and influencer.commission_preference else 0 }}"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
         </div>
       </div>
     </div>
 
-    <!-- 거래 정보 -->
+    <!-- ④ 정산 정보 — 유형을 고르면 그 유형에 필요한 칸만 -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">거래 정보</h3>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">누적 GMV (원)</label>
-          <input type="number" name="past_gmv" value="{{ influencer.past_gmv | int if influencer else 0 }}" min="0" step="10000"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div class="col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">메모</label>
-          <textarea name="notes" rows="3"
-            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ influencer.notes or '' if influencer else '' }}</textarea>
-        </div>
-      </div>
-    </div>
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">④ 정산 정보</h3>
+      <p class="text-xs text-gray-400 mb-3">어떤 유형이에요? 아직 모르면 비워두고 나중에 채워도 돼요.</p>
 
-    <!-- 정산 / 사업자 정보 -->
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">정산 / 사업자 정보</h3>
-        <button type="button" @click="showPayout = !showPayout"
-          class="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
-          <svg class="w-3 h-3 transition-transform" :class="showPayout ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
-          <span x-text="showPayout ? '접기' : '펼치기'"></span>
-        </button>
+      <div class="flex gap-2 flex-wrap">
+        <template x-for="opt in [{v:'사업자',l:'일반 사업자'},{v:'간이사업자',l:'간이 사업자'},{v:'프리랜서',l:'프리랜서 (3.3%)'}]" :key="opt.v">
+          <button type="button" @click="bt = (bt === opt.v ? '' : opt.v)"
+            :class="bt === opt.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400'"
+            class="text-sm px-4 py-2 rounded-lg border font-medium transition-colors"
+            x-text="opt.l"></button>
+        </template>
       </div>
 
-      <div x-show="showPayout" x-cloak class="space-y-5">
-        <!-- Campaign history toggle -->
-        <div class="flex items-center justify-between py-2 border-b border-gray-50">
+      <div x-show="bt || hasBank" x-cloak class="mt-5 space-y-4">
+        <!-- 사업자 / 간이사업자 -->
+        <div x-show="bt === '사업자' || bt === '간이사업자'" x-cloak class="grid grid-cols-2 gap-3">
           <div>
-            <div class="text-sm font-medium text-gray-700">캠페인 이력 있음</div>
-            <div class="text-xs text-gray-400">실제 공구 캠페인을 진행한 셀러 여부</div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">상호명</label>
+            <input type="text" name="business_name" value="{{ influencer.business_name or '' if influencer else '' }}"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           </div>
-          <div class="relative">
-            <input type="hidden" name="has_campaign_history" :value="hasCampaign ? 'true' : 'false'">
-            <button type="button" @click="hasCampaign = !hasCampaign"
-              :class="hasCampaign ? 'bg-green-500' : 'bg-gray-200'"
-              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none">
-              <span :class="hasCampaign ? 'translate-x-6' : 'translate-x-1'"
-                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm"></span>
-            </button>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">사업자등록번호</label>
+            <input type="text" name="business_registration_number"
+              value="{{ influencer.business_registration_number or '' if influencer else '' }}"
+              placeholder="000-00-00000"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <!-- 일반 사업자만 -->
+          <template x-if="bt === '사업자'">
+            <div class="col-span-2 grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">대표자명</label>
+                <input type="text" name="representative_name" value="{{ influencer.representative_name or '' if influencer else '' }}"
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">세금계산서 이메일</label>
+                <input type="email" name="tax_invoice_email" value="{{ influencer.tax_invoice_email or '' if influencer else '' }}"
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+              <div class="col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">사업장 주소</label>
+                <input type="text" name="business_address" value="{{ influencer.business_address or '' if influencer else '' }}"
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- 프리랜서 -->
+        <div x-show="bt === '프리랜서'" x-cloak>
+          <div class="bg-orange-50 border border-orange-100 rounded-lg p-3 mb-3">
+            <p class="text-xs text-orange-700">프리랜서는 지급액의 3.3% 원천징수가 적용돼요. 주민등록번호는 OS 에 저장하지 않아요 — 원천징수 신고는 세무 자료로 관리해 주세요.</p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">실명</label>
+              <input type="text" name="legal_name" value="{{ influencer.legal_name or '' if influencer else '' }}"
+                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
           </div>
         </div>
 
-        <!-- Business type selector -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">사업자 유형</label>
-          <div class="flex gap-2 flex-wrap">
-            <template x-for="opt in [{v:'사업자',l:'일반 사업자'},{v:'간이사업자',l:'간이 사업자'},{v:'프리랜서',l:'프리랜서 (3.3%)'}]" :key="opt.v">
-              <button type="button" @click="bt = (bt === opt.v ? '' : opt.v)"
-                :class="bt === opt.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400'"
-                class="text-sm px-4 py-2 rounded-lg border font-medium transition-colors"
-                x-text="opt.l"></button>
-            </template>
-          </div>
-          <input type="hidden" name="business_type" :value="bt">
-        </div>
-
-        <!-- Bank info (always shown in payout section) -->
+        <!-- 계좌 (유형 공통) -->
         <div class="grid grid-cols-3 gap-3">
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">은행명</label>
@@ -363,79 +311,103 @@
               class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           </div>
         </div>
+      </div>
 
-        <!-- 사업자 / 간이사업자 fields -->
-        <div x-show="bt === '사업자' || bt === '간이사업자'" x-cloak class="space-y-3">
-          <div class="grid grid-cols-2 gap-3">
+      <!-- 선택 안 한 유형의 칸은 빈 값으로 보내 지운다 -->
+      <template x-if="bt !== '사업자' && bt !== '간이사업자'">
+        <span>
+          <input type="hidden" name="business_name" value="">
+          <input type="hidden" name="business_registration_number" value="">
+        </span>
+      </template>
+      <template x-if="bt !== '사업자'">
+        <span>
+          <input type="hidden" name="representative_name" value="">
+          <input type="hidden" name="business_address" value="">
+          <input type="hidden" name="tax_invoice_email" value="">
+        </span>
+      </template>
+      <template x-if="bt !== '프리랜서'">
+        <span>
+          <input type="hidden" name="legal_name" value="">
+        </span>
+      </template>
+    </div>
+
+    <!-- 메모 + 추가 정보 (접힘) -->
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">메모</label>
+      <textarea name="notes" rows="3"
+        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">{{ influencer.notes or '' if influencer else '' }}</textarea>
+
+      <div class="mt-4">
+        <button type="button" @click="showMore = !showMore"
+          class="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
+          <svg class="w-3 h-3 transition-transform" :class="showMore ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+          <span x-text="showMore ? '추가 정보 접기' : '추가 정보 (상태 · 캠페인 이력 · 오디언스 · 에이전시 · 커미션 · 누적 GMV)'"></span>
+        </button>
+
+        <div x-show="showMore" x-cloak class="mt-4 space-y-4">
+          <div class="flex items-center justify-between py-2 border-b border-gray-50">
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">상호명</label>
-              <input type="text" name="business_name" value="{{ influencer.business_name or '' if influencer else '' }}"
-                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <div class="text-sm font-medium text-gray-700">캠페인 이력 있음</div>
+              <div class="text-xs text-gray-400">실제 공구 캠페인을 진행한 셀러 여부</div>
             </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">사업자등록번호</label>
-              <input type="text" name="business_registration_number"
-                value="{{ influencer.business_registration_number or '' if influencer else '' }}"
-                placeholder="000-00-00000"
-                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
+            <button type="button" @click="hasCampaign = !hasCampaign"
+              :class="hasCampaign ? 'bg-green-500' : 'bg-gray-200'"
+              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none">
+              <span :class="hasCampaign ? 'translate-x-6' : 'translate-x-1'"
+                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm"></span>
+            </button>
           </div>
-          <!-- 일반 사업자 only -->
-          <div x-show="bt === '사업자'" x-cloak class="grid grid-cols-2 gap-3">
+
+          <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">대표자명</label>
-              <input type="text" name="representative_name" value="{{ influencer.representative_name or '' if influencer else '' }}"
+              <label class="block text-xs font-medium text-gray-600 mb-1">상태</label>
+              <select name="status"
+                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                <option value="active" {% if not influencer or influencer.status == 'active' %}selected{% endif %}>활성</option>
+                <option value="inactive" {% if influencer and influencer.status == 'inactive' %}selected{% endif %}>비활성</option>
+                <option value="blacklist" {% if influencer and influencer.status == 'blacklist' %}selected{% endif %}>블랙리스트</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">소속 에이전시</label>
+              <input type="text" name="agency_name" value="{{ influencer.agency_name or '' if influencer else '' }}"
                 class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">세금계산서 이메일</label>
-              <input type="email" name="tax_invoice_email" value="{{ influencer.tax_invoice_email or '' if influencer else '' }}"
+              <label class="block text-xs font-medium text-gray-600 mb-1">오디언스 연령대</label>
+              <input type="text" name="audience_age_range" value="{{ influencer.audience_age_range or '' if influencer else '' }}"
+                placeholder="예: 20-34세"
                 class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
-            <div class="col-span-2">
-              <label class="block text-xs font-medium text-gray-600 mb-1">사업장 주소</label>
-              <input type="text" name="business_address" value="{{ influencer.business_address or '' if influencer else '' }}"
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">오디언스 성별 비율</label>
+              <input type="text" name="audience_gender_ratio" value="{{ influencer.audience_gender_ratio or '' if influencer else '' }}"
+                placeholder="예: 여성 75%"
+                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">게시물 평균 조회수</label>
+              <input type="number" name="avg_views_per_post" value="{{ influencer.avg_views_per_post if influencer else 0 }}" min="0"
+                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">선호 커미션율 (%)</label>
+              <input type="number" name="commission_preference_pct" step="0.1" min="0" max="100"
+                value="{{ (influencer.commission_preference * 100) | round(1) if influencer and influencer.commission_preference else 0 }}"
+                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">누적 GMV (원)</label>
+              <input type="number" name="past_gmv" value="{{ influencer.past_gmv | int if influencer else 0 }}" min="0" step="10000"
                 class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
           </div>
         </div>
-
-        <!-- 프리랜서 fields -->
-        <div x-show="bt === '프리랜서'" x-cloak>
-          <div class="bg-orange-50 border border-orange-100 rounded-lg p-3 mb-3">
-            <p class="text-xs text-orange-700">프리랜서는 지급액의 3.3% 원천징수가 적용됩니다.</p>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">실명</label>
-              <input type="text" name="legal_name" value="{{ influencer.legal_name or '' if influencer else '' }}"
-                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="flex items-end">
-              <p class="text-xs text-gray-500">주민등록번호는 OS 에 저장하지 않아요. 원천징수 신고는 세무 자료로 관리해 주세요.</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Hidden fields to clear unused types on submit -->
-        <template x-if="bt !== '사업자' && bt !== '간이사업자'">
-          <span>
-            <input type="hidden" name="business_name" value="">
-            <input type="hidden" name="business_registration_number" value="">
-          </span>
-        </template>
-        <template x-if="bt !== '사업자'">
-          <span>
-            <input type="hidden" name="representative_name" value="">
-            <input type="hidden" name="business_address" value="">
-            <input type="hidden" name="tax_invoice_email" value="">
-          </span>
-        </template>
-        <template x-if="bt !== '프리랜서'">
-          <span>
-            <input type="hidden" name="legal_name" value="">
-          </span>
-        </template>
       </div>
     </div>
 
