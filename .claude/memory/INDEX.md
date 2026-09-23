@@ -43,7 +43,7 @@
 
 | id | 내용 | 파일 |
 |---|---|---|
-| IS-001 | **테스트·CI·린트가 전무하다** — regression guard 의 근본 공백 (Phase 3) | `issues/IS-001-*.md` |
+| IS-001 | **테스트·CI·린트 부족** — 캠페인 15건만 있음(`tests/`, unittest). 나머지·CI·린트 없음 | `issues/IS-001-*.md` |
 | IS-003 | WSL 개인 설정이 프로젝트 설정을 덮어쓴다 (전부 내용 다름, Phase 4) | `issues/IS-003-*.md` |
 | IS-004 | EC2 에만 있는 미추적 파일 9개 — 전부 미참조 잔재, 정리 대상 | `issues/IS-004-*.md` |
 | IS-005 | `static/logo.png` 이 없는데 템플릿 10곳 이상이 참조 (로고 안 보임) | `issues/IS-005-*.md` |

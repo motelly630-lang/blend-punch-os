@@ -6,7 +6,18 @@
 > **이 파일은 지도(map)입니다.** 사업 배경·업무 흐름·모델 필드 상세는
 > `BLENDPUNCH_OS_SECOND_BRAIN.md`(572줄)에 있으니 **필요할 때만** 열어보세요.
 
-## 실행환경 — 편집은 Windows, 실행은 WSL
+## 실행환경 — 머신 2대
+
+| 머신 | 저장소 위치 | 명령 실행 |
+|---|---|---|
+| **Windows 데스크톱** | WSL `/home/blendpunch/blend-punch-os` (UNC 로 열림) | 아래 규칙대로 **전부 `wsl -- bash -lc`** |
+| **macOS 맥북** | `~/blend-punch-os` | 터미널에서 **그대로** 실행 (`uv run …`, `npm …`, `git …`). `wsl` 없음 |
+
+**맥북이면 이 절의 나머지(Windows 전용 규칙)는 건너뛴다.** 두 머신이 같은 로컬 DB(`blendpunch`)를
+공유하므로 한쪽에서 바꾼 데이터는 다른 쪽에도 보인다. 작업 전 `git pull`, 끝나면 commit·push —
+두 머신에서 동시에 같은 작업을 하지 않는다. 비밀파일(`.env`·`google_sa.json`)은 각 머신에 따로 있다.
+
+### Windows — 편집은 Windows, 실행은 WSL
 
 이 저장소는 **WSL Ubuntu(`/home/blendpunch/blend-punch-os`)에서만 실행**된다.
 Claude Code는 Windows PowerShell에서 돌고 프로젝트를 UNC(`\\wsl$\Ubuntu\...`)로 연다.
@@ -36,7 +47,7 @@ wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && npm run build:css"
 wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && uv run python migrate.py"
 wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && git status --short"
 
-# WSL 셸에서 직접 작업할 때 (EC2는 .venv/bin/python)
+# WSL 셸 / macOS 터미널에서 직접 작업할 때 (EC2는 .venv/bin/python)
 uv run uvicorn app.main:app --reload --port 8000   # 로컬
 npm run build:css                                  # 템플릿에 새 Tailwind 클래스 추가 시 필수
 uv run python migrate.py                           # DB 마이그레이션 (재실행 안전)
