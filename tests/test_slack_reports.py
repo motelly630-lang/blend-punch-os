@@ -215,12 +215,12 @@ class DigestAITests(ReportBase):
         self.assertIn("2. 오늘 마감 '오늘마감0' 마무리 확인", msg)
         self.assertNotIn("지어낸id", msg)
 
-    def test_후보가_3개_이하면_AI를_부르지_않는다(self):
+    def test_할_일이_3개_이하면_AI도_우선순위도_없다(self):
         self._campaigns(2)
         ai = _FakeAI({"ids": []})
         self._digest(ai)
         self.assertEqual(ai.calls, [])
-        self.assertIn("오늘 먼저 할 일", _texts("C0GROUPBUY1")[0])
+        self.assertNotIn("오늘 먼저 할 일", _texts("C0GROUPBUY1")[0])
 
     def test_알릴_게_없으면_우선순위를_붙이지_않는다(self):
         ai = _FakeAI({"ids": []})

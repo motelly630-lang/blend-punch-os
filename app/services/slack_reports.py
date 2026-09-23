@@ -305,14 +305,15 @@ def priority_candidates(d: dict) -> list[dict]:
 
 
 def ai_priorities(d: dict) -> list[dict] | None:
-    """오늘 먼저 할 일 최대 3개. 후보가 3개 이하면 AI 없이 그대로, 알릴 게 없으면 None."""
+    """오늘 먼저 할 일 최대 3개 — 할 일이 4개 이상이라 순서가 필요할 때만, AI 가 순서를 매긴 경우만.
+
+    3개 이하면 보고 본문에 이미 다 보이므로 붙이지 않는다 (AI 를 안 불렀는데 'AI 제안' 으로 보이지 않게).
+    """
     if not sn.is_enabled(EV_DIGEST_AI):
         return None
     cands = priority_candidates(d)
-    if not cands:
-        return None
     if len(cands) <= 3:
-        return cands
+        return None
     client = _ai()
     if client is None:
         return None
