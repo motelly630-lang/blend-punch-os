@@ -8,18 +8,21 @@ version: 1.1.0
 
 `os.blendpunch.com` (EC2)에 변경사항을 안전하게 배포하는 절차.
 
-## ⚠️ 실행 위치: 반드시 WSL
+## ⚠️ 실행 위치: Windows 는 WSL, macOS 는 터미널 그대로
 
-SSH 키(`~/.ssh/blendpunch-key.pem`)와 `git`·`scp` 는 모두 WSL 안에만 있다.
-Windows Claude Code 에서 작업 중이라면 **모든 명령을 `wsl -- bash -lc "..."` 로 감싼다.**
-Windows 의 `ssh.exe` 로 `\\wsl$` 위의 키를 쓰면 권한 검사에서 막힌다.
+- **Windows:** SSH 키(`~/.ssh/blendpunch-key.pem`)와 `git`·`scp` 는 모두 WSL 안에만 있다.
+  **모든 명령을 `wsl -- bash -lc "..."` 로 감싼다.** Windows `ssh.exe` 로 `\\wsl$` 위의 키를 쓰면 권한 검사에서 막힌다.
+- **macOS:** 아래 명령을 `wsl` 없이 그대로 실행한다. 키는 맥의 `~/.ssh/blendpunch-key.pem` (권한 600).
+  `getent` 가 없으므로 `deploy.sh` 는 IP 를 `dig` → `python3` 로 대신 찾는다.
+- 운영 SSH 쓰기는 자동 권한 판정에서 막힐 수 있다 — 그때는 사용자가 `!` 로 직접 실행한다.
 
 ## ⚠️ 가장 중요: IP가 자주 바뀐다
 EC2 퍼블릭 IP가 수시로 변경됨 (3.38.104.216 → 3.35.19.151 → 3.34.51.70 ...).
 **메모리에 적힌 IP를 믿지 말고, 배포할 때마다 DNS로 현재 IP를 다시 확인할 것.**
 
 ```bash
-wsl -- bash -lc "getent hosts os.blendpunch.com"   # 현재 A 레코드 = 진짜 IP (Cloudflare proxy 꺼져있음)
+wsl -- bash -lc "getent hosts os.blendpunch.com"   # Windows(WSL): 현재 A 레코드 = 진짜 IP (Cloudflare proxy 꺼져있음)
+dig +short os.blendpunch.com                        # macOS
 ```
 
 ## 서버 정보
@@ -37,12 +40,19 @@ wsl -- bash -lc "getent hosts os.blendpunch.com"   # 현재 A 레코드 = 진짜
 > 열어 두면 `wsl` 이 cwd 를 POSIX 로 변환해 주므로 그대로 동작한다.
 > 다른 위치에서 돌려야 하면 `cd ~/blend-punch-os && ...` 를 앞에 붙인다.
 
-### 방법 A) git pull (정석 — 커밋된 변경사항 배포)
-로컬에서 commit + push 후 EC2에서 pull. **GitHub에 배포키가 등록돼 있을 때만 동작.**
-헬퍼 스크립트 사용:
+### 방법 A) git (정석 — 커밋된 변경사항 배포)
+로컬에서 commit + push 후 EC2에서 받는다. **GitHub에 배포키가 등록돼 있을 때만 동작.**
+헬퍼 스크립트 사용 (Windows 는 `wsl -- bash -lc "..."` 로 감싼다):
 ```bash
-wsl -- bash -lc "bash .claude/skills/ec2-deploy/scripts/deploy.sh git"
+bash .claude/skills/ec2-deploy/scripts/deploy.sh check   # 1) 점검만 — 서버 변경 없음. 먼저 보여주고 승인받는다
+bash .claude/skills/ec2-deploy/scripts/deploy.sh git     # 2) 배포
 ```
+`git` 모드가 하는 일 ([[RG-004]]·[[DE-002]] 준수):
+1. 로컬 HEAD == origin/master 확인 (push 안 된 커밋이면 중단)
+2. EC2 추적파일 변경 없음 · fast-forward 가능 · 비밀파일 미추적 확인 (하나라도 어긋나면 중단)
+3. EC2 에 `deploy-backup-<시각>.tar.gz` 백업
+4. `git merge --ff-only` → **재시작 전** `import app.main` 검사 (실패 시 원복하고 재시작 안 함)
+5. 재시작 → 로그 오류 확인 → `is-active` · `/login` 응답 확인. 되돌리기 명령을 출력한다
 
 ### 방법 B) scp 직접 복사 (빠른 핫픽스 — 특정 파일만)
 커밋 없이 수정 파일 몇 개만 즉시 반영할 때. (정적파일, 템플릿 등)
@@ -67,9 +77,8 @@ wsl -- bash -lc "ssh -i ~/.ssh/blendpunch-key.pem ubuntu@\$(getent hosts os.blen
 ```
 
 ## 체크리스트
-1. [ ] DNS로 현재 IP 확인
-2. [ ] 배포 방법 선택 (git / scp)
-3. [ ] 서비스 재시작 (`systemctl restart blendpunch`)
-4. [ ] `systemctl is-active`로 active 확인
-5. [ ] curl로 라이브 검증
-6. [ ] (스키마 변경 시) migrate.py 실행
+1. [ ] `deploy.sh check` 결과를 사용자에게 보여주고 배포 승인 (재시작 중 수 초 접속 끊김 고지)
+2. [ ] 배포 방법 선택 (git / scp) — IP 확인·재시작·is-active·/login 확인은 스크립트가 한다
+3. [ ] 로그인이 필요한 화면은 사용자에게 확인 요청 (curl 은 비로그인이라 FeatureGate 로 리다이렉트된다)
+4. [ ] (스키마 변경 시) migrate.py 실행 — 대상 DB 확인 (운영 = `blendpunch_dev`)
+5. [ ] changelog 에 배포 기록 (이전→새 HEAD, 백업 파일명)
