@@ -44,7 +44,7 @@
 
   <form id="camp-import-form" method="post" action="/campaigns/import/confirm">
     <input type="hidden" name="payload_json" value="{{ payload | e }}">
-    <input type="hidden" name="mapping_json" id="camp-import-mapping-json" value="{{ mapping | tojson | e }}">
+    <input type="hidden" name="mapping_json" id="camp-import-mapping-json" value="{{ mapping | tojson | forceescape }}">
     <div class="flex items-center justify-between pt-4 border-t border-gray-100">
       <p class="text-sm text-gray-500">
         <span class="font-semibold text-gray-800">{{ total_rows }}개 캠페인</span>을 등록합니다.

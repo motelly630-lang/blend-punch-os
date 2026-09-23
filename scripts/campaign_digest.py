@@ -26,19 +26,24 @@ def main() -> int:
     finally:
         db.close()
 
+    from app.config import settings
+    review_url = settings.app_base_url.rstrip("/") + "/campaigns/progress-review"
+    text = render_text(d, review_url=review_url)
+
     print("─" * 46)
-    print(render_text(d))
+    print(text)
     print("─" * 46)
     print(f"보낼 만한 내용 있음: {'예' if has_anything(d) else '아니오 (발송 생략)'}")
     for k, label in [("ending_today", "오늘 종료"), ("ending_tomorrow", "내일 종료"),
                      ("starting_today", "오늘 시작"), ("starting_tomorrow", "내일 시작"),
                      ("running", "진행중"), ("no_end_date", "종료일 없음")]:
         print(f"  {label}: {len(d[k])}")
+    print(f"  처리 대기: {d['pending']}")
 
     # --send 를 붙이면 실제 웹훅으로 보낸다 (ALERT_MOCK=false 여야 실발송)
     if "--send" in sys.argv:
         from app.services.webhook_notify import send_webhook
-        r = send_webhook(render_text(d))
+        r = send_webhook(text)
         print(f"\n발송: {'성공' if r['sent'] else '안 됨'} — {r['reason']}")
     return 0
 

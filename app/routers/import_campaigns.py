@@ -7,7 +7,7 @@ Excel / CSV campaign import router.
 import io
 import json
 import logging
-from datetime import date
+from datetime import date, datetime
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -20,6 +20,9 @@ from app.auth.tenant import get_company_id
 from app.database import get_db
 from app.models import Campaign, Product, Influencer
 from app.models.user import User
+from app.services.import_template import strip_template_hint_row
+from app.services.rates import RateError, parse_external_rate
+from app.services.campaign_service import CampaignValidationError, validate_dates
 
 router = APIRouter(prefix="/campaigns/import")
 templates = Jinja2Templates(directory="app/templates")
@@ -73,13 +76,37 @@ ALL_FIELDS = [
 ]
 
 
+# 다운로드 템플릿의 (열 이름, 2행 안내 문구). download_template 과 업로드 파서가 함께 쓴다.
+TEMPLATE_COLUMNS: list[tuple[str, str]] = [
+    ("캠페인명", "필수"),
+    ("제품명", "등록된 제품 이름과 정확히 일치"),
+    ("인플루언서", "등록된 인플루언서 이름과 정확히 일치"),
+    ("시작일", "YYYY-MM-DD"),
+    ("종료일", "YYYY-MM-DD"),
+    ("예상판매량", "숫자"),
+    ("실판매량", "숫자"),
+    ("실매출", "숫자"),
+    ("단가", "숫자"),
+    ("셀러커미션", "숫자(%) 예: 15"),
+    ("벤더마진", "숫자(%) 예: 10"),
+    ("메모", "내부 메모"),
+]
+TEMPLATE_HINT_VERSIONS: list[dict[str, str]] = [dict(TEMPLATE_COLUMNS)]
+
+
 def _parse_file(content: bytes, filename: str) -> tuple[list[str], list[list]]:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext in ("xlsx", "xls"):
         from openpyxl import load_workbook
+        from app.services.import_cells import spreadsheet_cell_text
         wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
         ws = wb.active
-        rows = [[str(cell.value or "").strip() for cell in row] for row in ws.iter_rows()]
+        # Excel date-formatted cells are returned as datetime/date objects.
+        # Campaign schedules are calendar dates; do not serialize a midnight time suffix.
+        rows = [[(cell.value.date().isoformat() if isinstance(cell.value, datetime)
+                  else cell.value.isoformat() if isinstance(cell.value, date)
+                  else spreadsheet_cell_text(cell)) for cell in row]
+                for row in ws.iter_rows()]
         wb.close()
     else:
         import csv
@@ -87,7 +114,11 @@ def _parse_file(content: bytes, filename: str) -> tuple[list[str], list[list]]:
         rows = [[c.strip() for c in r] for r in csv.reader(io.StringIO(text))]
     if not rows:
         return [], []
-    return rows[0], [r for r in rows[1:] if any(c for c in r)]
+    headers = rows[0]
+    data = [r for r in rows[1:] if any(c for c in r)]
+    # 템플릿 2행 안내 행 제거 — 템플릿 구조와 정확히 일치할 때만 (캠페인명 '필수' 같은 정상 행은 유지)
+    data, _ = strip_template_hint_row(headers, data, TEMPLATE_HINT_VERSIONS)
+    return headers, data
 
 
 def _auto_map(headers: list[str]) -> dict[int, str]:
@@ -113,18 +144,14 @@ def _convert(field: str, raw: str):
         except ValueError:
             return None
     if field in PERCENT_FIELDS:
-        try:
-            v = float(raw.replace(",", "").replace("%", ""))
-            return v / 100.0 if v > 1 else v
-        except ValueError:
-            return None
+        return parse_external_rate(raw)  # 모호한 값("1","0.5")은 RateError → 행 오류
     if field in ("start_date", "end_date"):
         for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", "%m/%d/%Y"):
             try:
-                return date.fromisoformat(raw) if fmt == "%Y-%m-%d" else __import__("datetime").datetime.strptime(raw, fmt).date()
-            except Exception:
+                return date.fromisoformat(raw) if fmt == "%Y-%m-%d" else datetime.strptime(raw, fmt).date()
+            except ValueError:
                 continue
-        return None
+        raise CampaignValidationError(f"유효하지 않은 날짜입니다: {raw!r} (YYYY-MM-DD로 입력하세요)")
     return raw or None
 
 
@@ -142,20 +169,7 @@ def download_template(current_user: User = Depends(get_current_user)):
     ws = wb.active
     ws.title = "캠페인목록"
 
-    headers = [
-        ("캠페인명", "필수"),
-        ("제품명", "등록된 제품 이름과 정확히 일치"),
-        ("인플루언서", "등록된 인플루언서 이름과 정확히 일치"),
-        ("시작일", "YYYY-MM-DD"),
-        ("종료일", "YYYY-MM-DD"),
-        ("예상판매량", "숫자"),
-        ("실판매량", "숫자"),
-        ("실매출", "숫자"),
-        ("단가", "숫자"),
-        ("셀러커미션", "숫자(%) 예: 15"),
-        ("벤더마진", "숫자(%) 예: 10"),
-        ("메모", "내부 메모"),
-    ]
+    headers = TEMPLATE_COLUMNS
 
     header_fill = PatternFill("solid", fgColor="1E40AF")
     hint_fill = PatternFill("solid", fgColor="EFF6FF")
@@ -275,14 +289,29 @@ async def import_confirm(
 
     for row_idx, row in enumerate(rows):
         row_data: dict = {}
-        for i, _ in enumerate(headers):
+        row_errors: list[str] = []
+        for i, header in enumerate(headers):
             field = mapping.get(str(i), "__skip__")
             if field == "__skip__" or not field:
                 continue
             val = row[i] if i < len(row) else ""
-            converted = _convert(field, val)
+            try:
+                converted = _convert(field, val)
+            except (RateError, CampaignValidationError) as e:
+                row_errors.append(f"{header}: {e}")
+                continue
             if converted is not None:
                 row_data[field] = converted
+
+        try:
+            validate_dates(row_data.get("start_date"), row_data.get("end_date"))
+        except CampaignValidationError as e:
+            row_errors.append(str(e))
+
+        if row_errors:
+            errors.append(f"행 {row_idx + 2}: " + " / ".join(row_errors))
+            skipped += 1
+            continue
 
         if not row_data.get("name"):
             skipped += 1
@@ -343,5 +372,5 @@ async def import_confirm(
     if skipped:
         parts.append(f"{skipped}개 건너뜀")
     if errors:
-        parts.append(f"오류 {len(errors)}행")
+        parts.append(f"오류 {len(errors)}행: {errors[0]}")
     return RedirectResponse(f"/campaigns?msg={quote(' · '.join(parts))}", status_code=302)

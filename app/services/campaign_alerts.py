@@ -83,13 +83,38 @@ def build_digest(db: Session, company_id: int = 1,
     for k in out:
         out[k].sort(key=lambda x: (x["end"] or date.max, x["name"]))
     out["date"] = base
+    out["pending"] = build_pending(db, company_id, base)
     return out
+
+
+def build_pending(db: Session, company_id: int, base: date) -> dict:
+    """진행 상태 정리 화면(/campaigns/progress-review)에 쌓인 승인 대기 건수.
+
+    제안 계산은 campaign_progress 에 맡기고 여기서는 세기만 한다 (DB 미변경).
+    적용은 사람이 그 화면에서 선택해서 한다 — 알림은 들어가 볼 이유만 알려준다.
+    """
+    from app.services.campaign_progress import build_proposal
+
+    p = build_proposal(db, company_id, base)
+    return {
+        "to_active": sum(1 for x in p.status_changes if x["to"] == "active"),
+        "to_completed": sum(1 for x in p.status_changes if x["to"] == "completed"),
+        "archive": len(p.archives),
+        "needs_review": len(p.needs_review),
+        "no_settlement": len(p.completed_without_settlement),  # 참고용 — 발송 사유는 아님
+    }
+
+
+def pending_total(d: dict) -> int:
+    """승인이 필요한 건수 (정산 없음은 참고 정보라 제외)."""
+    p = d.get("pending") or {}
+    return sum(p.get(k, 0) for k in ("to_active", "to_completed", "archive", "needs_review"))
 
 
 def has_anything(d: dict) -> bool:
     """알릴 게 있는가 (없으면 굳이 보내지 않는다)."""
-    return any(d[k] for k in ("ending_today", "ending_tomorrow",
-                              "starting_today", "starting_tomorrow"))
+    return pending_total(d) > 0 or any(d[k] for k in ("ending_today", "ending_tomorrow",
+                                                      "starting_today", "starting_tomorrow"))
 
 
 def _lines(items: list[dict], show_end: bool = True) -> list[str]:
@@ -100,11 +125,28 @@ def _lines(items: list[dict], show_end: bool = True) -> list[str]:
     return out
 
 
-def render_text(d: dict, include_running: bool = True) -> str:
+def _pending_lines(d: dict, review_url: str | None) -> list[str]:
+    p = d.get("pending") or {}
+    total = pending_total(d)
+    if not total:
+        return []
+    out = [f"\n처리 대기 {total}건 (승인 필요)"]
+    for k, label in (("to_active", "진행 전환"), ("to_completed", "완료 전환"),
+                     ("archive", "보관"), ("needs_review", "상태 확인 (기획·협의중인데 일정 경과)")):
+        if p.get(k):
+            out.append(f"· {label} {p[k]}건")
+    if review_url:
+        out.append(f"→ {review_url}")
+    return out
+
+
+def render_text(d: dict, include_running: bool = True,
+                review_url: str | None = None) -> str:
     """카카오톡·이메일·슬랙에 그대로 넣을 수 있는 짧은 텍스트.
 
     휴대폰에서 읽는 걸 전제로 짧게 유지한다 — 카카오톡 '나에게 보내기'는
     본문이 길면 잘린다.
+    review_url: 처리 대기 항목 아래 붙일 진행 상태 정리 화면 링크.
     """
     day = d["date"].strftime("%m월 %d일")
     parts = [f"[블렌드펀치] {day} 공구 알림"]
@@ -128,6 +170,10 @@ def render_text(d: dict, include_running: bool = True) -> str:
     if len(parts) == 1:
         parts.append("\n오늘 시작·종료하는 공구가 없습니다.")
 
+    parts += _pending_lines(d, review_url)
+
+    if (d.get("pending") or {}).get("no_settlement"):
+        parts.append(f"\n※ 완료인데 정산 없음 {d['pending']['no_settlement']}건")
     if d["no_end_date"]:
         parts.append(f"\n※ 종료일 미입력 {len(d['no_end_date'])}건 "
                      "— OS에서 채워주세요")

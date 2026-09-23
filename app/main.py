@@ -472,6 +472,8 @@ def _setup_filters():
     def role_label(v):
         return {"admin": "관리자", "manager": "매니저", "viewer": "뷰어"}.get(v, v)
 
+    from app.services.rates import ratio_to_percent_text as rate_pct
+
     import app.routers.dashboard as d
     import app.routers.products as p
     import app.routers.influencers as i
@@ -532,6 +534,7 @@ def _setup_filters():
         env.filters["demand_label"] = demand_label
         env.filters["status_label"] = status_label
         env.filters["role_label"] = role_label
+        env.filters["rate_pct"] = rate_pct
         env.globals["enumerate"] = enumerate
         env.filters["enumerate"] = enumerate
         env.globals["outreach_active_count"] = _outreach_active_count

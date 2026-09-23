@@ -1,8 +1,11 @@
 """
 product_service.py — 제품 비즈니스 로직
 - validate_product_completeness: 필수 필드 완성도 검증
-- normalize_status / normalize_visibility: 코드값 정규화
+- normalize_status / normalize_visibility: 코드값 정규화 (알 수 없는 값은 default)
+- parse_status / parse_visibility: 엄격 파싱 (알 수 없는 값은 None → 호출측이 거부)
+- PRODUCT_CATEGORIES / normalize_category: 대표 카테고리 공통 기준
 """
+import re
 
 # 코드값 허용 목록 — DB에는 반드시 이 영문 값만 들어가야 한다.
 # 한글로 입력된 값("공개" 등)이 저장되면 조회 조건과 어긋나 조용히 누락된다.
@@ -55,6 +58,63 @@ def normalize_visibility(value, default: str = "active") -> str:
 def normalize_status(value, default: str = "draft") -> str:
     """status 를 허용 코드값으로 정규화. 알 수 없는 값은 default("draft")."""
     return _normalize(value, STATUS_VALUES, _STATUS_ALIASES, default)
+
+
+def parse_status(value) -> str | None:
+    """status 엄격 파싱 — 허용값·별칭이 아니면 None.
+
+    자동저장처럼 '사용자가 방금 고른 값'을 저장하는 경로에서 쓴다. default 로 떨어뜨리면
+    잘못된 입력이 조용히 다른 상태로 저장되기 때문이다.
+    """
+    return _normalize(value, STATUS_VALUES, _STATUS_ALIASES, None)
+
+
+def parse_visibility(value) -> str | None:
+    """visibility_status 엄격 파싱 — 허용값·별칭이 아니면 None."""
+    return _normalize(value, VISIBILITY_VALUES, _VISIBILITY_ALIASES, None)
+
+
+# ── 대표 카테고리 (products.category) ─────────────────────────────────────────
+# 단일 기준. 화면 <select>·AI 프롬프트·임포트·소싱이 모두 이 목록을 참조한다.
+PRODUCT_CATEGORIES = [
+    "건강기능식품", "스킨케어", "뷰티/메이크업", "헤어케어", "바디케어",
+    "다이어트/슬리밍", "식품/음료", "생활용품", "주방용품", "가전제품",
+    "패션/의류", "패션잡화", "홈/인테리어", "유아/육아", "반려동물",
+    "스포츠/레저", "전자기기", "욕실용품", "기타",
+]
+_CATEGORY_SET = set(PRODUCT_CATEGORIES)
+
+# 의미가 같은 표기 차이만 매핑한다. '뷰티'·'건강'처럼 여러 표준 카테고리로 갈릴 수 있는
+# 넓은 표현은 추측하지 않는다(매핑하지 않고 원본을 보존).
+_CATEGORY_ALIASES = {
+    "유아/육아용품": "유아/육아",
+    "육아용품": "유아/육아",
+    "건기식": "건강기능식품",
+}
+
+
+def _category_key(value: str) -> str:
+    """구분자·공백 표기 차이 제거: '뷰티·메이크업', '뷰티 / 메이크업' → '뷰티/메이크업'."""
+    s = re.sub(r"\s*[·ㆍ・/]\s*", "/", value.strip())
+    return re.sub(r"\s+", " ", s)
+
+
+def normalize_category(value) -> str | None:
+    """표준 카테고리로 매핑되면 그 값, 아니면 None (원본 판단은 호출측)."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    key = _category_key(value)
+    if key in _CATEGORY_SET:
+        return key
+    return _CATEGORY_ALIASES.get(key)
+
+
+def category_or_original(value, fallback: str = "기타") -> str:
+    """임포트용: 표준으로 매핑되면 표준값, 안 되면 **원본 보존**, 비었으면 fallback."""
+    if not isinstance(value, str) or not value.strip():
+        return fallback
+    return normalize_category(value) or value.strip()
+
 
 # 필수 필드 정의: (model_attribute, display_label)
 # spec 매핑: supply_price→supplier_price, marketing_copy→unique_selling_point, thumbnail_url→product_image

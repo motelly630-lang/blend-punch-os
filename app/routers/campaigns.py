@@ -16,6 +16,20 @@ from app.models.sales_page import SalesPage
 from app.models.user import User
 from app.auth.dependencies import get_current_user, require_admin
 from app.auth.tenant import get_company_id
+from app.services import campaign_progress
+from app.services.campaign_service import (
+    CAMPAIGN_STATUSES,
+    PHASE_LABELS,
+    CampaignValidationError,
+    resolve_influencer_id,
+    resolve_product_id,
+    schedule_note,
+    schedule_phase,
+    validate_dates,
+    validate_status,
+)
+from app.services.product_service import PRODUCT_CATEGORIES
+from app.services.rates import RateError, parse_percent_input
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -48,83 +62,31 @@ def _scoped_partner_id(db: Session, cid: int, product_id: str, form_partner_id: 
     return form_partner_id if owned else None
 
 
-def _auto_status(c: Campaign, today: date) -> str:
-    """Compute KST-based status from dates. Cancelled is never overridden."""
-    if c.status == "cancelled":
-        return "cancelled"
-    if c.start_date and c.end_date:
-        if today < c.start_date:
-            return "planning"
-        elif today <= c.end_date:
-            return "active"
-        else:
-            return "completed"
-    if c.start_date and today >= c.start_date:
-        return "active"
-    return c.status
-
-
-def _run_archiving(db: Session, cid: int):
-    """Auto-archive campaigns whose end_date month < current KST month,
-    sync KST-based status to DB, and auto-create settlements for completed campaigns.
-    테넌트 격리: 호출한 사용자의 회사(cid) 캠페인만 처리."""
-    today = _kst_today()
-    first_of_month = today.replace(day=1)
-
-    all_active = db.query(Campaign).filter(
-        Campaign.company_id == cid, Campaign.is_archived == False
-    ).all()
-    changed = False
-    newly_completed = []
-    for c in all_active:
-        new_status = _auto_status(c, today)
-        if c.status != new_status:
-            c.status = new_status
-            changed = True
-            if new_status == "completed":
-                newly_completed.append(c)
-        if c.end_date and c.end_date < first_of_month:
-            c.is_archived = True
-            changed = True
-    if changed:
-        db.commit()
-    for c in newly_completed:
-        _auto_settle(db, c)
-    if newly_completed:
-        db.commit()
-
 router = APIRouter(prefix="/campaigns")
 templates = Jinja2Templates(directory="app/templates")
 
-STATUSES = [
-    ("planning", "기획중"),
-    ("negotiating", "협의중"),
-    ("contracted", "계약완료"),
-    ("active", "진행중"),
-    ("completed", "완료"),
-    ("cancelled", "취소"),
-]
+STATUSES = CAMPAIGN_STATUSES  # 단일 기준은 campaign_service
+
+
+def _pct_or_error(raw, label: str) -> float:
+    """캠페인 수수료 입력(%) → 비율. 빈 값 0."""
+    try:
+        v = parse_percent_input(raw)
+    except RateError as e:
+        raise CampaignValidationError(f"{label}: {e}") from e
+    return v or 0.0
 
 
 @router.get("")
 def campaign_list(request: Request, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user),
                   tab: str = "active"):
+    """조회 전용 — 상태·보관·정산을 바꾸지 않는다.
+
+    일정에 따른 진행 처리·보관은 관리자용 /campaigns/progress-review 에서 명시적으로 실행한다
+    (app/services/campaign_progress.py).
+    """
     cid = get_company_id(current_user)
-    _run_archiving(db, cid)
-    # Backfill: create settlements for existing completed campaigns that have none
-    from sqlalchemy import and_
-    completed_no_settlement = db.query(Campaign).filter(
-        Campaign.company_id == cid,
-        Campaign.status == "completed",
-        Campaign.influencer_id.isnot(None),
-        Campaign.actual_revenue > 0,
-        ~Campaign.id.in_(db.query(Settlement.campaign_id).filter(Settlement.campaign_id.isnot(None)))
-    ).all()
-    if completed_no_settlement:
-        for c in completed_no_settlement:
-            _auto_settle(db, c)
-        db.commit()
     today = _kst_today()
 
     if tab == "archive":
@@ -132,12 +94,15 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
     else:
         campaigns = db.query(Campaign).options(joinedload(Campaign.product), joinedload(Campaign.influencer)).filter(Campaign.company_id == cid, Campaign.is_archived == False).order_by(Campaign.start_date.asc().nullslast()).all()
 
-    # Compute auto-status per campaign (KST-based, display only)
-    status_map = {c.id: _auto_status(c, today) for c in campaigns}
+    # 저장된 상태 그대로 표시. 날짜 기준 단계·어긋남 안내는 별도 표시 (DB 미변경)
+    status_map = {c.id: c.status for c in campaigns}
+    phase_map = {c.id: PHASE_LABELS[schedule_phase(c.start_date, c.end_date, today)] for c in campaigns}
+    note_map = {c.id: schedule_note(c.status, c.start_date, c.end_date, today) for c in campaigns}
 
     # ── 통계 카운트는 탭과 무관하게 전역(활성=비보관) 기준으로 계산 ──
     nonarch = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.is_archived == False).all()
-    nonarch_status = {c.id: _auto_status(c, today) for c in nonarch}
+    nonarch_status = {c.id: c.status for c in nonarch}
+    review_count = sum(1 for c in nonarch if schedule_note(c.status, c.start_date, c.end_date, today))
     active_count   = sum(1 for s in nonarch_status.values() if s == "active")
     planning_count = sum(1 for s in nonarch_status.values() if s in ("planning", "negotiating", "contracted"))
     done_count     = sum(1 for s in nonarch_status.values() if s in ("completed", "cancelled"))
@@ -173,6 +138,7 @@ def campaign_list(request: Request, db: Session = Depends(get_db),
     return templates.TemplateResponse("campaigns/list.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaigns": campaigns, "status_map": status_map, "today": today, "tab": tab,
+        "phase_map": phase_map, "note_map": note_map, "review_count": review_count,
         "active_count": active_count, "planning_count": planning_count,
         "done_count": done_count, "archive_count": archive_count, "total_count": total_count,
         "cal_json": json.dumps(cal_data, ensure_ascii=False),
@@ -198,17 +164,54 @@ def campaign_new(request: Request, db: Session = Depends(get_db),
     return templates.TemplateResponse("campaigns/form.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": None, "products": products, "influencers": influencers, "statuses": STATUSES,
+        "categories": PRODUCT_CATEGORIES,
         "partners_json": [{"id": p.id, "name": p.name} for p in partners],
         "sel_partner_id": "", "sel_partner_name": "",
         "prefill_product_id": product_id, "prefill_influencer_id": influencer_id,
     })
 
 
+# ── 진행 상태 정리 (명시적 실행 경로) ─────────────────────────────────────────
+# 주의: 와일드카드 /{campaign_id} 보다 먼저 선언해야 한다.
+
+@router.get("/progress-review")
+def progress_review(request: Request, db: Session = Depends(get_db),
+                    current_user: User = Depends(require_admin)):
+    """미리보기 — DB 를 바꾸지 않는다."""
+    cid = get_company_id(current_user)
+    today = _kst_today()
+    proposal = campaign_progress.build_proposal(db, cid, today)
+    return templates.TemplateResponse("campaigns/progress_review.html", {
+        "request": request, "active_page": "campaigns", "current_user": current_user,
+        "today": today, "proposal": proposal, "status_labels": dict(STATUSES),
+    })
+
+
+@router.post("/progress-review/apply")
+async def progress_review_apply(request: Request, db: Session = Depends(get_db),
+                                current_user: User = Depends(require_admin)):
+    cid = get_company_id(current_user)
+    form = await request.form()
+    status_ids = set(form.getlist("status_ids"))
+    archive_ids = set(form.getlist("archive_ids"))
+    create_settlements = form.get("create_settlements") == "1"
+    result = campaign_progress.apply_selected(
+        db, cid, _kst_today(), status_ids, archive_ids, create_settlements, _auto_settle)
+    from urllib.parse import quote
+    msg = (f"상태 {len(result['changed'])}건 · 보관 {len(result['archived'])}건 반영"
+           f" · 정산 생성 {len(result['settlements_created'])}건")
+    if result["skipped"]:
+        msg += f" · 더 이상 해당하지 않아 건너뜀 {len(result['skipped'])}건"
+    return RedirectResponse(f"/campaigns/progress-review?msg={quote(msg)}", status_code=303)
+
+
 def _parse_date(s):
-    try:
-        return date.fromisoformat(s) if s else None
-    except ValueError:
+    if s is None or s == "":
         return None
+    try:
+        return date.fromisoformat(s)
+    except (TypeError, ValueError) as exc:
+        raise CampaignValidationError("날짜는 유효한 YYYY-MM-DD 형식으로 입력하세요") from exc
 
 
 def _auto_settle(db: Session, campaign: Campaign):
@@ -294,15 +297,32 @@ def _parse_form_fields(
     unit_price, seller_commission_rate_pct, vendor_commission_rate_pct,
     actual_revenue,
 ):
+    """수수료(%) 입력 → (레거시 commission_rate, 셀러 비율, 벤더 비율, 셀러 금액, 벤더 금액).
+
+    잘못된 퍼센트 값은 CampaignValidationError. 소수점은 보존한다 (12.5% → 0.125).
+    """
     try:
         commission_rate_f = float(commission_rate) if commission_rate and commission_rate != "None" else 0.0
     except (ValueError, TypeError):
         commission_rate_f = 0.0
-    seller_rate = seller_commission_rate_pct / 100 if seller_commission_rate_pct else 0.0
-    vendor_rate = vendor_commission_rate_pct / 100 if vendor_commission_rate_pct else 0.0
+    seller_rate = _pct_or_error(seller_commission_rate_pct, "셀러 수수료율")
+    vendor_rate = _pct_or_error(vendor_commission_rate_pct, "벤더 마진율")
     seller_amt = round(actual_revenue * seller_rate)
     vendor_amt = round(actual_revenue * vendor_rate)
     return commission_rate_f, seller_rate, vendor_rate, seller_amt, vendor_amt
+
+
+def _validated_core(db: Session, cid: int, *, status, product_id, influencer_id,
+                    start_date, end_date) -> dict:
+    """생성·수정·인라인 공통 검증. 실패 시 CampaignValidationError."""
+    validate_dates(start_date, end_date)
+    return {
+        "status": validate_status(status),
+        "product_id": resolve_product_id(db, cid, product_id),
+        "influencer_id": resolve_influencer_id(db, cid, influencer_id),
+        "start_date": start_date,
+        "end_date": end_date,
+    }
 
 
 @router.post("/inline-create")
@@ -317,19 +337,34 @@ async def campaign_inline_create(
         data = await request.json()
     except Exception:
         return JSONResponse({"error": "잘못된 요청입니다"}, status_code=400)
+    name = (data.get("name") or "").strip()
+    if not name:
+        return JSONResponse({"error": "name required"}, status_code=400)
     try:
-        name = (data.get("name") or "").strip()
-        if not name:
-            return JSONResponse({"error": "name required"}, status_code=400)
+        core = _validated_core(
+            db, cid,
+            status=data.get("status") or "planning",
+            product_id=data.get("product_id"),
+            influencer_id=data.get("influencer_id"),
+            start_date=_parse_date(data.get("start_date", "")),
+            end_date=_parse_date(data.get("end_date", "")),
+        )
+        unit_price = float(data.get("unit_price") or 0)
+    except CampaignValidationError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "숫자 형식이 잘못되었습니다"}, status_code=400)
+    try:
         campaign = Campaign(
             company_id=cid,
             name=name,
-            product_id=data.get("product_id") or None,
-            influencer_id=data.get("influencer_id") or None,
-            status=data.get("status", "planning"),
-            start_date=_parse_date(data.get("start_date", "")),
-            end_date=_parse_date(data.get("end_date", "")),
-            unit_price=float(data.get("unit_price") or 0),
+            product_id=core["product_id"],
+            influencer_id=core["influencer_id"],
+            partner_id=_scoped_partner_id(db, cid, core["product_id"] or "", ""),
+            status=core["status"],
+            start_date=core["start_date"],
+            end_date=core["end_date"],
+            unit_price=unit_price,
         )
         db.add(campaign)
         db.commit()
@@ -353,8 +388,8 @@ def campaign_create(
     end_date: str = Form(""),
     commission_rate: str = Form("0"),
     unit_price: float = Form(0.0),
-    seller_commission_rate_pct: float = Form(0.0),
-    vendor_commission_rate_pct: float = Form(0.0),
+    seller_commission_rate_pct: str = Form(""),
+    vendor_commission_rate_pct: str = Form(""),
     expected_sales: int = Form(0),
     actual_sales: int = Form(0),
     actual_revenue: float = Form(0.0),
@@ -367,20 +402,29 @@ def campaign_create(
     external_url: str = Form(""),
 ):
     cid = get_company_id(current_user)
-    commission_rate_f, seller_rate, vendor_rate, seller_amt, vendor_amt = _parse_form_fields(
-        product_id, influencer_id, commission_rate,
-        unit_price, seller_commission_rate_pct, vendor_commission_rate_pct, actual_revenue,
-    )
-    partner_val = _scoped_partner_id(db, cid, product_id, partner_id)
+    try:
+        commission_rate_f, seller_rate, vendor_rate, seller_amt, vendor_amt = _parse_form_fields(
+            product_id, influencer_id, commission_rate,
+            unit_price, seller_commission_rate_pct, vendor_commission_rate_pct, actual_revenue,
+        )
+        core = _validated_core(
+            db, cid, status=status, product_id=product_id, influencer_id=influencer_id,
+            start_date=_parse_date(start_date), end_date=_parse_date(end_date),
+        )
+    except CampaignValidationError as e:
+        from urllib.parse import quote
+        return RedirectResponse(f"/campaigns/new?err={quote(str(e))}", status_code=302)
+    status = core["status"]
+    partner_val = _scoped_partner_id(db, cid, core["product_id"] or "", partner_id)
     campaign = Campaign(
         company_id=cid,
         name=name,
-        product_id=product_id or None,
-        influencer_id=influencer_id or None,
+        product_id=core["product_id"],
+        influencer_id=core["influencer_id"],
         partner_id=partner_val,
         status=status,
-        start_date=_parse_date(start_date),
-        end_date=_parse_date(end_date),
+        start_date=core["start_date"],
+        end_date=core["end_date"],
         commission_rate=commission_rate_f,
         unit_price=unit_price,
         seller_commission_rate=seller_rate,
@@ -468,9 +512,34 @@ def campaign_edit(campaign_id: str, request: Request, db: Session = Depends(get_
     return templates.TemplateResponse("campaigns/form.html", {
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": campaign, "products": products, "influencers": influencers, "statuses": STATUSES,
+        "categories": PRODUCT_CATEGORIES,
         "partners_json": [{"id": p.id, "name": p.name} for p in partners],
         "sel_partner_id": campaign.partner_id or "", "sel_partner_name": sel.name if sel else "",
     })
+
+
+def _validated_update(db: Session, cid: int, campaign: Campaign, *, status, product_id,
+                      influencer_id, start_date, end_date) -> dict:
+    """수정용 검증 — 바뀐 값만 검사한다.
+
+    기존에 저장돼 있던 값(과거 데이터)을 그대로 다시 보낸 경우까지 거부하면
+    다른 필드조차 수정할 수 없게 되므로, 변경된 항목만 허용값·회사 소속을 확인한다.
+    """
+    new_pid = (product_id or "").strip() or None
+    new_iid = (influencer_id or "").strip() or None
+    new_status = (status or "").strip()
+    preserve_null_status = campaign.status is None and new_status == "__preserve_null_status__"
+    out = {
+        "status": (campaign.status if preserve_null_status or new_status == campaign.status
+                   else validate_status(new_status)),
+        "product_id": new_pid if new_pid == campaign.product_id else resolve_product_id(db, cid, new_pid),
+        "influencer_id": (new_iid if new_iid == campaign.influencer_id
+                          else resolve_influencer_id(db, cid, new_iid)),
+        "start_date": start_date,
+        "end_date": end_date,
+    }
+    validate_dates(start_date, end_date)
+    return out
 
 
 @router.post("/{campaign_id}/edit")
@@ -487,8 +556,8 @@ def campaign_update(
     end_date: str = Form(""),
     commission_rate: str = Form("0"),
     unit_price: float = Form(0.0),
-    seller_commission_rate_pct: float = Form(0.0),
-    vendor_commission_rate_pct: float = Form(0.0),
+    seller_commission_rate_pct: str = Form(""),
+    vendor_commission_rate_pct: str = Form(""),
     expected_sales: int = Form(0),
     actual_sales: int = Form(0),
     actual_revenue: float = Form(0.0),
@@ -505,18 +574,26 @@ def campaign_update(
     if not campaign:
         return RedirectResponse("/campaigns", status_code=302)
 
-    commission_rate_f, seller_rate, vendor_rate, seller_amt, vendor_amt = _parse_form_fields(
-        product_id, influencer_id, commission_rate,
-        unit_price, seller_commission_rate_pct, vendor_commission_rate_pct, actual_revenue,
-    )
-    prev_status = campaign.status
+    try:
+        commission_rate_f, seller_rate, vendor_rate, seller_amt, vendor_amt = _parse_form_fields(
+            product_id, influencer_id, commission_rate,
+            unit_price, seller_commission_rate_pct, vendor_commission_rate_pct, actual_revenue,
+        )
+        core = _validated_update(
+            db, cid, campaign, status=status, product_id=product_id, influencer_id=influencer_id,
+            start_date=_parse_date(start_date), end_date=_parse_date(end_date),
+        )
+    except CampaignValidationError as e:
+        from urllib.parse import quote
+        return RedirectResponse(f"/campaigns/{campaign_id}/edit?err={quote(str(e))}", status_code=302)
+    status = core["status"]
     campaign.name = name
-    campaign.product_id = product_id or None
-    campaign.influencer_id = influencer_id or None
-    campaign.partner_id = _scoped_partner_id(db, cid, product_id, partner_id)
+    campaign.product_id = core["product_id"]
+    campaign.influencer_id = core["influencer_id"]
+    campaign.partner_id = _scoped_partner_id(db, cid, core["product_id"] or "", partner_id)
     campaign.status = status
-    campaign.start_date = _parse_date(start_date)
-    campaign.end_date = _parse_date(end_date)
+    campaign.start_date = core["start_date"]
+    campaign.end_date = core["end_date"]
     campaign.commission_rate = commission_rate_f
     campaign.unit_price = unit_price
     campaign.seller_commission_rate = seller_rate
@@ -559,25 +636,45 @@ async def campaign_inline_update(
     if not campaign:
         return JSONResponse({"error": "not found"}, status_code=404)
 
-    prev_status = campaign.status
-    if "product_id" in data:
-        campaign.product_id = data["product_id"] or None
-    if "start_date" in data:
-        campaign.start_date = _parse_date(data["start_date"])
-    if "end_date" in data:
-        campaign.end_date = _parse_date(data["end_date"])
-    if "unit_price" in data:
-        campaign.unit_price = float(data["unit_price"] or 0)
-    if "actual_sales" in data:
-        campaign.actual_sales = int(float(data["actual_sales"] or 0))
-    if "actual_revenue" in data:
-        campaign.actual_revenue = float(data["actual_revenue"] or 0)
-    if "seller_commission_rate_pct" in data:
-        campaign.seller_commission_rate = float(data["seller_commission_rate_pct"] or 0) / 100
-    if "vendor_commission_rate_pct" in data:
-        campaign.vendor_commission_rate = float(data["vendor_commission_rate_pct"] or 0) / 100
-    if "status" in data:
-        campaign.status = str(data["status"])
+    try:
+        core = _validated_update(
+            db, cid, campaign,
+            status=str(data["status"]) if "status" in data else campaign.status,
+            product_id=(data.get("product_id") or "") if "product_id" in data else (campaign.product_id or ""),
+            influencer_id=(data.get("influencer_id") or "") if "influencer_id" in data else (campaign.influencer_id or ""),
+            start_date=_parse_date(data["start_date"]) if "start_date" in data else campaign.start_date,
+            end_date=_parse_date(data["end_date"]) if "end_date" in data else campaign.end_date,
+        )
+        seller_rate = (_pct_or_error(data["seller_commission_rate_pct"], "셀러 수수료율")
+                       if "seller_commission_rate_pct" in data else None)
+        vendor_rate = (_pct_or_error(data["vendor_commission_rate_pct"], "벤더 마진율")
+                       if "vendor_commission_rate_pct" in data else None)
+        unit_price = float(data["unit_price"] or 0) if "unit_price" in data else None
+        actual_sales = int(float(data["actual_sales"] or 0)) if "actual_sales" in data else None
+        actual_revenue = float(data["actual_revenue"] or 0) if "actual_revenue" in data else None
+    except CampaignValidationError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "숫자 형식이 잘못되었습니다"}, status_code=400)
+
+    product_changed = core["product_id"] != campaign.product_id
+    campaign.product_id = core["product_id"]
+    campaign.influencer_id = core["influencer_id"]
+    if product_changed:
+        campaign.partner_id = _scoped_partner_id(db, cid, core["product_id"] or "", campaign.partner_id or "")
+    campaign.start_date = core["start_date"]
+    campaign.end_date = core["end_date"]
+    campaign.status = core["status"]
+    if unit_price is not None:
+        campaign.unit_price = unit_price
+    if actual_sales is not None:
+        campaign.actual_sales = actual_sales
+    if actual_revenue is not None:
+        campaign.actual_revenue = actual_revenue
+    if seller_rate is not None:
+        campaign.seller_commission_rate = seller_rate
+    if vendor_rate is not None:
+        campaign.vendor_commission_rate = vendor_rate
     if "campaign_type" in data:
         campaign.campaign_type = data["campaign_type"] or "internal"
     if "external_url" in data:
@@ -603,8 +700,8 @@ async def campaign_inline_update(
         "unit_price": campaign.unit_price or 0,
         "actual_sales": campaign.actual_sales or 0,
         "actual_revenue": campaign.actual_revenue or 0,
-        "seller_commission_rate_pct": round((campaign.seller_commission_rate or 0) * 100, 1),
-        "vendor_commission_rate_pct": round((campaign.vendor_commission_rate or 0) * 100, 1),
+        "seller_commission_rate_pct": round((campaign.seller_commission_rate or 0) * 100, 4),
+        "vendor_commission_rate_pct": round((campaign.vendor_commission_rate or 0) * 100, 4),
         "seller_commission_amount": campaign.seller_commission_amount or 0,
         "vendor_commission_amount": campaign.vendor_commission_amount or 0,
         "status": campaign.status,
@@ -626,7 +723,7 @@ def update_sales(
     campaign.actual_sales = actual_sales
     price = campaign.unit_price or 0
     if not price and campaign.product_id:
-        p = db.query(Product).filter_by(id=campaign.product_id).first()
+        p = db.query(Product).filter(Product.company_id == cid, Product.id == campaign.product_id).first()
         if p:
             price = getattr(p, 'groupbuy_price', 0) or getattr(p, 'consumer_price', 0) or getattr(p, 'price', 0) or 0
     if price:

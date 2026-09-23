@@ -53,15 +53,19 @@ def send_webhook(text: str, url: str | None = None) -> dict:
 
 
 def send_campaign_digest(db, company_id: int = 1) -> dict:
-    """공구 알림을 만들어 웹훅으로 발송. 알릴 게 없으면 발송 생략."""
-    from app.services.campaign_alerts import build_digest, has_anything, render_text
+    """공구 알림을 만들어 웹훅으로 발송. 알릴 게 없는 날도 매일 보낸다 (정기 아침 보고).
+
+    '안 왔다' 가 '알릴 게 없다' 인지 '발송이 죽었다' 인지 구분되지 않아서, 빈 날도 보낸다.
+    """
+    from app.config import settings
+    from app.services.campaign_alerts import build_digest, render_text
 
     d = build_digest(db, company_id=company_id)
-    if not has_anything(d):
-        return {"sent": False, "reason": "알릴 공구 없음 (발송 생략)", "skipped": True}
 
-    res = send_webhook(render_text(d))
+    review_url = settings.app_base_url.rstrip("/") + "/campaigns/progress-review"
+    res = send_webhook(render_text(d, review_url=review_url))
     res["counts"] = {k: len(d[k]) for k in
                      ("ending_today", "ending_tomorrow", "starting_today",
                       "starting_tomorrow", "running", "no_end_date")}
+    res["counts"]["pending"] = d["pending"]
     return res

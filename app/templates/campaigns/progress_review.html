@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}진행 상태 정리 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}캠페인 진행 상태 정리{% endblock %}
+{% block header_actions %}
+<a href="/campaigns" class="text-sm text-gray-500 hover:text-gray-700">← 캠페인 목록</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl space-y-4">
+
+  <div class="bg-blue-50 rounded-xl border border-blue-100 p-4 text-xs text-blue-600 space-y-1">
+    <div class="font-semibold">기준일 {{ today }} (KST) · 이 화면을 여는 것만으로는 아무것도 바뀌지 않습니다</div>
+    <div>· 상태 전환은 <b>계약완료·진행중</b>(확정) 캠페인만 대상입니다. 기획중·협의중은 날짜가 지나도 바꾸지 않습니다.</div>
+    <div>· 체크한 항목만 적용하며, 적용 시점에 서버가 조건을 다시 확인합니다.</div>
+    <div>· 기존 정산(금액·확정·지급)은 변경하지 않습니다.</div>
+  </div>
+
+  <form method="post" action="/campaigns/progress-review/apply" class="space-y-4">
+
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+        일정 기준 상태 전환 제안 ({{ proposal.status_changes | length }})</h3>
+      {% if proposal.status_changes %}
+      <div class="space-y-2">
+        {% for x in proposal.status_changes %}
+        <label class="flex items-center gap-3 text-sm cursor-pointer">
+          <input type="checkbox" name="status_ids" value="{{ x.id }}" class="w-4 h-4 rounded border-gray-300">
+          <span class="flex-1 min-w-0 truncate text-gray-800">{{ x.name }}</span>
+          <span class="text-xs text-gray-400 whitespace-nowrap">{{ x.start_date | date }} ~ {{ x.end_date | date }}</span>
+          <span class="text-xs text-gray-600 whitespace-nowrap">{{ status_labels.get(x['from'], x['from']) }} → <b>{{ status_labels.get(x.to, x.to) }}</b></span>
+        </label>
+        {% endfor %}
+      </div>
+      <label class="flex items-start gap-2 mt-4 pt-3 border-t border-gray-100 text-xs text-gray-600 cursor-pointer">
+        <input type="checkbox" name="create_settlements" value="1" class="w-4 h-4 rounded border-gray-300 mt-0.5">
+        <span>완료로 전환되는 캠페인 중 <b>정산이 하나도 없는</b> 캠페인에 대기(pending) 정산 초안 생성
+          <span class="block text-gray-400">기본값 해제 — 날짜 기준 완료 시 정산 자동 생성 여부는 업무 결정 대기 항목입니다.</span></span>
+      </label>
+      {% else %}
+      <p class="text-xs text-gray-400">해당 없음</p>
+      {% endif %}
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+        보관 제안 — 완료·취소 + 종료월이 지난 캠페인 ({{ proposal.archives | length }})</h3>
+      {% if proposal.archives %}
+      <div class="space-y-2">
+        {% for x in proposal.archives %}
+        <label class="flex items-center gap-3 text-sm cursor-pointer">
+          <input type="checkbox" name="archive_ids" value="{{ x.id }}" class="w-4 h-4 rounded border-gray-300">
+          <span class="flex-1 min-w-0 truncate text-gray-800">{{ x.name }}</span>
+          <span class="text-xs text-gray-400 whitespace-nowrap">{{ status_labels.get(x.status, x.status) }} · 종료 {{ x.end_date | date }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-xs text-gray-400">해당 없음</p>
+      {% endif %}
+    </div>
+
+    {% if proposal.status_changes or proposal.archives %}
+    <div class="flex justify-end">
+      <button type="submit" class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        선택 항목 적용</button>
+    </div>
+    {% endif %}
+  </form>
+
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+      사람 확인 필요 — 미확정인데 일정이 도래·종료 ({{ proposal.needs_review | length }})</h3>
+    {% if proposal.needs_review %}
+    <div class="space-y-2">
+      {% for x in proposal.needs_review %}
+      <a href="/campaigns/{{ x.id }}/edit" class="flex items-center gap-3 text-sm hover:bg-gray-50 rounded-lg">
+        <span class="flex-1 min-w-0 truncate text-gray-800">{{ x.name }}</span>
+        <span class="text-xs text-gray-400 whitespace-nowrap">{{ x.start_date | date }} ~ {{ x.end_date | date }}</span>
+        <span class="text-xs px-2 py-0.5 rounded-full whitespace-nowrap bg-amber-50 text-amber-600">{{ status_labels.get(x.status, x.status) }} · {{ x.note }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    <p class="text-xs text-gray-400 mt-3">자동으로 바꾸지 않습니다. 편집 화면에서 계약 여부를 확인해 상태를 직접 변경하세요.</p>
+    {% else %}
+    <p class="text-xs text-gray-400">해당 없음</p>
+    {% endif %}
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+      참고 — 완료 상태인데 정산이 없는 캠페인 ({{ proposal.completed_without_settlement | length }})</h3>
+    {% if proposal.completed_without_settlement %}
+    <div class="space-y-1">
+      {% for x in proposal.completed_without_settlement %}
+      <a href="/campaigns/{{ x.id }}" class="block text-sm text-gray-700 hover:text-blue-600 truncate">{{ x.name }}</a>
+      {% endfor %}
+    </div>
+    <p class="text-xs text-gray-400 mt-3">이 목록은 조회만 합니다. 이전에는 캠페인 목록을 열 때 자동 생성됐습니다.</p>
+    {% else %}
+    <p class="text-xs text-gray-400">해당 없음</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
