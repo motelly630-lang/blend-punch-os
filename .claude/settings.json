@@ -108,6 +108,18 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/os-hook.sh os-remote-guard.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "startup|resume|clear|compact",
@@ -186,6 +198,17 @@
             "command": "bash .claude/hooks/os-router-parity.sh",
             "timeout": 20,
             "statusMessage": "라우터 3점세트 정합성 검사 중..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/os-hook.sh os-py-check.py",
+            "timeout": 20,
+            "statusMessage": "파이썬 문법 검사 중..."
           }
         ]
       }

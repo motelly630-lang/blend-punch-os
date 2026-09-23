@@ -108,6 +108,8 @@ Windows·WSL 양쪽에서 같이 쓰는 **프로젝트 공용 설정**. 개인 �
 | `.claude/settings.json` | 민감파일 Read/Edit deny + DB MCP의 mutation·DDL deny 82건 + 훅 등록 |
 | `.claude/hooks/os-build-css.sh` | 템플릿 수정 시 Tailwind 재빌드 (규칙 2 자동화) |
 | `.claude/hooks/os-router-parity.sh` → `.py` | 라우터 3점세트 정합성 검사 (규칙 1 자동화) |
+| `.claude/hooks/os-py-check.py` | PostToolUse(Write\|Edit)에 수정한 `.py` 문법 검사 (`.venv` python, 오류 시 exit 2) |
+| `.claude/hooks/os-remote-guard.py` | PreToolUse(Bash)에 `ssh`·`scp`·`rsync`·`git push`·AWS 변경 명령은 자동 모드에서도 확인 창 |
 | `.claude/hooks/os-mem-load.sh` → `.py` | SessionStart에 프로젝트 메모리 INDEX + 현재 상태 주입 |
 | `.claude/hooks/os-mem-route.py` | UserPromptSubmit에 요청 관련 메모리 **포인터만** 주입 (어휘 일치) |
 | `.claude/hooks/os-mem-journal.py` | PostToolUse(Write\|Edit)에 수정 파일을 기계적으로만 저널링 |
