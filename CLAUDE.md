@@ -108,8 +108,10 @@ Windows·WSL 양쪽에서 같이 쓰는 **프로젝트 공용 설정**. 개인 �
 | `.claude/mcp/os-db-launch.sh` | `os-db-local`/`os-db-prod` MCP를 WSL 안에서 기동 (sslmode 부착) |
 | `.claude/skills/`, `.claude/agents/` | `ec2-deploy` · `os-locate` · `os-ai-pipeline` · `os-mem` · `tenant-scope-reviewer` |
 
-훅은 `bash <POSIX 절대경로>` 로 등록돼 있다. Windows에서 `bash`는 WSL 런처이므로 훅은 항상
-WSL 안에서 실행되고, 훅이 받는 UNC 경로(`\\wsl$\...`)는 스크립트가 POSIX로 정규화한다.
+훅은 `bash .claude/hooks/<파일>` (**프로젝트 루트 기준 상대경로**)로 등록돼 있어 Windows·macOS 공용이다.
+Windows 는 훅을 PowerShell 로 실행하고 `bash`(WSL 런처)가 UNC cwd 를 POSIX 로 바꿔 주므로 항상
+WSL 안에서 돌며, macOS 는 `sh -c` 로 그대로 돈다. **Claude Code 는 반드시 프로젝트 루트에서 연다**
+(하위 폴더에서 열면 훅을 못 찾는다). 훅이 받는 UNC 경로(`\\wsl$\...`)는 스크립트가 POSIX로 정규화한다.
 정규화 동작 확인: `wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && bash .claude/hooks/os-build-css.sh --selftest"`
 
 **DB 자격증명은 WSL의 `~/.claude/os-db-ro.env`(읽기전용 롤)에만 있다. Windows 디스크로 복사하지 않는다.**

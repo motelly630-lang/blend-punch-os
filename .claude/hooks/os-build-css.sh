@@ -3,7 +3,7 @@
 # Tailwind는 CDN 없이 정적빌드만 쓰므로, 새 클래스를 추가하면 재빌드 전까지 스타일이 적용되지 않는다.
 #
 # Windows Claude Code / WSL Claude Code 양쪽에서 동작한다:
-#   - settings.json 은 `bash <이 파일의 POSIX 절대경로>` 로 호출한다.
+#   - settings.json 은 `bash .claude/hooks/os-build-css.sh` (프로젝트 루트 기준 상대경로)로 호출한다.
 #     Windows 에서 `bash` 는 WindowsApps 의 WSL 런처라 이 스크립트는 항상 WSL 안에서 실행된다.
 #   - 그때 훅 입력의 file_path 는 `\\wsl$\Ubuntu\home\...` 형식으로 들어오므로 POSIX 로 정규화한다.
 #
