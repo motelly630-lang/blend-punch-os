@@ -6,7 +6,7 @@ status: active
 supersedes:
 tags: [인스타그램, instagram, meta, graph-api, business-discovery, 인플루언서, 프로필, 크롤링, instagrapi]
 paths: ["app/api/ai_influencer.py", "app/services/instagram.py", "app/services/influencer_enrich.py"]
-updated: 2026-09-23
+updated: 2026-09-24
 ---
 
 인플루언서 등록 시 인스타 URL → 아이디·프로필 사진·팔로워 수 자동 채우기, 그리고 기존 인플루언서 일괄
@@ -22,5 +22,10 @@ updated: 2026-09-23
 응답 확인 (문서: developers.facebook.com/docs/instagram-platform — Business Discovery).
 **탈락 대안:** instagrapi 봇 계정 로그인 — 비공식이라 봇 계정 차단·AWS IP 차단 위험 (`influencer_enrich` 는
 운영에서 한 번도 실행된 적 없음). HTML 긁기 + AI — 인스타 로그인 벽에 막히고 AI 비용·크레딧 의존.
+
+**적용 현황 (2026-09-24):** Meta 앱 `BlendPunch OS`(개발 모드, 심사 불필요 — 앱 관리자 본인 사용), 조회 계정 @blend_punch
+(YJ Company 페이지). 만료 없는 **페이지 토큰**을 서버·맥북 `.env` 의 `META_PAGE_TOKEN`·`META_IG_USER_ID` 에 둔다(값은 서버에만).
+토큰 재발급: 그래프 API 탐색기(권한 5개 + business_management) → 액세스 토큰 도구 '연장' → 페이지 토큰 도출.
+페이스북 '비즈니스 통합'에서 앱을 제거하면 모든 토큰이 무효가 된다(노출 시 대응 절차).
 
 관련: [[DE-005]]
