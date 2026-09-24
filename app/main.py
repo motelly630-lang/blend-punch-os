@@ -41,7 +41,6 @@ from app.routers import outreach as outreach_router
 from app.routers import crm as crm_router
 from app.routers import sourcing as sourcing_router
 from app.routers import brands as brands_router
-from app.routers import shop as shop_router
 from app.routers import orders as orders_router
 from app.routers import sales_pages as sales_pages_router
 from app.routers import sellers as sellers_router
@@ -141,11 +140,11 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
       3. URL prefix 매핑 → 비활성 기능이면 403/redirect
 
     항상 허용: /settings, /companies, /static, /login, /logout,
-               /shop, /public, /catalog, /
+               /public, /catalog, /
     """
     _ALWAYS_ALLOW = (
         "/settings", "/companies", "/static", "/login", "/logout",
-        "/shop", "/public", "/catalog", "/users",
+        "/public", "/catalog", "/users",
         "/trends/api/",   # Claw 외부 API (Bearer 토큰 자체 인증)
     )
 
@@ -161,7 +160,6 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
         # ── 정적/공개 경로는 JWT 파싱 생략 ─────────────────────────────
         skip_parse = (
             path.startswith("/static") or
-            path.startswith("/shop") or
             path.startswith("/public") or
             path.startswith("/catalog") or
             path.startswith("/api/v1") or
@@ -252,7 +250,7 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
 
         # ── 응답 처리 후 페이지 방문 로그 백그라운드 저장 ────────────────
         _SKIP_LOG_PREFIXES = (
-            "/static", "/shop", "/public", "/catalog", "/api/",
+            "/static", "/public", "/catalog", "/api/",
             "/sw.js", "/manifest.json", "/robots.txt", "/favicon",
         )
         should_log = (
@@ -396,7 +394,6 @@ app.include_router(outreach_router.router)
 app.include_router(crm_router.router)
 app.include_router(sourcing_router.router)
 app.include_router(brands_router.router)
-app.include_router(shop_router.router)
 app.include_router(orders_router.router)
 app.include_router(sales_pages_router.router)
 app.include_router(sellers_router.router)
