@@ -109,6 +109,7 @@ Windows·WSL 양쪽에서 같이 쓰는 **프로젝트 공용 설정**. 개인 �
 | `.claude/hooks/os-build-css.sh` | 템플릿 수정 시 Tailwind 재빌드 (규칙 2 자동화) |
 | `.claude/hooks/os-router-parity.sh` → `.py` | 라우터 3점세트 정합성 검사 (규칙 1 자동화) |
 | `.claude/hooks/os-py-check.py` | PostToolUse(Write\|Edit)에 수정한 `.py` 문법 검사 (`.venv` python, 오류 시 exit 2) |
+| `.claude/hooks/os-template-check.py` | PostToolUse(Write\|Edit)에 수정한 템플릿 점검 — 속성 안 `tojson`(RG-006) · 폼/htmx 주소가 실제 서버 주소인지 (오류 시 exit 2) |
 | `.claude/hooks/os-remote-guard.py` | PreToolUse(Bash)에 `ssh`·`scp`·`rsync`·`git push`·AWS 변경 명령은 자동 모드에서도 확인 창 |
 | `.claude/hooks/os-mem-load.sh` → `.py` | SessionStart에 프로젝트 메모리 INDEX + 현재 상태 + 학습 반영 대기 세션 주입 |
 | `.claude/hooks/os-mem-route.py` | UserPromptSubmit에 요청 관련 메모리 **포인터만** 주입 (어휘 일치) |
@@ -117,7 +118,7 @@ Windows·WSL 양쪽에서 같이 쓰는 **프로젝트 공용 설정**. 개인 �
 | `.claude/hooks/os-hook.sh` | 훅 파이썬을 WSL python3으로 실행시키는 공용 래퍼 |
 | `.claude/lib/osmem.py` | 메모리·상태 공유 라이브러리 (python3 stdlib만). UNC→POSIX 정규화 포함 |
 | `.claude/lib/learn.py` | 학습 반영 점검 — `pending`(반영 안 한 세션) · `lint`(스킬·메모리·원장 낡음/충돌) · `metrics`(git 지표) |
-| `.claude/lib/check_tojson_attr.py` | RG-006 검사 — 큰따옴표 속성 안 이스케이프 없는 `tojson` |
+| `.claude/lib/check_tojson_attr.py` · `check_form_urls.py` | 템플릿 검사기 (훅·테스트가 함께 씀). 셸로 고친 템플릿은 직접 실행 |
 | `.claude/memory/` | **프로젝트 메모리** (커밋 대상). 아래 「프로젝트 메모리」 참조 |
 | `.claude/state/` | 머신 로컬 작업 상태 (gitignore). 세션 스크래치·저널·체크포인트 |
 | `.claude/mcp/os-db-launch.sh` | `os-db-local`/`os-db-prod` MCP를 WSL 안에서 기동 (sslmode 부착) |

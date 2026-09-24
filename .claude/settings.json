@@ -211,6 +211,17 @@
             "statusMessage": "파이썬 문법 검사 중..."
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/os-hook.sh os-template-check.py",
+            "timeout": 15,
+            "statusMessage": "템플릿 점검 중 (tojson·폼 주소)..."
+          }
+        ]
       }
     ]
   }

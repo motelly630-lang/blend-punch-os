@@ -119,7 +119,7 @@
   `.claude/memory/preferences/PF-003-배운-것은-성격별로-나눠-조건부로-반영한다.md` (이전 상태: git d04f84c)
 - 검증: 이번 보고에 카드 형식으로 첫 적용 (IM-012)
 
-### IM-012 · 2026-09-24 · proposed
+### IM-012 · 2026-09-24 · applied
 - 세션: a4d542f4
 - 근거: 추론
 - 신호: 같은 종류 점검을 두 번 수동으로 함 (tojson 속성 검사 · 폼 주소 ↔ 실제 라우트 검사)
@@ -127,6 +127,13 @@
 - 적용 조건: `app/templates/**/*.html` 을 고칠 때
 - 제안: 템플릿 저장 시 자동 점검 훅 (`os-build-css` 처럼 PostToolUse) — tojson 검사 + 폼 주소 검사.
   보완 필요: if/else 분기별로 주소를 나눠 보기 (오탐 제거). 대표님 답 대기.
+- 승인: 대표님 "2번은 그렇게해줘" (2026-09-24)
+- 변경: `.claude/lib/check_form_urls.py`(분기별 펼침 + 코드로 서버 주소 읽기) · `.claude/hooks/os-template-check.py` ·
+  `.claude/settings.json`(PostToolUse 등록) · `tests/test_template_form_urls.py` · `CLAUDE.md` (이전 상태: git dc3bfca)
+- 검증: 코드로 읽은 주소 300개 = 실제 앱 주소(자동 문서 4개 제외) · 전체 템플릿 오탐 0 (이전 방식 4) ·
+  `3442a3b` 폼에서 `/influencersnew` 검출 · **실제 세션에서 일부러 슬래시를 빼 저장 → 훅이 즉시 경고, 되돌림** ·
+  검사 0.3초 · 전체 테스트 97 통과
+- 한계: Write/Edit 도구로 고친 파일만 자동 검사 (셸 수정은 테스트·직접 실행으로)
 
 ## 검토 기록
 

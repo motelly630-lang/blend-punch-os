@@ -23,6 +23,7 @@
 | DE-004 | 정적 파일은 nginx 가 직접 서빙·압축. uvicorn 워커 증설은 스케줄러 중복 때문에 금지 | `decisions/DE-004-*.md` |
 | DE-005 | 인플루언서 주민등록번호는 OS 에 저장하지 않는다 (세무 쪽 별도 관리, 평문 저장 금지) | `decisions/DE-005-*.md` |
 | DE-006 | 인스타 프로필 자동 수집은 Meta 공식 Business Discovery API (봇 로그인 금지) | `decisions/DE-006-*.md` |
+| DE-007 | OS 안의 쇼핑몰(`/shop`)은 안 쓴다 — 별도 쇼핑몰 사용. 코드는 남김, 우선순위 제외 | `decisions/DE-007-*.md` |
 
 ## PREFERENCES — 반복 요구하는 작업 방식
 
