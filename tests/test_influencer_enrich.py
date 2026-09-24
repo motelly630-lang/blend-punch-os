@@ -154,6 +154,26 @@ class EnrichTest(unittest.TestCase):
         self.assertEqual(_get(iid).handle, "uu._.home")
         self.assertEqual(ie.clean_handle(" @abc.def/ "), "abc.def")
 
+    def test_reels_같은_예약어_아이디는_조회하지_않는다(self):
+        db = SessionLocal()
+        a = Influencer(name="가상A", platform="instagram", handle="reels", company_id=CID,
+                       profile_url="https://www.instagram.com/gasang_real/")
+        b = Influencer(name="가상B", platform="instagram", handle="reels", company_id=CID,
+                       profile_url="https://www.instagram.com/reels/C1abc/")
+        c = Influencer(name="가상C", platform="instagram", handle="인스타그램", company_id=CID)
+        db.add_all([a, b, c]); db.commit(); ids = (a.id, b.id, c.id); db.close()
+        seen = []
+
+        def fetch(h):
+            seen.append(h)
+            return _profile()(h)
+        rep = self._run(fetch)
+        self.assertEqual(seen, ["gasang_real"])                  # 'reels' 로는 절대 조회하지 않는다
+        self.assertEqual((rep["updated"], rep["failed"]), (1, 2))
+        self.assertEqual(_get(ids[0]).handle, "gasang_real")
+        self.assertIn("잘못 저장", _get(ids[1]).enrich_error)
+        self.assertEqual(_get(ids[1]).followers or 0, 0)
+
 
 class UsageHeaderTest(unittest.TestCase):
     def test_사용량_헤더에서_가장_큰_값을_읽는다(self):

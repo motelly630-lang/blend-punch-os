@@ -44,6 +44,11 @@ USAGE_STOP_PCT = 50.0
 ABORT_AFTER_CONSECUTIVE_FAILS = 5
 # 인스타에서 복사할 때 딸려 온 꼬리 글자 (예: "uu._.home ·")
 _HANDLE_TAIL = re.compile(r"[\s·•・|,]+$")
+# 아이디가 아니라 인스타 주소의 일부인 말 — 릴스·게시물 주소에서 잘못 뽑힌 값 (운영 2026-09-24: reels 2, 인스타그램 1).
+# 이걸 Meta 에 조회하면 'reels' 라는 남의 계정 정보가 여러 사람에게 들어갈 수 있다 → 조회하지 않는다.
+RESERVED_HANDLES = {"reels", "reel", "p", "tv", "stories", "explore", "accounts", "direct",
+                    "instagram", "share", "s", "인스타그램", "www.instagram.com"}
+_URL_ID = re.compile(r"instagram\.com/(?!(?:reels?|p|tv|stories|explore|accounts|direct|share|s)/)([A-Za-z0-9._]{1,30})")
 # Meta 경로에서 실행을 멈추는 오류 — 그 사람 탓이 아니므로 기록하지 않고 다음 실행에서 다시 시도
 _STOP_KINDS = {"rate", "token", "network"}
 
@@ -91,13 +96,25 @@ def clean_handle(raw: str) -> str:
     return _HANDLE_TAIL.sub("", h).rstrip("/").strip()
 
 
+def lookup_handle(inf: Influencer) -> str:
+    """조회에 쓸 아이디. 저장된 아이디가 예약어(reels 등)면 프로필 주소 속 아이디, 그것도 없으면 ''."""
+    h = clean_handle(inf.handle)
+    if h.lower() not in RESERVED_HANDLES:
+        return h
+    m = _URL_ID.search(inf.profile_url or "")
+    return m.group(1) if m and m.group(1).lower() not in RESERVED_HANDLES else ""
+
+
 def _enrich_meta(db: Session, targets: list, rep: dict, sleep: bool) -> None:
     from app.services import meta_instagram as mi
 
     for idx, inf in enumerate(targets):
-        handle = clean_handle(inf.handle)
+        handle = lookup_handle(inf)
         now = datetime.utcnow()
         try:
+            if not handle:
+                raise mi.MetaError("아이디가 잘못 저장돼 있어요 (예: reels) — 편집 화면에서 올바른 인스타 아이디를 넣어주세요",
+                                   "notfound")
             prof = mi.fetch_profile(handle)
         except mi.MetaError as e:
             if e.kind in _STOP_KINDS:
