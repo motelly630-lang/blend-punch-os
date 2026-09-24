@@ -93,7 +93,10 @@
 {% if tab == 'pending' and unsettled_campaigns %}
 <!-- 정산서가 아직 없는 완료 공구 -->
 <div class="mb-4 bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-  <div class="px-4 py-2.5 text-sm font-semibold text-amber-800 border-b border-amber-100">정산서가 아직 없는 완료 공구 {{ unsettled_campaigns | length }}건</div>
+  <div class="px-4 py-2.5 text-sm font-semibold text-amber-800 border-b border-amber-100 flex items-center justify-between">
+    <span>정산서가 아직 없는 완료 공구 {{ unsettled_campaigns | length }}건</span>
+    <a href="/campaigns/revenue?tab=ended" class="text-xs font-medium text-blue-700 hover:text-blue-800">💰 매출 한꺼번에 입력 → 정산서 자동</a>
+  </div>
   <div class="divide-y divide-amber-100">
     {% for c in unsettled_campaigns %}
     <div class="flex items-center justify-between gap-2 px-4 py-2.5 bg-white/60">

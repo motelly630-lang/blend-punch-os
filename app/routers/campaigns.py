@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request, Depends, Form
@@ -453,6 +453,254 @@ def campaign_create(
     return RedirectResponse(f"/campaigns/{campaign.id}?msg=캠페인이+생성되었습니다", status_code=302)
 
 
+# ── 매출 입력 (여러 입구, 로직은 _apply_revenue 하나) ───────────────────────
+
+def _apply_revenue(db: Session, cid: int, c: Campaign, revenue=None, sales=None, complete_if_ended: bool = False,
+                   today: date | None = None) -> dict:
+    """캠페인 매출 저장 — 매출 입력 화면·붙여넣기·상세 화면이 모두 이 함수를 쓴다.
+
+    - 금액이 있으면 그대로, 없고 수량만 있으면 수량 × 단가(캠페인 단가 → 제품 공구가)
+    - 셀러·벤더 몫을 다시 계산 (수수료율: 캠페인 → 제품 → 인플루언서, settlement_calc.resolve_rate)
+    - 끝난 공구(완료 상태)면 정산서를 만들거나 작성중 정산서를 갱신 (_auto_settle — 발행·지급·수동 조정은 안 건드림)
+    - complete_if_ended: 종료일이 지났는데 상태가 완료가 아니면 완료로 바꾼다
+    → {"changed": bool, "settled": bool}
+    """
+    from app.services import settlement_calc
+    before = (c.actual_revenue or 0, c.actual_sales or 0)
+    if sales is not None:
+        c.actual_sales = int(sales)
+    if revenue is not None:
+        c.actual_revenue = float(revenue)
+    elif sales is not None:
+        price = c.unit_price or 0
+        if not price and c.product:
+            price = c.product.groupbuy_price or c.product.consumer_price or c.product.price or 0
+        if price:
+            c.actual_revenue = int(sales) * price
+    rate, _ = settlement_calc.resolve_rate(c, c.product, c.influencer)
+    rate = rate or c.commission_rate or 0.0
+    rev = c.actual_revenue or 0
+    c.seller_commission_amount = round(rev * rate)
+    c.vendor_commission_amount = round(rev * (c.vendor_commission_rate or 0))
+    today = today or _kst_today()
+    if complete_if_ended and c.end_date and c.end_date < today and c.status not in ("completed", "cancelled"):
+        c.status = "completed"
+    settled = False
+    if c.status == "completed" and rev > 0 and c.influencer_id:
+        n_before = db.query(Settlement).filter(Settlement.campaign_id == c.id).count()
+        _auto_settle(db, c)
+        settled = True if n_before == 0 else False
+    return {"changed": (c.actual_revenue or 0, c.actual_sales or 0) != before, "settled": settled}
+
+
+def _revenue_rows(db: Session, cid: int, tab: str, q: str, today: date):
+    base = (db.query(Campaign).options(joinedload(Campaign.influencer), joinedload(Campaign.product))
+            .filter(Campaign.company_id == cid, (Campaign.status != "cancelled") | (Campaign.status.is_(None))))
+    if tab == "ended":
+        base = base.filter((Campaign.end_date < today) | (Campaign.status == "completed"))
+    elif tab == "active":
+        base = base.filter(Campaign.start_date <= today, (Campaign.end_date >= today) | (Campaign.end_date.is_(None)),
+                           Campaign.status != "completed")
+    else:
+        base = base.filter(Campaign.start_date >= today.replace(day=1) - timedelta(days=120))
+    if q:
+        like = f"%{q.strip()}%"
+        base = base.outerjoin(Influencer, Influencer.id == Campaign.influencer_id).filter(
+            Campaign.name.ilike(like) | Influencer.name.ilike(like) | Campaign.product_name_manual.ilike(like))
+    rows = base.order_by(Campaign.end_date.desc().nullslast()).limit(300).all()
+    if tab == "ended":
+        rows.sort(key=lambda c: (bool(c.actual_revenue), -(c.end_date.toordinal() if c.end_date else 0)))
+    settled = {sid for (sid,) in db.query(Settlement.campaign_id).filter(
+        Settlement.company_id == cid, Settlement.campaign_id.in_([c.id for c in rows] or [""])).all()}
+    return rows, settled
+
+
+@router.get("/revenue")
+def campaign_revenue_page(request: Request, db: Session = Depends(get_db),
+                          current_user: User = Depends(get_current_user), tab: str = "ended", q: str = ""):
+    """매출 입력 한 화면 — 끝난 공구 / 진행 중 / 전체. 여러 줄 넣고 한 번에 저장."""
+    if tab not in ("ended", "active", "all"):
+        tab = "ended"
+    cid = get_company_id(current_user)
+    today = _kst_today()
+    rows, settled = _revenue_rows(db, cid, tab, q, today)
+    missing = sum(1 for c in rows if not c.actual_revenue) if tab == "ended" else None
+    return templates.TemplateResponse("campaigns/revenue.html", {
+        "request": request, "active_page": "campaigns", "current_user": current_user,
+        "rows": rows, "settled": settled, "tab": tab, "q": q, "today": today, "missing": missing,
+    })
+
+
+@router.post("/revenue")
+async def campaign_revenue_save(request: Request, db: Session = Depends(get_db),
+                                current_user: User = Depends(get_current_user)):
+    """rev_<id> / qty_<id> 칸 중 값이 바뀐 것만 저장."""
+    from urllib.parse import quote
+    form = await request.form()
+    cid = get_company_id(current_user)
+    tab = str(form.get("tab") or "ended")
+    complete = form.get("complete_if_ended") == "1"
+
+    def _num(v):
+        v = str(v or "").replace(",", "").replace("원", "").strip()
+        if not v:
+            return None
+        return float(v)
+
+    ids = {k.split("_", 1)[1] for k in form.keys() if k.startswith(("rev_", "qty_"))}
+    camps = {c.id: c for c in db.query(Campaign).filter(Campaign.company_id == cid, Campaign.id.in_(ids or [""])).all()}
+    saved = settled = bad = 0
+    for cid_, c in camps.items():
+        try:
+            rev, qty = _num(form.get(f"rev_{cid_}")), _num(form.get(f"qty_{cid_}"))
+        except ValueError:
+            bad += 1
+            continue
+        if rev is not None and rev < 0 or qty is not None and qty < 0:
+            bad += 1
+            continue
+        if rev == (c.actual_revenue or None) and (qty is None or qty == (c.actual_sales or None)):
+            # 그대로면 건드리지 않는다 — 단, 매출이 있는데 정산서가 빠진 끝난 공구는 이번에 만든다
+            ended = c.status == "completed" or (complete and c.end_date and c.end_date < _kst_today())
+            if not (ended and rev and c.influencer_id and c.status != "cancelled"
+                    and not db.query(Settlement.id).filter(Settlement.campaign_id == c.id).first()):
+                continue
+        if rev is None and qty is None:
+            continue
+        r = _apply_revenue(db, cid, c, revenue=rev, sales=qty, complete_if_ended=complete)
+        saved += r["changed"]
+        settled += r["settled"]
+    db.commit()
+    msg = f"매출 {saved}건 저장" + (f" · 정산서 {settled}건 새로 만듦" if settled else "") + (f" · 숫자가 아닌 {bad}칸은 건너뜀" if bad else "")
+    return RedirectResponse(f"/campaigns/revenue?tab={tab}&msg=" + quote(msg), status_code=302)
+
+
+def _parse_paste(text: str) -> list[dict]:
+    """엑셀에서 복사한 줄들 → [{key, revenue, sales, raw}]. 칸 구분: 탭 · 쉼표 · 2칸 이상 공백.
+    첫 칸 = 공구 이름(또는 시트 번호), 그다음 숫자 = 금액, 그다음 숫자 = 수량(선택)."""
+    out = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        cells = [x.strip() for x in re.split(r"\t|\s{2,}|,(?=\s*[^\d]|\s*$)", line) if x.strip()]
+        if len(cells) == 1:
+            m = re.match(r"^(.*?)[\s:]+([\d,]+)\s*원?\s*(?:[\s/]+(\d+))?$", line)
+            cells = [m.group(1), m.group(2)] + ([m.group(3)] if m.group(3) else []) if m else cells
+        key = cells[0] if cells else ""
+        nums = []
+        for x in cells[1:]:
+            v = x.replace(",", "").replace("원", "").replace("개", "").strip()
+            try:
+                nums.append(float(v))
+            except ValueError:
+                pass
+        if key.replace(",", "").replace("원", "").strip().isdigit():
+            continue                                   # 제목 줄·합계 줄 등
+        out.append({"key": key, "revenue": nums[0] if nums else None,
+                    "sales": int(nums[1]) if len(nums) > 1 else None, "raw": raw})
+    return out
+
+
+def _match_campaigns(db: Session, cid: int, key: str, today: date) -> list:
+    """공구 이름·시트 번호·제품 이름(+인플루언서)으로 후보 찾기 (회사 안, 취소 제외)."""
+    k = (key or "").strip().lower()
+    if not k:
+        return []
+    base = (db.query(Campaign).options(joinedload(Campaign.product), joinedload(Campaign.influencer))
+            .filter(Campaign.company_id == cid, (Campaign.status != "cancelled") | (Campaign.status.is_(None))))
+    exact = base.filter(func.lower(Campaign.sheet_code) == k).all() or base.filter(func.lower(Campaign.name) == k).all()
+    if exact:
+        return exact
+    recent = base.filter((Campaign.start_date >= today - timedelta(days=365)) | (Campaign.start_date.is_(None))).all()
+    words = [w for w in re.split(r"[\s×x·/|]+", k) if len(w) >= 2]
+
+    def hay(c):
+        prod = (c.product.name if c.product else c.product_name_manual) or ""
+        inf = c.influencer.name if c.influencer else ""
+        return f"{c.name} {prod} {inf}".lower()
+    hits = [c for c in recent if k in hay(c)] or [c for c in recent if words and all(w in hay(c) for w in words)]
+    return sorted(hits, key=lambda c: c.end_date or date.min, reverse=True)[:8]
+
+
+@router.get("/revenue/paste")
+def campaign_revenue_paste_form(request: Request, current_user: User = Depends(get_current_user)):
+    return templates.TemplateResponse("campaigns/revenue_paste.html", {
+        "request": request, "active_page": "campaigns", "current_user": current_user, "rows": None, "text": "",
+    })
+
+
+@router.post("/revenue/paste")
+def campaign_revenue_paste_preview(request: Request, db: Session = Depends(get_db),
+                                   current_user: User = Depends(get_current_user), text: str = Form("")):
+    """붙여넣은 줄을 공구와 짝지어 미리보기 (아직 저장 안 함)."""
+    cid = get_company_id(current_user)
+    today = _kst_today()
+    rows = []
+    for r in _parse_paste(text)[:300]:
+        r["cands"] = _match_campaigns(db, cid, r["key"], today)
+        rows.append(r)
+    return templates.TemplateResponse("campaigns/revenue_paste.html", {
+        "request": request, "active_page": "campaigns", "current_user": current_user, "rows": rows, "text": text,
+    })
+
+
+@router.post("/revenue/paste/apply")
+async def campaign_revenue_paste_apply(request: Request, db: Session = Depends(get_db),
+                                       current_user: User = Depends(get_current_user)):
+    from urllib.parse import quote
+    form = await request.form()
+    cid = get_company_id(current_user)
+    complete = form.get("complete_if_ended") == "1"
+    saved = settled = 0
+    idx = sorted({int(k.split("_")[1]) for k in form.keys() if k.startswith("camp_") and k.split("_")[1].isdigit()})
+    for i in idx:
+        camp_id = str(form.get(f"camp_{i}") or "")
+        if not camp_id:
+            continue
+        c = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.id == camp_id).first()
+        if not c:
+            continue
+        try:
+            rev = float(form.get(f"rev_{i}")) if form.get(f"rev_{i}") not in (None, "", "None") else None
+            qty = int(float(form.get(f"qty_{i}"))) if form.get(f"qty_{i}") not in (None, "", "None") else None
+        except ValueError:
+            continue
+        if (rev is None and qty is None) or (rev is not None and rev < 0) or (qty is not None and qty < 0):
+            continue
+        r = _apply_revenue(db, cid, c, revenue=rev, sales=qty, complete_if_ended=complete)
+        saved += r["changed"]
+        settled += r["settled"]
+    db.commit()
+    msg = f"붙여넣은 매출 {saved}건 저장" + (f" · 정산서 {settled}건 새로 만듦" if settled else "")
+    return RedirectResponse("/campaigns/revenue?tab=all&msg=" + quote(msg), status_code=302)
+
+
+@router.post("/{campaign_id}/revenue")
+def campaign_revenue_one(campaign_id: str, db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user),
+                         revenue: str = Form(""), sales: str = Form(""), back: str = Form(""),
+                         complete_if_ended: str = Form("")):
+    """캠페인 상세에서 바로 매출 입력."""
+    from urllib.parse import quote
+    cid = get_company_id(current_user)
+    back = back if back.startswith("/campaigns") else f"/campaigns/{campaign_id}"
+    c = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.id == campaign_id).first()
+    if not c:
+        return RedirectResponse("/campaigns", status_code=302)
+    try:
+        rev = float(revenue.replace(",", "")) if revenue.strip() else None
+        qty = int(float(sales.replace(",", ""))) if sales.strip() else None
+    except ValueError:
+        return RedirectResponse(back + "?err=" + quote("매출·수량은 숫자로 넣어 주세요"), status_code=302)
+    if (rev is not None and rev < 0) or (qty is not None and qty < 0):
+        return RedirectResponse(back + "?err=" + quote("0 이상으로 넣어 주세요"), status_code=302)
+    r = _apply_revenue(db, cid, c, revenue=rev, sales=qty, complete_if_ended=complete_if_ended == "1")
+    db.commit()
+    msg = "매출을 저장했어요" + (" · 정산서를 만들었어요" if r["settled"] else "")
+    return RedirectResponse(back + "?msg=" + quote(msg), status_code=302)
+
+
 @router.get("/quick")
 def campaign_quick_form(request: Request, db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
@@ -607,6 +855,8 @@ def campaign_detail(campaign_id: str, request: Request, db: Session = Depends(ge
 
     return templates.TemplateResponse("campaigns/detail.html", {
         "content_media": content_embed.parse_many(campaign.content_urls),
+        "ended_open": bool(campaign.end_date and campaign.end_date < _kst_today()
+                           and campaign.status not in ("completed", "cancelled")),
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": campaign,
         "camp_rev": txn_rev,

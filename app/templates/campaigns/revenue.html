@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}매출 입력 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}💰 매출 입력{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-2">
+  <a href="/campaigns/revenue/paste" class="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50">📋 엑셀에서 붙여넣기</a>
+  <a href="/campaigns" class="text-sm text-gray-500 hover:text-gray-700">← 캠페인 목록</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center gap-2 mb-4">
+  <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
+    {% for key, label in [('ended', '끝난 공구'), ('active', '진행 중'), ('all', '전체 (최근)')] %}
+    <a href="/campaigns/revenue?tab={{ key }}{% if q %}&q={{ q | urlencode }}{% endif %}"
+      class="px-4 py-1.5 text-sm font-medium rounded-md whitespace-nowrap {% if tab == key %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <form method="get" action="/campaigns/revenue" class="flex gap-2 flex-1 min-w-0">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="공구·인플루언서 이름 검색" class="flex-1 sm:w-64 sm:flex-none px-3 py-2 border border-gray-200 rounded-lg text-sm">
+    <button type="submit" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700">검색</button>
+  </form>
+  {% if missing is not none %}<span class="text-sm {% if missing %}text-amber-700 font-semibold{% else %}text-gray-400{% endif %}">매출 미입력 {{ missing }}건</span>{% endif %}
+</div>
+
+<p class="text-xs text-gray-500 mb-3">
+  수량을 넣으면 <b>수량 × 단가</b>로 금액이 자동으로 채워져요 (금액을 직접 고쳐도 돼요).
+  끝난 공구에 매출을 넣으면 <b>정산서가 자동으로</b> 만들어져요 — 진행 중인 공구는 중간 매출로만 저장돼요.
+</p>
+
+{% if rows %}
+<form method="post" action="/campaigns/revenue">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 border-b border-gray-100 text-xs text-gray-500">
+        <tr>
+          <th class="text-left px-4 py-2.5 font-semibold">공구</th>
+          <th class="text-left px-3 py-2.5 font-semibold hidden sm:table-cell">기간</th>
+          <th class="text-right px-3 py-2.5 font-semibold hidden md:table-cell">단가</th>
+          <th class="text-right px-3 py-2.5 font-semibold w-28">판매 수량</th>
+          <th class="text-right px-3 py-2.5 font-semibold w-40">총 판매금액 (원)</th>
+          <th class="text-left px-3 py-2.5 font-semibold hidden sm:table-cell">정산서</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for c in rows %}
+        {% set price = c.unit_price or (c.product.groupbuy_price if c.product else 0) or 0 %}
+        <tr class="{% if not c.actual_revenue and tab == 'ended' %}bg-amber-50/40{% endif %}">
+          <td class="px-4 py-2.5">
+            <a href="/campaigns/{{ c.id }}" class="font-semibold text-gray-900 hover:text-blue-600 break-keep">{{ (c.product.name if c.product else c.product_name_manual) or c.name }}</a>
+            <div class="text-xs text-purple-600">{{ c.influencer.name if c.influencer else '' }}</div>
+          </td>
+          <td class="px-3 py-2.5 text-xs text-gray-500 hidden sm:table-cell whitespace-nowrap">
+            {{ c.start_date | date if c.start_date else '' }}{% if c.end_date %} ~ {{ c.end_date | date }}{% endif %}
+          </td>
+          <td class="px-3 py-2.5 text-right text-xs text-gray-500 hidden md:table-cell">{{ price | won if price else '—' }}</td>
+          <td class="px-3 py-2.5">
+            <input type="number" name="qty_{{ c.id }}" value="{{ c.actual_sales or '' }}" min="0" step="1" inputmode="numeric"
+              data-price="{{ price | int }}" data-target="rev_{{ c.id }}" oninput="fillRevenue(this)"
+              class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </td>
+          <td class="px-3 py-2.5">
+            <input type="number" name="rev_{{ c.id }}" id="rev_{{ c.id }}" value="{{ (c.actual_revenue | int) if c.actual_revenue else '' }}" min="0" step="1" inputmode="numeric"
+              class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-right font-medium focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </td>
+          <td class="px-3 py-2.5 text-xs hidden sm:table-cell">
+            {% if c.id in settled %}<span class="text-green-700">있음</span>
+            {% elif c.status == 'completed' or (c.end_date and c.end_date < today) %}<span class="text-gray-400">{{ '저장하면 생성' if c.actual_revenue else '매출 넣으면 생성' }}</span>
+            {% else %}<span class="text-gray-300">진행 중</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="sticky bottom-0 mt-3 flex flex-wrap items-center justify-between gap-3 bg-white/95 backdrop-blur border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
+    <label class="flex items-center gap-2 text-xs text-gray-600">
+      <input type="checkbox" name="complete_if_ended" value="1" {% if tab != 'active' %}checked{% endif %} class="rounded">
+      <span>종료일이 지난 공구는 저장할 때 <b>완료</b>로 바꾸고 정산서 만들기</span>
+    </label>
+    <button type="submit" class="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">바뀐 것 모두 저장</button>
+  </div>
+</form>
+{% else %}
+<div class="bg-white rounded-xl border border-gray-100 p-12 text-center text-sm text-gray-400">
+  {% if q %}검색 결과가 없어요{% elif tab == 'ended' %}끝난 공구가 없어요{% elif tab == 'active' %}진행 중인 공구가 없어요{% else %}공구가 없어요{% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fillRevenue(qtyInput) {
+  var price = parseInt(qtyInput.dataset.price || '0', 10);
+  var qty = parseInt(qtyInput.value || '0', 10);
+  if (price > 0 && qty >= 0) document.getElementById(qtyInput.dataset.target).value = qty * price;
+}
+</script>
+{% endblock %}

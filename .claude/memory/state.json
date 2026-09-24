@@ -26,7 +26,7 @@
     },
     {
       "id": "T5",
-      "title": "정산서 개편 — 운영 배포 완료(873d761, migrate 칸 6개). 다음: 매출 자동 채우기 + 캠페인 등록 한 번에(대표님 요청)",
+      "title": "정산서 개편 — 운영 배포(873d761). 공구 한 번에 등록 배포(3aaff37). 매출 입력 여러 입구(표·붙여넣기·상세) 로컬 완료 → 배포 대기",
       "status": "doing"
     },
     {
@@ -74,6 +74,22 @@
   "session": {
     "id": "a4d542f4-9c77-4061-b558-4cde64f31b6f",
     "started": "2026-09-24T08:05:10+0900",
-    "last_seen": "2026-09-24T10:01:49+0900"
+    "last_seen": "2026-09-24T17:13:50+0900",
+    "last_event": "PreCompact",
+    "touched_files": 39,
+    "recent_files": [
+      "tests/test_influencer_merge.py",
+      "/Users/hyeok/Documents/Obsidian Vault/08_Slack/Slack_07_Sourcing.md",
+      "app/services/settlement_calc.py",
+      "app/templates/settlements/detail.html",
+      "tests/test_settlements.py",
+      "app/templates/campaigns/gallery.html",
+      "app/services/quick_campaign.py",
+      "app/templates/campaigns/quick.html",
+      "tests/test_quick_campaign.py",
+      "app/templates/campaigns/revenue.html",
+      "app/templates/campaigns/revenue_paste.html",
+      "tests/test_campaign_revenue.py"
+    ]
   }
 }

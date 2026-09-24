@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}매출 붙여넣기 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}📋 엑셀에서 매출 붙여넣기{% endblock %}
+
+{% block header_actions %}
+<a href="/campaigns/revenue" class="text-sm text-gray-500 hover:text-gray-700">← 매출 입력</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl space-y-5">
+  <form method="post" action="/campaigns/revenue/paste" class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+    <div class="text-sm font-semibold text-gray-700">① 엑셀·시트에서 복사해서 붙여넣기</div>
+    <p class="text-xs text-gray-500">한 줄에 공구 하나 — <b>공구 이름 | 총 판매금액 | 판매 수량(선택)</b>. 제목 줄·합계 줄은 알아서 빠져요.
+      공구 이름은 일부만 적어도 돼요 (예: "A2 우유 여울맘").</p>
+    <textarea name="text" rows="8" required placeholder="A2 우유 가을 공구	1,234,000	40
+수제 소시지 2차 공구	560000
+또또뻥 여울맘	98,000"
+      class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">{{ text }}</textarea>
+    <button type="submit" class="px-5 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700">짝지어 보기 (아직 저장 안 함)</button>
+  </form>
+
+  {% if rows is not none %}
+  <form method="post" action="/campaigns/revenue/paste/apply" class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-5 py-3 border-b border-gray-100 text-sm font-semibold text-gray-700">② 확인하고 저장
+      <span class="text-xs font-normal text-gray-400">— 짝이 틀리면 고르고, 저장하지 않을 줄은 "저장 안 함"으로 두세요</span></div>
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-xs text-gray-500">
+        <tr><th class="text-left px-4 py-2">붙여넣은 이름</th><th class="text-right px-3 py-2">금액</th><th class="text-right px-3 py-2">수량</th><th class="text-left px-3 py-2">짝지을 공구</th></tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for r in rows %}
+        <tr class="{% if not r.cands or r.revenue is none and r.sales is none %}bg-gray-50 text-gray-400{% elif r.cands | length > 1 %}bg-amber-50/50{% endif %}">
+          <td class="px-4 py-2">{{ r.key }}</td>
+          <td class="px-3 py-2 text-right">{{ r.revenue | won if r.revenue is not none else '—' }}
+            <input type="hidden" name="rev_{{ loop.index }}" value="{{ r.revenue if r.revenue is not none else '' }}"></td>
+          <td class="px-3 py-2 text-right">{{ r.sales if r.sales is not none else '—' }}
+            <input type="hidden" name="qty_{{ loop.index }}" value="{{ r.sales if r.sales is not none else '' }}"></td>
+          <td class="px-3 py-2">
+            {% if r.revenue is none and r.sales is none %}<span class="text-xs">숫자 없음 — 건너뜀</span><input type="hidden" name="camp_{{ loop.index }}" value="">
+            {% elif not r.cands %}<span class="text-xs">못 찾음 — 이름을 고쳐 다시 붙여넣어 주세요</span><input type="hidden" name="camp_{{ loop.index }}" value="">
+            {% else %}
+            <select name="camp_{{ loop.index }}" class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white">
+              <option value="">저장 안 함</option>
+              {% for c in r.cands %}
+              <option value="{{ c.id }}" {% if r.cands | length == 1 %}selected{% endif %}>
+                {{ (c.product.name if c.product else c.product_name_manual) or c.name }}{% if c.influencer %} · {{ c.influencer.name }}{% endif %}{% if c.end_date %} ({{ c.end_date | date }} 종료){% endif %}{% if c.actual_revenue %} · 지금 {{ c.actual_revenue | won }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            {% if r.cands | length > 1 %}<div class="text-xs text-amber-700 mt-1">비슷한 공구가 {{ r.cands | length }}개 — 골라 주세요</div>{% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t border-gray-100">
+      <label class="flex items-center gap-2 text-xs text-gray-600">
+        <input type="checkbox" name="complete_if_ended" value="1" checked class="rounded">
+        <span>종료일이 지난 공구는 <b>완료</b>로 바꾸고 정산서 만들기</span>
+      </label>
+      <button type="submit" class="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">고른 것 저장</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
