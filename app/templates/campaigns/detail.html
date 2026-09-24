@@ -92,7 +92,7 @@
             {% else %}bg-yellow-100 text-yellow-700{% endif %}">
             {% if sp.status == 'active' %}진행중{% elif sp.status == 'scheduled' %}예정{% elif sp.status == 'ended' %}종료{% else %}초안{% endif %}
           </span>
-          <span class="text-sm font-medium text-gray-800">{{ sp.title or sp.slug }}</span>
+          <span class="text-sm font-medium text-gray-800">{{ sp.title or '/shop/' + sp.slug }}</span>
           {% if sp.is_published %}<span class="text-xs text-blue-500">SHOP 노출중</span>{% endif %}
         </div>
         <div class="text-sm font-semibold text-gray-700">{{ sp.price | won }}</div>

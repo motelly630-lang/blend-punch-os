@@ -9,7 +9,7 @@ class SalesPage(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, default=1, index=True)
-    slug = Column(String(100), unique=True, nullable=False)          # 판매 페이지 식별 주소 (OS /shop 화면은 2026-09-24 삭제 — DE-007)
+    slug = Column(String(100), unique=True, nullable=False)          # /shop/{slug}
     product_id = Column(String(36), ForeignKey("products.id"), nullable=False)
     title = Column(String(300), nullable=True)                       # 판매 페이지 전용 타이틀
     description = Column(Text, nullable=True)                        # 짧은 텍스트 설명
