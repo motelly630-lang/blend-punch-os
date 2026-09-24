@@ -84,27 +84,21 @@ _NOTES = {
 
 
 def settle(total_sales: float, commission_rate: float, seller_type: str = "사업자") -> Settlement:
-    """셀러 유형별 정산금 계산. 스크린샷 공식과 1:1 일치."""
-    commission = (total_sales or 0) * (commission_rate or 0)
-    if seller_type == "간이사업자":
-        vat = commission * VAT_RATE
-        wh = 0.0
-    elif seller_type == "프리랜서":
-        vat = commission * VAT_RATE
-        wh = (commission - vat) * WITHHOLDING_RATE
-    else:  # 사업자 (기본)
-        vat = 0.0
-        wh = 0.0
-    settlement = commission - vat - wh
+    """셀러 유형별 정산금 — 계산은 app/services/settlement_calc.py 하나만 쓴다 (정산 화면과 같은 금액).
+
+    vat = 지급액에서 빠지는 부가세 (사업자는 세금계산서로 받으므로 0).
+    """
+    from app.services import settlement_calc
+    c = settlement_calc.calc(total_sales, commission_rate, seller_type)
     return Settlement(
-        seller_type=seller_type,
+        seller_type=c["seller_type"],
         commission_rate=commission_rate,
         total_sales=_round(total_sales),
-        commission_amount=_round(commission),
-        vat=_round(vat),
-        withholding=_round(wh),
-        settlement_amount=_round(settlement),
-        note=_NOTES.get(seller_type, ""),
+        commission_amount=c["commission_amount"],
+        vat=0 if c["seller_type"] == "사업자" else c["vat_amount"],
+        withholding=c["tax_amount"],
+        settlement_amount=c["final_payment"],
+        note=_NOTES.get(c["seller_type"], ""),
     )
 
 

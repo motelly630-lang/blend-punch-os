@@ -23,97 +23,98 @@
       {% endif %}
     </div>
   </div>
-  <button onclick="document.getElementById('add-modal').classList.remove('hidden')"
+  <button onclick="openSettleModal('')"
     class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-    <span class="hidden sm:inline">정산 등록</span>
+    <span class="hidden sm:inline">정산서 만들기</span>
     <span class="sm:hidden">등록</span>
   </button>
 </div>
 {% endblock %}
 
 {% block content %}
-<!-- 미정산 완료 캠페인 알림 -->
-{% if unsettled_campaigns %}
-<div class="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4" x-data="{ open: false }">
-  <div class="flex items-start justify-between gap-3">
-    <div class="flex items-start gap-2.5 min-w-0">
-      <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-      </svg>
-      <div class="min-w-0">
-        <div class="text-sm font-semibold text-amber-800">정산 미등록 완료 캠페인 {{ unsettled_campaigns | length }}건</div>
-        <div class="text-xs text-amber-600 mt-0.5">완료 처리됐지만 정산이 아직 등록되지 않은 캠페인입니다.</div>
-      </div>
-    </div>
-    <button @click="open = !open" class="text-xs text-amber-700 font-medium whitespace-nowrap hover:underline flex-shrink-0">
-      <span x-text="open ? '접기' : '목록 보기'">목록 보기</span>
-    </button>
+{% set msg = request.query_params.get('msg') %}{% set err = request.query_params.get('err') %}
+{% if msg %}<div class="mb-4 px-4 py-2.5 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg">{{ msg }}</div>{% endif %}
+{% if err %}<div class="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{{ err }}</div>{% endif %}
+
+<!-- 요약 -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+  <a href="/settlements?tab=pending" class="bg-amber-50 rounded-xl border border-amber-100 p-3 sm:p-4 hover:border-amber-300">
+    <div class="text-xs text-amber-700 mb-1">① 정산할 것</div>
+    <div class="text-base sm:text-xl font-bold text-amber-700">{{ pending_count }}건</div>
+    {% if unsettled_campaigns %}<div class="text-xs text-amber-600 mt-0.5">+ 정산서 없는 완료 공구 {{ unsettled_campaigns | length }}</div>{% endif %}
+  </a>
+  <a href="/settlements?tab=confirmed" class="bg-blue-50 rounded-xl border border-blue-100 p-3 sm:p-4 hover:border-blue-300">
+    <div class="text-xs text-blue-700 mb-1">② 지급 대기</div>
+    <div class="text-base sm:text-xl font-bold text-blue-700">{{ confirmed_count }}건</div>
+    <div class="text-xs text-blue-600 mt-0.5">{{ confirmed_total | won }}</div>
+  </a>
+  <a href="/settlements?tab=paid&month={{ this_month }}" class="bg-green-50 rounded-xl border border-green-100 p-3 sm:p-4 hover:border-green-300">
+    <div class="text-xs text-green-700 mb-1">③ 이번 달 지급</div>
+    <div class="text-base sm:text-xl font-bold text-green-700 truncate">{{ paid_this_month | won }}</div>
+  </a>
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4">
+    <div class="text-xs text-gray-400 mb-1">전체 지급 완료</div>
+    <div class="text-base sm:text-xl font-bold text-gray-900 truncate">{{ total_paid | won }}</div>
+    <div class="text-xs text-gray-400 mt-0.5">{{ paid_count }}건</div>
   </div>
-  <div x-show="open" x-cloak class="mt-3 space-y-1.5">
+</div>
+
+<!-- 탭 -->
+<div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 mb-4">
+  <div class="flex gap-1 bg-gray-100 p-1 rounded-lg w-max min-w-full sm:w-fit">
+    {% for key, label, color in [('pending', '① 정산할 것', 'text-amber-600'), ('confirmed', '② 지급 대기', 'text-blue-600'), ('paid', '③ 지급 완료', 'text-green-600'), ('calc', '④ 손익', '')] %}
+    <a href="/settlements?tab={{ key }}"
+      class="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap {% if tab == key %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+      {{ label }}
+      {% if key == 'pending' %}<span class="ml-1 text-xs {{ color if tab == key else 'text-gray-400' }}">{{ pending_count }}</span>
+      {% elif key == 'confirmed' %}<span class="ml-1 text-xs {{ color if tab == key else 'text-gray-400' }}">{{ confirmed_count }}</span>
+      {% elif key == 'paid' %}<span class="ml-1 text-xs {{ color if tab == key else 'text-gray-400' }}">{{ paid_count }}</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if tab != 'calc' %}
+<!-- 검색 · 월 -->
+<form method="get" action="/settlements" class="flex flex-wrap items-center gap-2 mb-4">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  <input type="text" name="q" value="{{ q }}" placeholder="인플루언서·캠페인 이름 검색"
+    class="flex-1 sm:w-64 sm:flex-none px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+  {% if tab == 'paid' %}
+  <select name="month" class="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+    <option value="">전체 기간</option>
+    {% for m in months %}<option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <button type="submit" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700">검색</button>
+  {% if q or month %}<a href="/settlements?tab={{ tab }}" class="px-2 py-2 text-sm text-gray-500 hover:text-gray-700">초기화</a>{% endif %}
+  <span class="ml-auto text-xs text-gray-500">목록 합계 <b class="text-gray-800">{{ tab_total | won }}</b></span>
+</form>
+{% endif %}
+
+{% if tab == 'pending' and unsettled_campaigns %}
+<!-- 정산서가 아직 없는 완료 공구 -->
+<div class="mb-4 bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+  <div class="px-4 py-2.5 text-sm font-semibold text-amber-800 border-b border-amber-100">정산서가 아직 없는 완료 공구 {{ unsettled_campaigns | length }}건</div>
+  <div class="divide-y divide-amber-100">
     {% for c in unsettled_campaigns %}
-    <div class="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-amber-100">
+    <div class="flex items-center justify-between gap-2 px-4 py-2.5 bg-white/60">
       <div class="min-w-0">
         <a href="/campaigns/{{ c.id }}" class="text-sm font-medium text-gray-800 hover:text-blue-600 truncate block">{{ c.name }}</a>
         <div class="text-xs text-gray-400">
           {% if c.start_date %}{{ c.start_date }}{% if c.end_date %} ~ {{ c.end_date }}{% endif %}{% else %}날짜 미설정{% endif %}
           {% if c.influencer %} · {{ c.influencer.name }}{% endif %}
+          {% if c.actual_revenue %} · 매출 {{ c.actual_revenue | won }}{% else %} · <span class="text-amber-700">매출 미입력</span>{% endif %}
         </div>
       </div>
-      <button type="button"
-        onclick="
-          document.getElementById('add-modal').classList.remove('hidden');
-        "
-        class="text-xs text-blue-600 font-medium hover:text-blue-700 whitespace-nowrap flex-shrink-0 px-2 py-1 rounded hover:bg-blue-50">
-        정산 등록
-      </button>
+      <button type="button" onclick="openSettleModal('{{ c.id }}')"
+        class="text-xs text-blue-600 font-medium hover:text-blue-700 whitespace-nowrap flex-shrink-0 px-2 py-1 rounded hover:bg-blue-50">정산서 만들기</button>
     </div>
     {% endfor %}
   </div>
 </div>
 {% endif %}
-
-<!-- Summary -->
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4">
-    <div class="text-xs text-gray-400 mb-1">지급 완료</div>
-    <div class="text-base sm:text-xl font-bold text-gray-900 truncate">{{ total_paid | won }}</div>
-  </div>
-  <div class="bg-amber-50 rounded-xl border border-amber-100 p-3 sm:p-4">
-    <div class="text-xs text-amber-600 mb-1">미확정</div>
-    <div class="text-base sm:text-xl font-bold text-amber-700">{{ pending_count }}건</div>
-  </div>
-  <div class="bg-blue-50 rounded-xl border border-blue-100 p-3 sm:p-4">
-    <div class="text-xs text-blue-600 mb-1">확정됨</div>
-    <div class="text-base sm:text-xl font-bold text-blue-700">{{ confirmed_count }}건</div>
-  </div>
-  <div class="bg-green-50 rounded-xl border border-green-100 p-3 sm:p-4">
-    <div class="text-xs text-green-600 mb-1">지급완료</div>
-    <div class="text-base sm:text-xl font-bold text-green-700">{{ paid_count }}건</div>
-  </div>
-</div>
-
-<!-- Status tabs — scrollable on mobile -->
-<div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 mb-4">
-  <div class="flex gap-1 bg-gray-100 p-1 rounded-lg w-max min-w-full sm:w-fit">
-    <a href="/settlements?tab=pending"
-      class="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap {% if tab == 'pending' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
-      미확정 <span class="ml-1 text-xs {% if tab == 'pending' %}text-amber-600{% else %}text-gray-400{% endif %}">{{ pending_count }}</span>
-    </a>
-    <a href="/settlements?tab=confirmed"
-      class="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap {% if tab == 'confirmed' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
-      확정됨 <span class="ml-1 text-xs {% if tab == 'confirmed' %}text-blue-600{% else %}text-gray-400{% endif %}">{{ confirmed_count }}</span>
-    </a>
-    <a href="/settlements?tab=paid"
-      class="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap {% if tab == 'paid' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
-      지급완료 <span class="ml-1 text-xs {% if tab == 'paid' %}text-green-600{% else %}text-gray-400{% endif %}">{{ paid_count }}</span>
-    </a>
-    <a href="/settlements?tab=calc"
-      class="px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap {% if tab == 'calc' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
-      손익계산기
-    </a>
-  </div>
-</div>
 
 {% if tab == 'calc' %}
 <!-- 손익계산기 (DB 기반) -->
@@ -358,198 +359,126 @@
 </div>
 {% endif %}
 
-<!-- Settlement list -->
+<!-- 정산 목록 -->
 <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" {% if tab == 'calc' %}style="display:none"{% endif %}>
   {% if settlements %}
-
-  <!-- Mobile cards -->
-  <div class="sm:hidden divide-y divide-gray-50">
-    {% for s in settlements %}
-    <div class="px-4 py-3.5">
-      <div class="flex items-start justify-between gap-2 mb-1.5">
-        <div class="min-w-0 flex-1">
-          {% if s.influencer %}
-          <a href="/influencers/{{ s.influencer.id }}" class="font-medium text-gray-900 text-sm hover:text-blue-600">{{ s.influencer.name }}</a>
-          {% else %}
-          <span class="text-gray-400 text-sm">-</span>
-          {% endif %}
-          {% if s.notes == '캠페인 완료 시 자동 생성' %}
-          <span class="ml-1 text-xs px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded">자동</span>
-          {% endif %}
-          <div class="text-xs text-gray-400 mt-0.5">{{ s.period_label or "-" }}</div>
-        </div>
-        <span class="text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0
-          {% if s.status == 'paid' %}bg-green-100 text-green-700
-          {% elif s.status == 'confirmed' %}bg-blue-100 text-blue-700
-          {% else %}bg-amber-100 text-amber-700{% endif %}">
-          {% if s.status == 'paid' %}지급완료{% elif s.status == 'confirmed' %}확정{% else %}미확정{% endif %}
-        </span>
-      </div>
-      <div class="grid grid-cols-3 gap-2 text-xs mb-2">
-        <div>
-          <div class="text-gray-400">매출</div>
-          <div class="font-medium text-gray-700">{{ s.sales_amount | won }}</div>
-        </div>
-        <div>
-          <div class="text-gray-400">커미션</div>
-          <div class="font-medium text-gray-700">{{ s.commission_amount | won }}</div>
-        </div>
-        <div>
-          <div class="text-gray-400">지급액</div>
-          <div class="font-bold text-green-700">{{ s.final_payment | won }}</div>
-        </div>
-      </div>
-      <div class="flex items-center gap-1">
-        <a href="/settlements/{{ s.id }}" class="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">정산서</a>
-        {% if s.status == 'pending' %}
-        <form method="post" action="/settlements/{{ s.id }}/confirm"><button type="submit" class="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50">확정</button></form>
-        {% elif s.status == 'confirmed' %}
-        <form method="post" action="/settlements/{{ s.id }}/paid"><button type="submit" class="text-xs text-green-600 hover:text-green-700 px-2 py-1 rounded hover:bg-green-50">지급</button></form>
-        {% endif %}
-        <form method="post" action="/settlements/{{ s.id }}/delete" onsubmit="return confirm('삭제하시겠습니까?')"><button type="submit" class="text-xs text-gray-300 hover:text-red-500 px-2 py-1 rounded hover:bg-red-50">삭제</button></form>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-
-  <!-- Desktop table -->
-  <table class="hidden sm:table w-full text-sm">
+  <table class="w-full text-sm">
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
-        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">인플루언서</th>
-        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">기간</th>
-        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">유형</th>
-        <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500">매출</th>
-        <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500">커미션</th>
-        <th class="text-right px-5 py-3 text-xs font-semibold text-gray-500">원천세</th>
-        <th class="text-right px-5 py-3 text-xs font-semibold text-green-700">지급액</th>
-        <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500">상태</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">받는 사람 · 캠페인</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">유형 · 증빙</th>
+        <th class="text-right px-4 py-3 text-xs font-semibold text-gray-500 hidden md:table-cell">매출 · 수수료</th>
+        <th class="text-right px-4 py-3 text-xs font-semibold text-green-700">실지급액</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">
+          {% if tab == 'confirmed' %}지급 예정일{% elif tab == 'paid' %}지급일{% else %}상태{% endif %}
+        </th>
         <th class="px-3 py-3"></th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-50">
       {% for s in settlements %}
-      <tr class="hover:bg-gray-50 transition-colors">
-        <td class="px-5 py-3.5">
-          <div>
-            {% if s.influencer %}<a href="/influencers/{{ s.influencer.id }}" class="font-medium text-gray-900 hover:text-blue-600">{{ s.influencer.name }}</a>
-            {% else %}<span class="text-gray-400">-</span>{% endif %}
-          </div>
-          {% if s.notes == '캠페인 완료 시 자동 생성' %}
-          <span class="text-xs px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded mt-0.5 inline-block">자동 생성</span>
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3">
+          <a href="/settlements/{{ s.id }}" class="font-medium text-gray-900 hover:text-blue-600">{{ s.influencer.name if s.influencer else '(받는 사람 없음)' }}</a>
+          {% if s.is_manual %}<span class="ml-1 text-xs px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded">수동 조정</span>{% endif %}
+          {% if s.calc_version is none %}<span class="ml-1 text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded" title="개편 전 계산식으로 만든 정산서 — 금액 그대로 보존">예전 계산</span>{% endif %}
+          <div class="text-xs text-gray-400 truncate max-w-[16rem]">{{ s.campaign.name if s.campaign else (s.period_label or '-') }}</div>
+        </td>
+        <td class="px-4 py-3 hidden sm:table-cell">
+          <span class="text-xs px-2 py-0.5 rounded-full {% if s.seller_type == '프리랜서' %}bg-orange-100 text-orange-700{% elif s.seller_type == '간이사업자' %}bg-yellow-100 text-yellow-700{% else %}bg-gray-100 text-gray-600{% endif %}">{{ s.seller_type }}</span>
+          <div class="text-xs text-gray-400 mt-0.5">{{ {'사업자': '세금계산서', '간이사업자': '현금영수증', '프리랜서': '원천징수 3.3%'}.get(s.seller_type, '') }}</div>
+        </td>
+        <td class="px-4 py-3 text-right text-gray-600 hidden md:table-cell">
+          {{ s.sales_amount | won }}
+          <div class="text-xs text-gray-400">× {{ s.commission_rate | pct }} = {{ s.commission_amount | won }}</div>
+        </td>
+        <td class="px-4 py-3 text-right font-bold text-green-700">{{ s.final_payment | won }}</td>
+        <td class="px-4 py-3 text-xs text-gray-500 hidden sm:table-cell">
+          {% if tab == 'confirmed' %}{{ s.due_date or '미정' }}
+          {% elif tab == 'paid' %}{{ (s.paid_at or s.updated_at) | kst_date if (s.paid_at or s.updated_at) else '-' }}
+          {% else %}{{ status_labels.get(s.status, s.status) }}{% endif %}
+        </td>
+        <td class="px-3 py-3 text-right whitespace-nowrap">
+          <a href="/settlements/{{ s.id }}" class="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100">정산서</a>
+          {% if s.status == 'pending' and s.calc_version is none and not s.is_manual %}
+          <a href="/settlements/{{ s.id }}" class="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50" title="예전 계산식 — 정산서에서 금액 확인 후 발행">확인 후 발행</a>
+          {% elif s.status == 'pending' %}
+          <form method="post" action="/settlements/{{ s.id }}/confirm" class="inline"><button type="submit" class="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50">발행</button></form>
+          {% elif s.status == 'confirmed' %}
+          <form method="post" action="/settlements/{{ s.id }}/paid" class="inline" onsubmit="return confirm('{{ s.final_payment | won }} 을 보냈나요? 지급 완료로 옮깁니다.')"><button type="submit" class="text-xs text-green-700 hover:text-green-800 px-2 py-1 rounded hover:bg-green-50">지급 완료</button></form>
           {% endif %}
-        </td>
-        <td class="px-5 py-3.5 text-gray-500 text-xs">{{ s.period_label or "-" }}</td>
-        <td class="px-5 py-3.5">
-          <span class="text-xs px-2 py-0.5 rounded-full
-            {% if s.seller_type == '프리랜서' %}bg-orange-100 text-orange-700
-            {% elif s.seller_type == '간이사업자' %}bg-yellow-100 text-yellow-700
-            {% else %}bg-gray-100 text-gray-600{% endif %}">
-            {{ s.seller_type }}
-          </span>
-        </td>
-        <td class="px-5 py-3.5 text-right text-gray-700">{{ s.sales_amount | won }}</td>
-        <td class="px-5 py-3.5 text-right text-gray-700">
-          {{ s.commission_amount | won }}
-          <div class="text-xs text-gray-400">{{ s.commission_rate | pct }}</div>
-        </td>
-        <td class="px-5 py-3.5 text-right">
-          {% if s.tax_amount and s.tax_amount > 0 %}
-          <span class="text-red-500">-{{ s.tax_amount | won }}</span>
-          <div class="text-xs text-gray-400">3.3%</div>
-          {% else %}
-          <span class="text-gray-300 text-xs">-</span>
-          {% endif %}
-        </td>
-        <td class="px-5 py-3.5 text-right font-bold text-green-700">{{ s.final_payment | won }}</td>
-        <td class="px-5 py-3.5 text-center">
-          <span class="text-xs px-2 py-0.5 rounded-full font-medium
-            {% if s.status == 'paid' %}bg-green-100 text-green-700
-            {% elif s.status == 'confirmed' %}bg-blue-100 text-blue-700
-            {% else %}bg-amber-100 text-amber-700{% endif %}">
-            {% if s.status == 'paid' %}지급완료{% elif s.status == 'confirmed' %}확정{% else %}미확정{% endif %}
-          </span>
-        </td>
-        <td class="px-3 py-3.5">
-          <div class="flex gap-1">
-            <a href="/settlements/{{ s.id }}" class="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">정산서</a>
-            {% if s.status == 'pending' %}
-            <form method="post" action="/settlements/{{ s.id }}/confirm"><button type="submit" class="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50">확정</button></form>
-            {% elif s.status == 'confirmed' %}
-            <form method="post" action="/settlements/{{ s.id }}/paid"><button type="submit" class="text-xs text-green-600 hover:text-green-700 px-2 py-1 rounded hover:bg-green-50">지급</button></form>
-            {% endif %}
-            <form method="post" action="/settlements/{{ s.id }}/delete" onsubmit="return confirm('삭제하시겠습니까?')"><button type="submit" class="text-xs text-gray-300 hover:text-red-500 px-2 py-1 rounded hover:bg-red-50">삭제</button></form>
-          </div>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-
   {% else %}
   <div class="py-16 text-center text-sm text-gray-400">
-    {% if tab == 'pending' %}미확정 정산이 없습니다
-    {% elif tab == 'confirmed' %}확정된 정산이 없습니다
-    {% else %}지급 완료된 정산이 없습니다{% endif %}
-    {% if tab == 'pending' %}
-    <br><button onclick="document.getElementById('add-modal').classList.remove('hidden')" class="mt-3 text-blue-600 hover:text-blue-700 font-medium">+ 첫 정산 등록</button>
-    {% endif %}
+    {% if q or month %}검색 결과가 없어요
+    {% elif tab == 'pending' %}작성중인 정산서가 없어요
+    {% elif tab == 'confirmed' %}지급 대기 중인 정산서가 없어요
+    {% else %}지급 완료된 정산서가 없어요{% endif %}
+    {% if tab == 'pending' %}<br><button onclick="openSettleModal('')" class="mt-3 text-blue-600 hover:text-blue-700 font-medium">+ 정산서 만들기</button>{% endif %}
   </div>
   {% endif %}
 </div>
 
-<!-- Add modal -->
+<!-- 정산서 만들기 창 — 금액은 서버 계산식(/settlements/preview) 으로만 보여준다 -->
 <script>
 window._settlementInfList = {{ influencers_json | safe }};
 window._settlementCampList = {{ campaigns_json | safe }};
+function openSettleModal(campId) {
+  document.getElementById('add-modal').classList.remove('hidden');
+  window.dispatchEvent(new CustomEvent('settle-open', { detail: { campId: campId || '' } }));
+}
 </script>
 <div id="add-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" x-data="{
-  sales: 0, rate: 0.15, sellerType: '사업자', manualFinal: '',
-  selectedInfId: '', selectedCampId: '',
-  infList: window._settlementInfList,
-  campList: window._settlementCampList,
-  get commission() { return Math.round(this.sales * this.rate); },
-  get calcFinal() {
-    var c = this.commission;
-    if (this.sellerType === '간이사업자') return c - Math.round(c * 0.1);
-    if (this.sellerType === '프리랜서') { var sp = c / 1.1; return c - Math.round(sp * 0.033); }
-    return c;
+  sales: 0, ratePct: '', sellerType: '사업자', manualFinal: '', rateSource: '',
+  selectedInfId: '', selectedCampId: '', preview: null,
+  infList: window._settlementInfList, campList: window._settlementCampList,
+  async refresh() {
+    const fd = new FormData();
+    fd.append('sales_amount', this.sales || 0);
+    fd.append('commission_rate_pct', this.ratePct || 0);
+    fd.append('seller_type', this.sellerType);
+    try { const r = await fetch('/settlements/preview', { method: 'POST', body: fd }); this.preview = await r.json(); } catch (e) { this.preview = null; }
   },
-  get isDiff() {
-    return this.manualFinal !== '' && this.manualFinal !== null &&
-           parseInt(this.manualFinal) !== this.calcFinal;
-  },
+  won(v) { return '₩' + Math.round(v || 0).toLocaleString(); },
   onInfChange() {
-    var inf = this.infList.find(i => i.id === this.selectedInfId);
+    const inf = this.infList.find(i => i.id === this.selectedInfId);
     if (inf && inf.business_type) this.sellerType = inf.business_type;
+    if (inf && inf.rate > 0 && !this.ratePct) { this.ratePct = parseFloat((inf.rate * 100).toPrecision(12)); this.rateSource = '인플루언서 기본값'; }
+    this.refresh();
   },
   onCampChange() {
-    var camp = this.campList.find(c => c.id === this.selectedCampId);
-    if (!camp) return;
-    if (camp.start_date || camp.end_date) {
-      var label = camp.start_date || '';
-      if (camp.end_date) label += (label ? ' ~ ' : '') + camp.end_date;
-      this.$refs.periodLabel.value = label;
-    }
-    if (camp.actual_revenue > 0) this.sales = camp.actual_revenue;
-    if (camp.commission_rate > 0) this.rate = camp.commission_rate;
-    if (camp.seller_type) this.sellerType = camp.seller_type;
-    if (camp.influencer_id && !this.selectedInfId) {
-      this.selectedInfId = camp.influencer_id;
-      this.onInfChange();
-    }
+    const c = this.campList.find(x => x.id === this.selectedCampId);
+    if (!c) { this.refresh(); return; }
+    if (c.start_date || c.end_date) this.$refs.periodLabel.value = (c.start_date || '') + (c.end_date ? ' ~ ' + c.end_date : '');
+    if (c.actual_revenue > 0) this.sales = c.actual_revenue;
+    if (c.rate > 0) { this.ratePct = parseFloat((c.rate * 100).toPrecision(12)); this.rateSource = c.rate_source; }
+    if (c.seller_type) this.sellerType = c.seller_type;
+    if (c.influencer_id) { this.selectedInfId = c.influencer_id; const inf = this.infList.find(i => i.id === c.influencer_id); if (inf && !c.seller_type && inf.business_type) this.sellerType = inf.business_type; }
+    this.refresh();
   }
-}">
+}" @settle-open.window="selectedCampId = $event.detail.campId; onCampChange()">
   <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between mb-5">
-      <h2 class="font-semibold text-gray-800">정산 등록</h2>
+      <h2 class="font-semibold text-gray-800">정산서 만들기</h2>
       <button onclick="document.getElementById('add-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">✕</button>
     </div>
     <form method="post" action="/settlements/new" class="space-y-4">
-
-      <!-- 인플루언서 선택 -->
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">인플루언서</label>
+        <label class="block text-xs font-medium text-gray-600 mb-1">캠페인 (공구) — 고르면 매출·수수료율·받는 사람이 채워져요</label>
+        <select name="campaign_id" x-model="selectedCampId" @change="onCampChange()"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">선택 안 함</option>
+          {% for c in campaigns_for_modal %}
+          <option value="{{ c.id }}">{{ c.name }}{% if c.start_date %} ({{ c.start_date }}{% if c.end_date %} ~ {{ c.end_date }}{% endif %}){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">받는 사람 (인플루언서)</label>
         <select name="influencer_id" x-model="selectedInfId" @change="onInfChange()"
           class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">선택 안 함</option>
@@ -558,82 +487,62 @@ window._settlementCampList = {{ campaigns_json | safe }};
           {% endfor %}
         </select>
       </div>
-
-      <!-- 캠페인 선택 -->
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">캠페인 (공구)</label>
-        <select name="campaign_id" x-model="selectedCampId" @change="onCampChange()"
-          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">선택 안 함</option>
-          {% for c in campaigns_for_modal %}
-          <option value="{{ c.id }}">{{ c.name }}{% if c.start_date %} ({{ c.start_date }}{% if c.end_date %} ~ {{ c.end_date }}{% endif %}){% endif %}</option>
-          {% endfor %}
-        </select>
-        <p class="mt-1 text-xs text-gray-400">캠페인 선택 시 기간이 자동 입력됩니다.</p>
-      </div>
-
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">사업자 유형</label>
-          <select name="seller_type" x-model="sellerType" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <label class="block text-xs font-medium text-gray-600 mb-1">총 판매금액 (원)</label>
+          <input type="number" name="sales_amount" x-model.number="sales" @input.debounce.300ms="refresh()" min="0" step="1"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">수수료율 (%)</label>
+          <input type="number" name="commission_rate_pct" x-model="ratePct" @input.debounce.300ms="rateSource=''; refresh()" min="0" max="100" step="any"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <p class="mt-1 text-xs text-gray-400" x-show="rateSource" x-text="rateSource + ' 에서 가져왔어요'"></p>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">유형</label>
+          <select name="seller_type" x-model="sellerType" @change="refresh()" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
             {% for t in seller_types %}<option>{{ t }}</option>{% endfor %}
           </select>
         </div>
         <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">지급 예정일</label>
+          <input type="date" name="due_date" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        </div>
+        <div class="col-span-2">
           <label class="block text-xs font-medium text-gray-600 mb-1">정산 기간</label>
-          <input type="text" name="period_label" x-ref="periodLabel" placeholder="캠페인 선택 시 자동 입력" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">총 매출 (원)</label>
-          <input type="number" name="sales_amount" x-model.number="sales" min="0" step="1000" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">커미션율 (0~1)</label>
-          <input type="number" name="commission_rate" x-model.number="rate" min="0" max="1" step="0.01" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <input type="text" name="period_label" x-ref="periodLabel" placeholder="캠페인 고르면 자동" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
         </div>
       </div>
 
-      <div class="bg-gray-50 rounded-lg p-3 space-y-1 text-sm">
-        <div class="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">자동 계산 결과</div>
-        <div class="flex justify-between"><span class="text-gray-500">커미션 금액</span><span class="font-medium" x-text="'₩' + commission.toLocaleString()"></span></div>
-        <template x-if="sellerType === '간이사업자'">
-          <div class="flex justify-between"><span class="text-gray-500">부가세 차감 (10%)</span><span class="text-amber-600" x-text="'-₩' + Math.round(commission * 0.1).toLocaleString()"></span></div>
+      <div class="bg-gray-50 rounded-lg p-3 space-y-1 text-sm" x-show="preview">
+        <div class="text-xs font-medium text-gray-400 mb-1">자동 계산 (서버 계산식)</div>
+        <div class="flex justify-between"><span class="text-gray-500">정산 대상 (판매금액 × 수수료율, 부가세 포함)</span><span x-text="won(preview && preview.commission_amount)"></span></div>
+        <template x-if="preview && preview.seller_type !== '사업자'">
+          <div class="flex justify-between"><span class="text-gray-500">부가세 제외 (÷ 1.1)</span><span class="text-amber-700" x-text="'-' + won(preview.vat_amount)"></span></div>
         </template>
-        <template x-if="sellerType === '프리랜서'">
-          <div class="flex justify-between"><span class="text-gray-500">원천징수 차감 (공급가×3.3%)</span><span class="text-red-500" x-text="'-₩' + Math.round((commission/1.1)*0.033).toLocaleString()"></span></div>
+        <template x-if="preview && preview.seller_type === '프리랜서'">
+          <div class="flex justify-between"><span class="text-gray-500">원천징수 3.3%</span><span class="text-red-600" x-text="'-' + won(preview.tax_amount)"></span></div>
         </template>
         <div class="flex justify-between border-t border-gray-200 pt-1 mt-1">
-          <span class="font-semibold text-gray-700">추천 지급액</span>
-          <span class="font-bold text-blue-600" x-text="'₩' + calcFinal.toLocaleString()"></span>
+          <span class="font-semibold text-gray-700">실지급액 · <span class="font-normal text-gray-500" x-text="preview && preview.evidence"></span></span>
+          <span class="font-bold text-blue-600" x-text="won(preview && preview.final_payment)"></span>
         </div>
       </div>
 
       <div>
-        <div class="flex items-center justify-between mb-1">
-          <label class="text-xs font-medium text-gray-600">최종 지급액 (직접 입력)</label>
-          <button type="button" @click="manualFinal = ''" x-show="manualFinal !== ''"
-            class="text-xs text-gray-400 hover:text-gray-600">초기화 (자동계산)</button>
-        </div>
-        <input type="number" name="final_payment_manual" x-model="manualFinal" min="0" step="100"
-          :placeholder="'자동계산: ₩' + calcFinal.toLocaleString()"
-          class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-colors"
-          :class="isDiff ? 'border-amber-400 focus:ring-amber-400' : 'border-gray-200 focus:ring-blue-500'">
-        <div x-show="isDiff" class="mt-1.5 flex items-center gap-1.5 text-xs text-amber-600">
-          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-          </svg>
-          <span>추천 지급액(<span x-text="'₩' + calcFinal.toLocaleString()"></span>)과 다릅니다. 저장은 가능합니다.</span>
-        </div>
-        <p x-show="!manualFinal" class="mt-1 text-xs text-gray-400">비워두면 자동 계산값으로 저장됩니다.</p>
+        <label class="block text-xs font-medium text-gray-600 mb-1">실지급액 직접 입력 (특별한 경우만)</label>
+        <input type="number" name="final_payment_manual" x-model="manualFinal" min="0" step="1" placeholder="비워두면 자동 계산값"
+          class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        <p x-show="manualFinal !== ''" class="mt-1 text-xs text-amber-700">직접 넣은 금액은 '수동 조정'으로 표시되고, 자동 재계산이 덮지 않아요.</p>
       </div>
-
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">메모</label>
-        <input type="text" name="notes" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="참고 사항">
+        <input type="text" name="notes" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="참고 사항">
       </div>
       <div class="flex justify-end gap-3 pt-2">
         <button type="button" onclick="document.getElementById('add-modal').classList.add('hidden')" class="px-4 py-2 text-sm text-gray-500">취소</button>
-        <button type="submit" class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">등록</button>
+        <button type="submit" class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">만들기 (작성중)</button>
       </div>
     </form>
   </div>

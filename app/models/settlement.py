@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Text, DateTime, ForeignKey
+from sqlalchemy import Boolean, Column, Date, Integer, String, Float, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -21,7 +21,14 @@ class Settlement(Base):
     tax_rate = Column(Float, default=0.0)                  # 원천징수율 (프리랜서 0.033)
     tax_amount = Column(Float, default=0.0)                # 원천징수액
     final_payment = Column(Float, default=0.0)             # 최종 지급액
-    status = Column(String(20), default="pending")         # pending|confirmed|paid
+    status = Column(String(20), default="pending")         # pending(작성중)|confirmed(발행·지급대기)|paid(지급완료)
+    # 정산서 한 장 개편 (2026-09-24) — 계산은 app/services/settlement_calc.py 하나만
+    supply_amount = Column(Float, nullable=True)            # 공급가액 = 정산 대상 ÷ 1.1
+    calc_version = Column(String(10), nullable=True)        # NULL = 예전 계산식으로 만든 행 (금액 그대로 보존)
+    is_manual = Column(Boolean, default=False)              # 실지급액을 사람이 직접 고침 → 자동 재계산이 덮지 않음
+    issued_at = Column(DateTime, nullable=True)             # 발행(확정)한 때
+    paid_at = Column(DateTime, nullable=True)               # 지급 완료한 때
+    due_date = Column(Date, nullable=True)                  # 지급 예정일
     notes = Column(Text, nullable=True)
     # 정산 생성 시점 스냅샷 (인플루언서 정보 변경 대비)
     bank_name_snapshot = Column(String(100), nullable=True)

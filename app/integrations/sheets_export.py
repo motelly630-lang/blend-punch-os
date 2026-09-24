@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -95,6 +95,8 @@ def _status_ko(entity: str, obj) -> str | None:
 # 시트 필드가 '_' 로 시작하는 특수 항목 → OS 객체에서 값 뽑는 함수
 _SPECIAL = {
     "_status_ko":     lambda entity, obj, ctx: _status_ko(entity, obj),
+    "_paid_date_kst": lambda entity, obj, ctx: ((getattr(obj, "paid_at", None) + timedelta(hours=9)).strftime("%Y-%m-%d")
+                                                if getattr(obj, "paid_at", None) else None),
     "_logo_url":      lambda entity, obj, ctx: _abs_url(getattr(obj, "logo", None)),
     "_thumbnail_url": lambda entity, obj, ctx: _abs_url(getattr(obj, "product_image", None)),
     "_option_set":    lambda entity, obj, ctx: sb.options_to_text(getattr(obj, "set_options", None)) or None,

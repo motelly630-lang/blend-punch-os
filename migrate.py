@@ -369,6 +369,15 @@ def migrate():
             except Exception:
                 conn.rollback()
 
+        # --- settlements (정산서 한 장 개편, 2026-09-24) ---
+        # 계산은 app/services/settlement_calc.py 하나만. 기존 행은 calc_version NULL = 예전 계산식(금액 그대로 보존).
+        _add_column(conn, "settlements", "supply_amount FLOAT")
+        _add_column(conn, "settlements", "calc_version VARCHAR(10)")
+        _add_column(conn, "settlements", "is_manual BOOLEAN DEFAULT FALSE")
+        _add_column(conn, "settlements", "issued_at TIMESTAMP")
+        _add_column(conn, "settlements", "paid_at TIMESTAMP")
+        _add_column(conn, "settlements", "due_date DATE")
+
         conn.commit()
 
     _seed_cs_types()

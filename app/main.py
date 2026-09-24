@@ -453,6 +453,13 @@ def _setup_filters():
             return "-"
         return v.strftime("%Y.%m.%d %H:%M")
 
+    def format_kst_date(v):
+        """UTC 로 저장된 시각 → 한국 날짜 (정산 발행일·지급일 등)."""
+        if not v:
+            return "-"
+        from datetime import datetime as _dt, timedelta as _td
+        return (v + _td(hours=9)).strftime("%Y-%m-%d") if isinstance(v, _dt) else str(v)
+
     def platform_label(v):
         return {
             "instagram": "인스타그램",
@@ -530,6 +537,7 @@ def _setup_filters():
     for mod in [d, p, i, pr, ca, tr, se, a, pub, auto, cat, imp, imp_inf, imp_camp, imp_br, teng, out, crm, srcg, br, ord_, sp, sel, appl, biz, ff, comp, man, eml, bkp, agp, att, inq, prt, ptl, cs_mod, pcs_mod, sht_mod]:
         env: Environment = mod.templates.env
         env.filters["won"] = format_won
+        env.filters["kst_date"] = format_kst_date
         env.filters["num"] = format_num
         env.filters["pct"] = format_pct
         env.filters["date"] = format_date

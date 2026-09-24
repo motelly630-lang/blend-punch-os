@@ -235,7 +235,7 @@ def portal_home(
         )
         for s in rows:
             end = end_date_map.get(s.campaign_id)
-            payout_date = (end + timedelta(days=partner.settlement_days or 14)) if end else None
+            payout_date = s.due_date or ((end + timedelta(days=partner.settlement_days or 14)) if end else None)
             settlements.append({"s": s, "payout_date": payout_date})
 
     # ── 4. 샘플/발송 로그 ──────────────────────────────────────────────────────

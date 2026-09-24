@@ -228,6 +228,7 @@ def _auto_settle(db: Session, campaign: Campaign):
         return
 
     from app.routers.settlements import calc_settlement
+    from app.services import settlement_calc
     # 반드시 캠페인과 같은 회사의 인플루언서만 — 계좌정보를 스냅샷하므로 스코프가 빠지면
     # 타사 인플루언서의 실계좌번호가 이 회사 정산 레코드에 저장된다.
     # (수동 생성 경로 settlements.py 는 이미 cid 스코프. 자동 경로가 누락돼 있었다)
@@ -252,23 +253,23 @@ def _auto_settle(db: Session, campaign: Campaign):
         or (inf.business_type if inf and inf.business_type else None)
         or "사업자"
     )
-    seller_rate = campaign.seller_commission_rate or campaign.commission_rate or 0.0
+    # 수수료율: 캠페인 → 제품 → 인플루언서 기본값 (settlement_calc.resolve_rate), 없으면 옛 칸
+    seller_rate, _ = settlement_calc.resolve_rate(campaign, getattr(campaign, "product", None), inf)
+    seller_rate = seller_rate or campaign.commission_rate or 0.0
     calc = calc_settlement(campaign.actual_revenue or 0, seller_rate, seller_type)
     period = (campaign.end_date.strftime("%Y년 %m월") if campaign.end_date else datetime.now().strftime("%Y년 %m월"))
 
     existing = db.query(Settlement).filter_by(campaign_id=campaign.id).first()
     if existing:
-        # pending 상태만 재계산 (confirmed/paid는 건드리지 않음)
-        if existing.status == "pending":
+        # 작성중(pending)만 재계산 (발행·지급된 건 건드리지 않음).
+        # 사람이 지급액을 직접 고친(is_manual) 정산서는 덮지 않는다.
+        if existing.status == "pending" and not existing.is_manual:
             existing.sales_amount      = campaign.actual_revenue or 0
             existing.commission_rate   = seller_rate
             existing.seller_type       = seller_type
             existing.period_label      = period
-            existing.commission_amount = calc["commission_amount"]
-            existing.vat_amount        = calc["vat_amount"]
-            existing.tax_rate          = calc["tax_rate"]
-            existing.tax_amount        = calc["tax_amount"]
-            existing.final_payment     = calc["final_payment"]
+            for k, v in calc.items():
+                setattr(existing, k, v)
             if inf and not existing.bank_name_snapshot:
                 existing.bank_name_snapshot       = inf.bank_name
                 existing.account_number_snapshot  = inf.account_number

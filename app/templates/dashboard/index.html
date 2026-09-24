@@ -62,12 +62,12 @@
   </div>
   <div class="grid grid-cols-3 gap-2 sm:gap-4">
     <a href="/settlements?tab=pending" class="group p-2.5 sm:p-4 rounded-xl bg-amber-50 border border-amber-100 hover:border-amber-300 transition-colors">
-      <div class="text-xs font-medium text-amber-700 mb-1">미확정</div>
+      <div class="text-xs font-medium text-amber-700 mb-1">정산 작성중</div>
       <div class="text-sm sm:text-xl font-bold text-amber-800 truncate">{{ pending_amount | won }}</div>
       <div class="text-xs text-amber-600 mt-1">{{ pending_count }}건</div>
     </a>
     <a href="/settlements?tab=confirmed" class="group p-2.5 sm:p-4 rounded-xl bg-blue-50 border border-blue-100 hover:border-blue-300 transition-colors">
-      <div class="text-xs font-medium text-blue-700 mb-1">확정됨</div>
+      <div class="text-xs font-medium text-blue-700 mb-1">지급 대기</div>
       <div class="text-sm sm:text-xl font-bold text-blue-800 truncate">{{ confirmed_amount | won }}</div>
       <div class="text-xs text-blue-600 mt-1">{{ confirmed_count }}건</div>
     </a>

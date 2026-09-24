@@ -130,8 +130,8 @@ CAMPAIGN_MAP: dict[str, str | None] = {
 SETTLEMENT_MAP: dict[str, str | None] = {
     "settlement_id":      "sheet_code",
     "campaign_id":        "_campaign_code",
-    "settle_due_date":    None,              # OS에 정산예정일 컬럼 없음
-    "settle_done_date":   None,              # OS에 정산완료일 컬럼 없음
+    "settle_due_date":    "due_date",        # 지급 예정일 (2026-09-24 추가)
+    "settle_done_date":   "_paid_date_kst",  # 지급 완료일 (UTC 저장 → 한국 날짜, 2026-09-24 추가)
     "settlement_status":  "_status_ko",
     "note":               "notes",
     # OS 인플루언서 지급 정산 (2026-08-19 시트에 추가한 10열)

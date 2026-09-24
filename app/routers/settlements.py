@@ -1,6 +1,6 @@
 import io
 import json
-from datetime import date
+from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -12,58 +12,54 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
+from app.services import settlement_calc
 
 router = APIRouter(prefix="/settlements")
 templates = Jinja2Templates(directory="app/templates")
 
-SELLER_TYPES = ["사업자", "간이사업자", "프리랜서"]
+SELLER_TYPES = list(settlement_calc.SELLER_TYPES)
+# 내부 상태값은 그대로(pending/confirmed/paid — 대시보드·시트·포털이 쓴다), 화면 이름만 새 흐름으로
+STATUS_LABELS = {"pending": "작성중", "confirmed": "지급 대기", "paid": "지급 완료"}
 
 
 def calc_settlement(sales_amount: float, commission_rate: float, seller_type: str) -> dict:
-    """
-    사업자    : 커미션만 지급 (부가세·원천징수 없음)
-               final = commission
+    """모델에 넣을 금액 칸 (계산은 app/services/settlement_calc.py 하나만 — 예전 식은 쓰지 않는다)."""
+    return settlement_calc.model_fields(sales_amount, commission_rate, seller_type)
 
-    간이사업자 : 커미션 - 부가세(10%)
-               final = commission - vat
 
-    프리랜서   : 커미션 합계 = 공급가액 + 부가세(10%)
-               공급가액 = commission / 1.1
-               원천징수 = 공급가액 × 3.3%   ← 부가세 제외 금액에 적용
-               부가세는 세금계산서로 별도 처리 → 실지급 차감 안 함
-               final = commission - 원천징수
-    """
-    commission = sales_amount * commission_rate
-    if seller_type == "사업자":
-        vat = 0
-        withholding = 0
-        tax_rate = 0.0
-        final = round(commission)
-    elif seller_type == "간이사업자":
-        vat = round(commission * 0.1)
-        withholding = 0
-        tax_rate = 0.0
-        final = round(commission) - vat
-    else:  # 프리랜서
-        supply_price = commission / 1.1            # 공급가액 (부가세 제외)
-        vat = round(commission - supply_price)     # 부가세 (표시용)
-        withholding = round(supply_price * 0.033)  # 원천징수 = 공급가액 × 3.3%
-        tax_rate = 0.033
-        final = round(commission) - withholding    # 부가세는 계산서 처리, 원천징수만 차감
-    return {
-        "commission_amount": round(commission),
-        "vat_amount": vat,
-        "tax_rate": tax_rate,
-        "tax_amount": withholding,
-        "final_payment": final,
-    }
+def _get(db: Session, cid, settlement_id: str):
+    return db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
+
+
+def _msg(url: str, text: str, err: bool = False) -> RedirectResponse:
+    from urllib.parse import quote
+    sep = "&" if "?" in url else "?"
+    return RedirectResponse(f"{url}{sep}{'err' if err else 'msg'}={quote(text)}", status_code=302)
+
+
+def _stamp(s: Settlement, user: User, text: str) -> None:
+    """누가 언제 무엇을 했는지 메모 끝에 남긴다 (정산은 돈 — 흔적을 남긴다)."""
+    now = datetime.utcnow() + timedelta(hours=9)
+    line = f"[{now:%Y-%m-%d %H:%M} {user.username}] {text}"
+    s.notes = ((s.notes or "").rstrip() + "\n" + line).strip()
+
+
+def _apply_calc(s: Settlement) -> None:
+    """수동 조정이 아니면 새 계산식으로 금액을 다시 채운다."""
+    fields = calc_settlement(s.sales_amount or 0, s.commission_rate or 0, s.seller_type or "사업자")
+    manual_final = s.final_payment if s.is_manual else None
+    for k, v in fields.items():
+        setattr(s, k, v)
+    if manual_final is not None:
+        s.final_payment = manual_final
 
 
 @router.get("")
 def settlement_list(request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user),
                     tab: str = "pending",
-                    period: str = ""):
+                    period: str = "", q: str = "", month: str = ""):
+    """탭: pending=정산할 것 · confirmed=지급 대기 · paid=지급 완료 · calc=손익 (내부 값은 그대로)."""
     if tab not in ("pending", "confirmed", "paid", "calc"):
         tab = "pending"
 
@@ -83,15 +79,45 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
         Settlement.company_id == cid, Settlement.status == "paid"
     ).scalar() or 0
 
-    # Load only the active tab's rows
-    settlements = (
-        db.query(Settlement)
-        .options(joinedload(Settlement.influencer), joinedload(Settlement.campaign))
-        .filter(Settlement.company_id == cid, Settlement.status == tab)
-        .order_by(Settlement.created_at.desc())
-        .limit(200)
-        .all()
-    )
+    confirmed_total = db.query(func.sum(Settlement.final_payment)).filter(
+        Settlement.company_id == cid, Settlement.status == "confirmed"
+    ).scalar() or 0
+    kst_today = (datetime.utcnow() + timedelta(hours=9)).date()
+    this_month = kst_today.strftime("%Y-%m")
+    m_start, m_end = _kst_month_bounds_utc(kst_today.year, kst_today.month)
+    paid_this_month = db.query(func.sum(Settlement.final_payment)).filter(
+        Settlement.company_id == cid, Settlement.status == "paid",
+        Settlement.paid_at >= m_start, Settlement.paid_at < m_end,
+    ).scalar() or 0
+
+    # 현재 탭 목록 — 검색(인플루언서·캠페인 이름), 지급 완료는 월별
+    sq = (db.query(Settlement)
+          .options(joinedload(Settlement.influencer), joinedload(Settlement.campaign))
+          .outerjoin(Influencer, Influencer.id == Settlement.influencer_id)
+          .outerjoin(Campaign, Campaign.id == Settlement.campaign_id)
+          .filter(Settlement.company_id == cid, Settlement.status == tab))
+    if q:
+        like = f"%{q.strip()}%"
+        sq = sq.filter(Influencer.name.ilike(like) | Campaign.name.ilike(like))
+    months = []
+    if tab == "paid":
+        paid_day = func.coalesce(Settlement.paid_at, Settlement.updated_at)
+        months = sorted({(d + timedelta(hours=9)).strftime("%Y-%m") for (d,) in db.query(paid_day).filter(
+            Settlement.company_id == cid, Settlement.status == "paid").all() if d}, reverse=True)
+        if month:
+            try:
+                y, m = int(month[:4]), int(month[5:7])
+                start, end = _kst_month_bounds_utc(y, m)
+                sq = sq.filter(paid_day >= start, paid_day < end)
+            except (ValueError, IndexError):
+                month = ""
+        sq = sq.order_by(paid_day.desc())
+    elif tab == "confirmed":
+        sq = sq.order_by(Settlement.due_date.is_(None), Settlement.due_date.asc(), Settlement.issued_at.asc())
+    else:
+        sq = sq.order_by(Settlement.created_at.desc())
+    settlements = sq.limit(300).all()
+    tab_total = sum((x.final_payment or 0) for x in settlements)
 
     # Unique periods for export filter (distinct query, no full load)
     periods = sorted(
@@ -116,16 +142,21 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
     influencers_json = json.dumps([{
         "id": i.id, "name": i.name,
         "business_type": i.business_type or "사업자",
+        "rate": i.commission_preference or 0,
     } for i in influencers_for_modal], ensure_ascii=False)
-    campaigns_json = json.dumps([{
-        "id": c.id, "name": c.name,
-        "start_date": str(c.start_date) if c.start_date else "",
-        "end_date": str(c.end_date) if c.end_date else "",
-        "influencer_id": c.influencer_id or "",
-        "actual_revenue": c.actual_revenue or 0,
-        "commission_rate": c.commission_rate or 0,
-        "seller_type": c.seller_type or "",
-    } for c in campaigns_for_modal], ensure_ascii=False)
+
+    def _camp_info(c):
+        rate, src = settlement_calc.resolve_rate(c, getattr(c, "product", None), getattr(c, "influencer", None))
+        return {
+            "id": c.id, "name": c.name,
+            "start_date": str(c.start_date) if c.start_date else "",
+            "end_date": str(c.end_date) if c.end_date else "",
+            "influencer_id": c.influencer_id or "",
+            "actual_revenue": c.actual_revenue or 0,
+            "rate": rate or 0, "rate_source": src,
+            "seller_type": c.seller_type or (c.influencer.business_type if getattr(c, "influencer", None) else "") or "",
+        }
+    campaigns_json = json.dumps([_camp_info(c) for c in campaigns_for_modal], ensure_ascii=False)
 
     # 완료됐지만 정산 미등록 캠페인
     settled_campaign_ids = {
@@ -219,6 +250,8 @@ def settlement_list(request: Request, db: Session = Depends(get_db),
         "request": request, "active_page": "settlements", "current_user": current_user,
         "settlements": settlements, "total_paid": total_paid,
         "pending_count": pending_count, "confirmed_count": confirmed_count, "paid_count": paid_count,
+        "confirmed_total": confirmed_total, "paid_this_month": paid_this_month, "this_month": this_month,
+        "tab_total": tab_total, "q": q, "month": month, "months": months, "status_labels": STATUS_LABELS,
         "tab": tab, "periods": periods,
         "seller_types": SELLER_TYPES,
         "influencers_for_modal": influencers_for_modal,
@@ -249,7 +282,8 @@ def settlement_export(
     ws = wb.active
     ws.title = "정산내역"
 
-    headers = ["기간", "인플루언서", "사업자유형", "캠페인", "매출액", "커미션율", "커미션액", "원천세율", "원천세액", "실지급액", "상태", "은행", "계좌번호", "예금주", "비고"]
+    headers = ["기간", "인플루언서", "사업자유형", "캠페인", "매출액", "커미션율", "정산대상(부가세포함)", "공급가액", "부가세",
+               "원천세액", "실지급액", "증빙", "상태", "발행일", "지급예정일", "지급일", "은행", "계좌번호", "예금주", "비고"]
     header_fill = PatternFill("solid", fgColor="2563EB")
     header_font = Font(bold=True, color="FFFFFF", size=10)
 
@@ -259,26 +293,24 @@ def settlement_export(
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center")
 
-    status_labels = {"pending": "미확정", "confirmed": "확정됨", "paid": "지급완료"}
-
+    d = lambda v: (v + timedelta(hours=9)).strftime("%Y-%m-%d") if isinstance(v, datetime) else (v.isoformat() if v else "")
     for ri, s in enumerate(rows, 2):
         inf = s.influencer
         camp = s.campaign
-        ws.cell(row=ri, column=1, value=s.period_label or "")
-        ws.cell(row=ri, column=2, value=inf.name if inf else "")
-        ws.cell(row=ri, column=3, value=s.seller_type or "")
-        ws.cell(row=ri, column=4, value=camp.name if camp else "")
-        ws.cell(row=ri, column=5, value=s.sales_amount or 0)
-        ws.cell(row=ri, column=6, value=f"{(s.commission_rate or 0) * 100:.1f}%")
-        ws.cell(row=ri, column=7, value=s.commission_amount or 0)
-        ws.cell(row=ri, column=8, value=f"{(s.tax_rate or 0) * 100:.1f}%")
-        ws.cell(row=ri, column=9, value=s.tax_amount or 0)
-        ws.cell(row=ri, column=10, value=s.final_payment or 0)
-        ws.cell(row=ri, column=11, value=status_labels.get(s.status, s.status))
-        ws.cell(row=ri, column=12, value=inf.bank_name if inf else "")
-        ws.cell(row=ri, column=13, value=inf.account_number if inf else "")
-        ws.cell(row=ri, column=14, value=inf.account_holder if inf else "")
-        ws.cell(row=ri, column=15, value=s.notes or "")
+        vals = [
+            s.period_label or "", inf.name if inf else "", s.seller_type or "", camp.name if camp else "",
+            s.sales_amount or 0, f"{(s.commission_rate or 0) * 100:.1f}%", s.commission_amount or 0,
+            s.supply_amount or "", s.vat_amount or 0, s.tax_amount or 0, s.final_payment or 0,
+            settlement_calc.EVIDENCE.get(s.seller_type or "", ""), STATUS_LABELS.get(s.status, s.status),
+            d(s.issued_at), d(s.due_date), d(s.paid_at),
+            # 계좌는 발행 시점 저장본 우선 (지금 계좌가 바뀌었어도 실제로 보낸 곳)
+            s.bank_name_snapshot or (inf.bank_name if inf else ""),
+            s.account_number_snapshot or (inf.account_number if inf else ""),
+            s.account_holder_snapshot or (inf.account_holder if inf else ""),
+            s.notes or "",
+        ]
+        for ci, v in enumerate(vals, 1):
+            ws.cell(row=ri, column=ci, value=v)
 
     # Auto column width
     for col in ws.columns:
@@ -307,10 +339,51 @@ def settlement_detail(settlement_id: str, request: Request,
     s = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
     if not s:
         return RedirectResponse("/settlements", status_code=302)
+    c = settlement_calc.calc(s.sales_amount or 0, s.commission_rate or 0, s.seller_type or "사업자")
     return templates.TemplateResponse("settlements/detail.html", {
-        "request": request, "active_page": "settlements",
-        "current_user": current_user, "s": s,
+        "request": request, "active_page": "settlements", "current_user": current_user, "s": s,
+        "calc": c, "status_labels": STATUS_LABELS, "seller_types": SELLER_TYPES,
+        "evidence": settlement_calc.EVIDENCE.get(s.seller_type or "사업자", ""),
+        "legacy": s.calc_version is None,
     })
+
+
+def _rate_from_form(commission_rate_pct: str, commission_rate: str = "") -> float:
+    """수수료율: 화면은 % 로 받는다(15 = 15%, 0.5 = 0.5%). 0~100% 밖이면 ValueError."""
+    try:
+        v = float(str(commission_rate_pct or 0).replace("%", "").strip() or 0)
+    except ValueError:
+        raise ValueError("수수료율은 숫자(%)로 넣어 주세요")
+    if not 0 <= v <= 100:
+        raise ValueError("수수료율은 0~100% 사이여야 해요")
+    return v / 100
+
+
+def _kst_month_bounds_utc(y: int, m: int):
+    """한국 시간 기준 한 달의 시작·끝 → UTC (paid_at 등은 UTC 로 저장된다)."""
+    start = datetime(y, m, 1) - timedelta(hours=9)
+    end = datetime(y + (m == 12), 1 if m == 12 else m + 1, 1) - timedelta(hours=9)
+    return start, end
+
+
+def _parse_date(v: str):
+    try:
+        return date.fromisoformat(v) if v else None
+    except ValueError:
+        return None
+
+
+@router.post("/preview")
+def settlement_preview(sales_amount: float = Form(0.0), commission_rate_pct: str = Form(""),
+                       commission_rate: str = Form(""), seller_type: str = Form("사업자"),
+                       current_user: User = Depends(get_current_user)):
+    """화면 미리보기 — 서버 계산식 그대로 돌려준다 (자바스크립트로 따로 계산하지 않는다)."""
+    from fastapi.responses import JSONResponse
+    try:
+        rate = _rate_from_form(commission_rate_pct)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(settlement_calc.calc(sales_amount, rate, seller_type))
 
 
 @router.post("/new")
@@ -322,97 +395,160 @@ def settlement_create(
     period_label: str = Form(""),
     seller_type: str = Form("사업자"),
     sales_amount: float = Form(0.0),
-    commission_rate: float = Form(0.15),
-    final_payment_manual: float = Form(0.0),
+    commission_rate_pct: str = Form(""),
+    commission_rate: str = Form(""),
+    final_payment_manual: str = Form(""),
+    due_date: str = Form(""),
     notes: str = Form(""),
 ):
-    calc = calc_settlement(sales_amount, commission_rate, seller_type)
-    if final_payment_manual and final_payment_manual != calc["final_payment"]:
-        calc["final_payment"] = round(final_payment_manual)
     cid = get_company_id(current_user)
-
-    # 인플루언서 계좌 정보 스냅샷 — 반드시 본인 회사(cid) 인플루언서만
-    bank_snap = account_snap = holder_snap = None
+    try:
+        rate = _rate_from_form(commission_rate_pct)
+    except ValueError as e:
+        return _msg("/settlements", str(e), err=True)
+    inf = None
     if influencer_id:
-        inf = db.query(Influencer).filter(
-            Influencer.company_id == cid, Influencer.id == influencer_id
-        ).first()
-        if inf:
-            bank_snap = inf.bank_name
-            account_snap = inf.account_number
-            holder_snap = inf.account_holder
-
+        inf = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.id == influencer_id).first()
+    camp = None
+    if campaign_id:
+        camp = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.id == campaign_id).first()
     s = Settlement(
         company_id=cid,
-        influencer_id=influencer_id or None,
-        campaign_id=campaign_id or None,
+        influencer_id=inf.id if inf else None,
+        campaign_id=camp.id if camp else None,
         period_label=period_label or None,
-        seller_type=seller_type,
+        seller_type=seller_type if seller_type in SELLER_TYPES else "사업자",
         sales_amount=sales_amount,
-        commission_rate=commission_rate,
-        bank_name_snapshot=bank_snap,
-        account_number_snapshot=account_snap,
-        account_holder_snapshot=holder_snap,
-        **calc,
+        commission_rate=rate,
+        due_date=_parse_date(due_date),
+        bank_name_snapshot=inf.bank_name if inf else None,
+        account_number_snapshot=inf.account_number if inf else None,
+        account_holder_snapshot=inf.account_holder if inf else None,
         notes=notes or None,
+        status="pending",
     )
+    try:
+        manual = float(final_payment_manual) if str(final_payment_manual).strip() else None
+    except ValueError:
+        manual = None
+    s.is_manual = manual is not None
+    if manual is not None:
+        s.final_payment = round(manual)
+    _apply_calc(s)
+    _stamp(s, current_user, "작성" + (" (지급액 수동 입력)" if s.is_manual else ""))
     db.add(s)
     db.commit()
-    return RedirectResponse("/settlements?msg=정산+내역이+등록되었습니다", status_code=302)
+    return _msg(f"/settlements/{s.id}", "정산서를 만들었어요 — 확인 후 [발행] 하세요")
 
 
-@router.post("/{settlement_id}/recalc")
-def settlement_recalc(
-    settlement_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    seller_type: str = Form("사업자"),
-    final_payment_manual: float = Form(0.0),
-):
-    """유형 변경 후 금액 재계산. final_payment_manual이 있으면 자동계산 대신 해당 값 사용."""
-    cid = get_company_id(current_user)
-    s = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
+@router.post("/{settlement_id}/edit")
+def settlement_edit(settlement_id: str, db: Session = Depends(get_db),
+                    current_user: User = Depends(get_current_user),
+                    seller_type: str = Form("사업자"), sales_amount: float = Form(0.0),
+                    commission_rate_pct: str = Form(""), final_payment_manual: str = Form(""),
+                    due_date: str = Form(""), period_label: str = Form("")):
+    """작성중일 때만 고친다. 지급액을 비우면 자동 계산으로 돌아간다."""
+    s = _get(db, get_company_id(current_user), settlement_id)
     if not s:
         return RedirectResponse("/settlements", status_code=302)
-    calc = calc_settlement(s.sales_amount or 0, s.commission_rate or 0, seller_type)
-    s.seller_type = seller_type
-    s.vat_amount = calc["vat_amount"]
-    s.tax_rate = calc["tax_rate"]
-    s.tax_amount = calc["tax_amount"]
-    s.commission_amount = calc["commission_amount"]
-    s.final_payment = round(final_payment_manual) if final_payment_manual else calc["final_payment"]
+    if s.status != "pending":
+        return _msg(f"/settlements/{s.id}", "발행된 정산서는 고칠 수 없어요 — [발행 취소] 후 고치세요", err=True)
+    try:
+        rate = _rate_from_form(commission_rate_pct)
+    except ValueError as e:
+        return _msg(f"/settlements/{s.id}", str(e), err=True)
+    s.seller_type = seller_type if seller_type in SELLER_TYPES else "사업자"
+    s.sales_amount = sales_amount
+    s.commission_rate = rate
+    s.due_date = _parse_date(due_date)
+    if period_label:
+        s.period_label = period_label
+    try:
+        manual = float(final_payment_manual) if str(final_payment_manual).strip() else None
+    except ValueError:
+        manual = None
+    s.is_manual = manual is not None
+    if manual is not None:
+        s.final_payment = round(manual)
+    _apply_calc(s)
+    _stamp(s, current_user, "수정" + (" (지급액 수동 입력)" if s.is_manual else ""))
     db.commit()
-    return RedirectResponse(f"/settlements/{settlement_id}?msg=저장+완료", status_code=302)
+    return _msg(f"/settlements/{s.id}", "저장했어요")
 
 
 @router.post("/{settlement_id}/confirm")
 def settlement_confirm(settlement_id: str, db: Session = Depends(get_db),
+                       current_user: User = Depends(get_current_user),
+                       accept_new_calc: str = Form("")):
+    """발행 — 작성중 → 지급 대기. 발행 시점의 금액·계좌를 그대로 보존한다."""
+    s = _get(db, get_company_id(current_user), settlement_id)
+    if not s:
+        return RedirectResponse("/settlements", status_code=302)
+    if s.status != "pending":
+        return _msg(f"/settlements/{s.id}", "작성중인 정산서만 발행할 수 있어요", err=True)
+    if not s.is_manual:
+        before = s.final_payment or 0
+        new = settlement_calc.calc(s.sales_amount or 0, s.commission_rate or 0, s.seller_type or "사업자")["final_payment"]
+        if s.calc_version is None and round(before) != new and accept_new_calc != "1":
+            # 예전 계산식 정산서 — 금액이 바뀌므로 정산서 화면에서 "예전 → 새 금액"을 보고 확인해야 발행
+            return _msg(f"/settlements/{s.id}",
+                        f"예전 계산식 정산서예요 — 발행하면 실지급액이 {round(before):,}원 → {new:,}원으로 바뀌어요. 확인 후 발행해 주세요",
+                        err=True)
+        if round(before) != new:
+            _stamp(s, current_user, f"발행 때 새 계산식 적용: 실지급 {round(before):,}원 → {new:,}원")
+        _apply_calc(s)
+    if not (s.final_payment or 0) > 0:
+        return _msg(f"/settlements/{s.id}", "지급액이 0원이에요 — 매출·수수료율을 먼저 넣어 주세요", err=True)
+    if s.influencer and not s.bank_name_snapshot:
+        s.bank_name_snapshot = s.influencer.bank_name
+        s.account_number_snapshot = s.influencer.account_number
+        s.account_holder_snapshot = s.influencer.account_holder
+    s.status = "confirmed"
+    s.issued_at = datetime.utcnow()
+    _stamp(s, current_user, "발행")
+    db.commit()
+    return _msg(f"/settlements/{s.id}", "발행했어요 — 지급 대기 목록으로 갔어요")
+
+
+@router.post("/{settlement_id}/unissue")
+def settlement_unissue(settlement_id: str, db: Session = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
-    cid = get_company_id(current_user)
-    s = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
-    if s:
-        s.status = "confirmed"
-        db.commit()
-    return RedirectResponse("/settlements?msg=확정되었습니다", status_code=302)
+    """발행 취소 — 지급 대기 → 작성중 (지급 완료된 건 취소할 수 없다)."""
+    s = _get(db, get_company_id(current_user), settlement_id)
+    if not s:
+        return RedirectResponse("/settlements", status_code=302)
+    if s.status != "confirmed":
+        return _msg(f"/settlements/{s.id}", "지급 대기 상태만 발행을 취소할 수 있어요", err=True)
+    s.status = "pending"
+    s.issued_at = None
+    _stamp(s, current_user, "발행 취소")
+    db.commit()
+    return _msg(f"/settlements/{s.id}", "발행을 취소했어요 — 고친 뒤 다시 발행하세요")
 
 
 @router.post("/{settlement_id}/paid")
 def settlement_paid(settlement_id: str, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
-    cid = get_company_id(current_user)
-    s = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
-    if s:
-        s.status = "paid"
-        db.commit()
-    return RedirectResponse("/settlements?msg=지급+완료+처리되었습니다", status_code=302)
+    s = _get(db, get_company_id(current_user), settlement_id)
+    if not s:
+        return RedirectResponse("/settlements", status_code=302)
+    if s.status != "confirmed":
+        return _msg(f"/settlements/{s.id}", "발행된(지급 대기) 정산서만 지급 완료할 수 있어요", err=True)
+    s.status = "paid"
+    s.paid_at = datetime.utcnow()
+    _stamp(s, current_user, "지급 완료")
+    db.commit()
+    return _msg("/settlements?tab=confirmed", "지급 완료로 옮겼어요")
 
 
 @router.post("/{settlement_id}/delete")
 def settlement_delete(settlement_id: str, db: Session = Depends(get_db),
                       current_user: User = Depends(get_current_user)):
-    cid = get_company_id(current_user)
-    s = db.query(Settlement).filter(Settlement.id == settlement_id, Settlement.company_id == cid).first()
-    if s:
-        db.delete(s)
-        db.commit()
-    return RedirectResponse("/settlements?msg=삭제되었습니다", status_code=302)
+    s = _get(db, get_company_id(current_user), settlement_id)
+    if not s:
+        return RedirectResponse("/settlements", status_code=302)
+    if s.status != "pending":
+        return _msg(f"/settlements/{s.id}", "작성중인 정산서만 지울 수 있어요 (발행·지급된 건 기록으로 남깁니다)", err=True)
+    db.delete(s)
+    db.commit()
+    return _msg("/settlements", "삭제했어요")

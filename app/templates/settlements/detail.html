@@ -3,216 +3,187 @@
 {% block page_title %}정산서{% endblock %}
 
 {% block header_actions %}
-<div class="flex items-center gap-2">
-  <a href="/settlements" class="text-sm text-gray-500 hover:text-gray-700">← 목록으로</a>
-  <!-- 유형 변경 + 재계산 -->
-  <form method="post" action="/settlements/{{ s.id }}/recalc"
-    class="inline-flex items-center gap-2"
-    x-data="{
-      sellerType: '{{ s.seller_type }}',
-      manualFinal: {{ s.final_payment | int }},
-      get calcFinal() {
-        var sales = {{ s.sales_amount or 0 }};
-        var rate = {{ s.commission_rate or 0 }};
-        var c = Math.round(sales * rate);
-        if (this.sellerType === '간이사업자') return c - Math.round(c * 0.1);
-        if (this.sellerType === '프리랜서') { var sp = c / 1.1; return c - Math.round(sp * 0.033); }
-        return c;
-      },
-      get isDiff() { return this.manualFinal !== this.calcFinal; }
-    }">
-    <select name="seller_type" x-model="sellerType"
-      class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
-      {% for t in ['사업자', '간이사업자', '프리랜서'] %}
-      <option value="{{ t }}" {% if s.seller_type == t %}selected{% endif %}>{{ t }}</option>
-      {% endfor %}
-    </select>
-    <div class="flex flex-col gap-0.5">
-      <div class="flex items-center gap-1.5">
-        <input type="number" name="final_payment_manual" x-model.number="manualFinal" min="0" step="100"
-          class="w-36 text-sm border rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 transition-colors"
-          :class="isDiff ? 'border-amber-400 focus:ring-amber-400 bg-amber-50' : 'border-gray-200 focus:ring-indigo-400'">
-        <button type="submit" class="inline-flex items-center gap-1.5 bg-amber-500 text-white text-sm font-medium px-3 py-2 rounded-lg hover:bg-amber-600 transition-colors whitespace-nowrap">
-          저장
-        </button>
-      </div>
-      <div class="flex items-center gap-1.5">
-        <span class="text-xs text-gray-400">추천: ₩<span x-text="calcFinal.toLocaleString()"></span></span>
-        <template x-if="isDiff">
-          <span class="text-xs text-amber-600">⚠ 수동 입력값</span>
-        </template>
-      </div>
-    </div>
-  </form>
-  <button onclick="saveAsImage()"
-    class="inline-flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
-    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-    이미지 저장
-  </button>
+<div class="flex flex-wrap items-center gap-2 no-print">
+  <a href="/settlements?tab={{ s.status }}" class="text-sm text-gray-500 hover:text-gray-700">← 목록</a>
+  <button onclick="window.print()" class="inline-flex items-center gap-1.5 border border-gray-200 text-gray-700 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-50">인쇄 · PDF 저장</button>
+  <button onclick="saveAsImage()" class="inline-flex items-center gap-1.5 border border-gray-200 text-gray-700 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-50">이미지 저장</button>
   {% if s.status == 'pending' %}
-  <form method="post" action="/settlements/{{ s.id }}/confirm" class="inline">
-    <button type="submit" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">확정</button>
+  <form method="post" action="/settlements/{{ s.id }}/confirm" class="inline"
+    onsubmit="return confirm('{% if legacy and not s.is_manual and (s.final_payment | round | int) != calc.final_payment %}예전 계산식 정산서예요. 발행하면 실지급액이 {{ s.final_payment | won }} → {{ calc.final_payment | won }} 으로 바뀌어요. {% endif %}발행하면 금액과 계좌가 이 상태로 고정돼요. 발행할까요?')">
+    <input type="hidden" name="accept_new_calc" value="1">
+    <button type="submit" class="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700">발행</button>
   </form>
   {% elif s.status == 'confirmed' %}
-  <form method="post" action="/settlements/{{ s.id }}/paid" class="inline">
-    <button type="submit" class="inline-flex items-center gap-1.5 bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">지급완료</button>
+  <form method="post" action="/settlements/{{ s.id }}/unissue" class="inline" onsubmit="return confirm('발행을 취소하고 작성중으로 되돌릴까요?')">
+    <button type="submit" class="text-sm text-gray-500 hover:text-gray-800 px-3 py-2">발행 취소</button>
+  </form>
+  <form method="post" action="/settlements/{{ s.id }}/paid" class="inline" onsubmit="return confirm('{{ s.final_payment | won }} 을 보냈나요? 지급 완료로 옮깁니다.')">
+    <button type="submit" class="bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-green-700">지급 완료</button>
   </form>
   {% endif %}
 </div>
 {% endblock %}
 
 {% block content %}
+{% set msg = request.query_params.get('msg') %}{% set err = request.query_params.get('err') %}
+{% if msg %}<div class="mb-4 px-4 py-2.5 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg no-print">{{ msg }}</div>{% endif %}
+{% if err %}<div class="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg no-print">{{ err }}</div>{% endif %}
+{% if legacy %}
+<div class="mb-4 px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-600 text-xs rounded-lg no-print">
+  개편 전 계산식으로 만든 정산서예요. 금액은 그때 그대로 보여줘요.
+  {% if s.status == 'pending' %}발행하면 새 계산식(실지급 {{ calc.final_payment | won }})으로 다시 계산돼요.{% endif %}
+</div>
+{% endif %}
 
-<!-- 1080×1080 캡처 카드 -->
-<div id="settlement-card"
-  style="width:1080px; height:1080px; background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#0f172a 100%); border-radius:24px; padding:64px; box-sizing:border-box; font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif; overflow:hidden; position:relative;"
-  class="mx-auto shadow-2xl">
+<div class="flex flex-col lg:flex-row gap-5 items-start">
 
-  <!-- 배경 장식 원 -->
-  <div style="position:absolute;top:-80px;right:-80px;width:320px;height:320px;border-radius:50%;background:rgba(99,102,241,0.12);pointer-events:none;"></div>
-  <div style="position:absolute;bottom:-60px;left:-60px;width:240px;height:240px;border-radius:50%;background:rgba(99,102,241,0.08);pointer-events:none;"></div>
-
-  <!-- ── 헤더 ── -->
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:48px;">
-    <div>
-      <div style="font-size:13px;font-weight:600;letter-spacing:0.15em;color:#6366f1;text-transform:uppercase;margin-bottom:8px;">Blend Punch</div>
-      <div style="font-size:38px;font-weight:800;color:#ffffff;line-height:1.1;letter-spacing:-0.02em;">정산서</div>
-      {% if s.campaign %}
-      <div style="font-size:15px;color:#94a3b8;margin-top:10px;">{{ s.campaign.name }}</div>
-      {% endif %}
-    </div>
-    <div style="text-align:right;">
-      <div style="font-size:13px;color:#64748b;margin-bottom:6px;">정산 기간</div>
-      <div style="font-size:20px;font-weight:700;color:#e2e8f0;">{{ s.period_label or '-' }}</div>
-      {% if s.campaign and s.campaign.start_date %}
-      <div style="font-size:12px;color:#64748b;margin-top:4px;">
-        공구 기간: {{ s.campaign.start_date }}{% if s.campaign.end_date %} ~ {{ s.campaign.end_date }}{% endif %}
+  <!-- ── 정산서 한 장 (A4) ── -->
+  <div id="statement" class="bg-white border border-gray-200 shadow-sm rounded-lg w-full lg:w-[794px] p-8 sm:p-10 text-gray-800">
+    <div class="flex items-start justify-between border-b-2 border-gray-900 pb-4 mb-6">
+      <div>
+        <div class="text-xs font-semibold tracking-widest text-gray-400">BLEND PUNCH</div>
+        <div class="text-2xl font-bold mt-1">정 산 서</div>
+        {% if s.campaign %}<div class="text-sm text-gray-500 mt-1">{{ s.campaign.name }}</div>{% endif %}
       </div>
-      {% endif %}
-      <div style="margin-top:12px;">
-        {% if s.status == 'paid' %}
-        <span style="background:#16a34a;color:#fff;font-size:12px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.05em;">지급완료</span>
-        {% elif s.status == 'confirmed' %}
-        <span style="background:#2563eb;color:#fff;font-size:12px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.05em;">확정됨</span>
-        {% else %}
-        <span style="background:#d97706;color:#fff;font-size:12px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.05em;">미확정</span>
+      <div class="text-right text-xs text-gray-500 space-y-0.5">
+        <div>번호 <span class="font-mono text-gray-700">{{ s.id[:8] | upper }}</span></div>
+        <div>상태 <b class="text-gray-800">{{ status_labels.get(s.status, s.status) }}</b></div>
+        <div>발행일 {{ s.issued_at | kst_date if s.issued_at else '—' }}</div>
+        <div>지급 예정일 {{ s.due_date or '—' }}</div>
+        {% if s.paid_at %}<div>지급일 {{ s.paid_at | kst_date }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-6 mb-6 text-sm">
+      <div>
+        <div class="text-xs font-semibold text-gray-400 mb-2">받는 사람</div>
+        <div class="font-semibold">{{ s.influencer.name if s.influencer else '—' }}</div>
+        <div class="text-gray-500">{{ s.seller_type }} · {{ evidence }}</div>
+        {% if s.influencer %}
+          {% if s.seller_type in ['사업자', '간이사업자'] %}
+          <div class="text-gray-500 mt-1">상호 {{ s.influencer.business_name or '—' }}</div>
+          <div class="text-gray-500">사업자번호 {{ s.influencer.business_registration_number or '—' }}</div>
+          {% if s.seller_type == '사업자' %}<div class="text-gray-500">세금계산서 이메일 {{ s.influencer.tax_invoice_email or '—' }}</div>{% endif %}
+          {% else %}
+          <div class="text-gray-500 mt-1">실명 {{ s.influencer.legal_name or '—' }}</div>
+          {% endif %}
         {% endif %}
       </div>
+      <div>
+        <div class="text-xs font-semibold text-gray-400 mb-2">입금 계좌</div>
+        {% set bank = s.bank_name_snapshot or (s.influencer.bank_name if s.influencer else None) %}
+        {% set holder = s.account_holder_snapshot or (s.influencer.account_holder if s.influencer else None) %}
+        {% set acct = s.account_number_snapshot or (s.influencer.account_number if s.influencer else None) %}
+        <div>{{ bank or '—' }}</div>
+        <div class="font-mono">{{ acct or '—' }}</div>
+        <div class="text-gray-500">예금주 {{ holder or '—' }}</div>
+        {% if s.bank_name_snapshot %}<div class="text-xs text-gray-400 mt-1">* 저장된 계좌 (발행 시점)</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="text-xs font-semibold text-gray-400 mb-2">계산 내역{% if s.period_label %} · {{ s.period_label }}{% endif %}</div>
+    <table class="w-full text-sm mb-2">
+      <tbody class="divide-y divide-gray-100">
+        <tr><td class="py-2 text-gray-500">총 판매금액</td><td class="py-2 text-right">{{ s.sales_amount | won }}</td></tr>
+        <tr><td class="py-2 text-gray-500">수수료율</td><td class="py-2 text-right">{{ s.commission_rate | pct }}</td></tr>
+        <tr><td class="py-2 text-gray-500">정산 대상 (부가세 포함)</td><td class="py-2 text-right font-medium">{{ s.commission_amount | won }}</td></tr>
+        {% if s.seller_type == '사업자' %}
+        <tr><td class="py-2 text-gray-400 text-xs pl-3">└ 세금계산서: 공급가액 {{ (s.supply_amount or calc.supply_amount) | won }} + 부가세 {{ (s.commission_amount - (s.supply_amount or calc.supply_amount)) | won }}</td><td></td></tr>
+        {% else %}
+        <tr><td class="py-2 text-gray-500">부가세 제외 (÷ 1.1)</td><td class="py-2 text-right text-amber-700">- {{ s.vat_amount | won }}</td></tr>
+        {% endif %}
+        {% if s.seller_type == '프리랜서' %}
+        <tr><td class="py-2 text-gray-500">원천징수 3.3% (공급가액 기준)</td><td class="py-2 text-right text-red-600">- {{ s.tax_amount | won }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+    <div class="flex items-center justify-between bg-gray-900 text-white rounded-lg px-5 py-4 mt-3">
+      <span class="font-semibold">실지급액</span>
+      <span class="text-2xl font-bold">{{ s.final_payment | won }}</span>
+    </div>
+    {% if s.is_manual %}<div class="text-xs text-amber-700 mt-2">* 실지급액은 담당자가 직접 조정한 금액이에요 (자동 계산 {{ calc.final_payment | won }}).</div>{% endif %}
+    <div class="text-xs text-gray-400 mt-6">
+      {% if s.seller_type == '사업자' %}위 금액에 대한 세금계산서를 발행해 주세요.
+      {% elif s.seller_type == '간이사업자' %}위 금액에 대한 현금영수증을 발행해 드립니다.
+      {% else %}원천징수 3.3%(소득세·지방소득세)를 뗀 금액이에요.{% endif %}
+    </div>
+    <div class="flex justify-between text-xs text-gray-400 mt-8 pt-3 border-t border-gray-100">
+      <span>BLEND PUNCH OS</span><span>작성 {{ s.created_at.strftime('%Y-%m-%d') if s.created_at else '' }}</span>
     </div>
   </div>
 
-  <!-- ── 정산 테이블 ── -->
-  <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;margin-bottom:28px;">
-    <div style="font-size:12px;font-weight:700;letter-spacing:0.12em;color:#6366f1;text-transform:uppercase;margin-bottom:20px;">정산 내역</div>
-
-    <!-- 행 -->
-    {% macro row(label, value, color="#94a3b8", value_color="#e2e8f0", bold=false) %}
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
-      <span style="font-size:14px;color:{{ color }};">{{ label }}</span>
-      <span style="font-size:{% if bold %}18px{% else %}15px{% endif %};font-weight:{% if bold %}800{% else %}500{% endif %};color:{{ value_color }};">{{ value }}</span>
-    </div>
-    {% endmacro %}
-
-    {{ row("총 판매 매출", s.sales_amount | won) }}
-    {{ row("커미션율", s.commission_rate | pct) }}
-    {{ row("커미션 금액", s.commission_amount | won) }}
-
-    {% if s.seller_type == '간이사업자' %}
-    {{ row("부가세 차감 (10%)", "- " ~ (s.vat_amount | won), color="#fbbf24", value_color="#fbbf24") }}
-    {{ row("원천징수", "해당없음", color="#64748b", value_color="#64748b") }}
-    {% elif s.seller_type == '프리랜서' %}
-    {{ row("공급가액 (부가세 제외)", (s.commission_amount / 1.1) | int | won, color="#94a3b8", value_color="#cbd5e1") }}
-    {{ row("부가세 10% (계산서 별도)", s.vat_amount | won, color="#64748b", value_color="#64748b") }}
-    {{ row("원천징수 차감 (공급가액 × 3.3%)", "- " ~ (s.tax_amount | won), color="#f87171", value_color="#f87171") }}
+  <!-- ── 오른쪽: 수정 (작성중만) · 기록 ── -->
+  <div class="w-full lg:w-80 space-y-4 no-print">
+    {% if s.status == 'pending' %}
+    <form method="post" action="/settlements/{{ s.id }}/edit" class="bg-white border border-gray-100 shadow-sm rounded-xl p-4 space-y-3"
+      x-data="{ sales: {{ (s.sales_amount or 0) | int }}, ratePct: {{ ((s.commission_rate or 0) * 100) | round(6) }}, sellerType: '{{ s.seller_type or '사업자' }}', preview: null,
+        async refresh() { const fd = new FormData(); fd.append('sales_amount', this.sales || 0); fd.append('commission_rate_pct', this.ratePct || 0); fd.append('seller_type', this.sellerType);
+          try { this.preview = await (await fetch('/settlements/preview', { method: 'POST', body: fd })).json(); } catch (e) { this.preview = null; } },
+        won(v) { return '₩' + Math.round(v || 0).toLocaleString(); } }" x-init="refresh()">
+      <div class="text-sm font-semibold text-gray-700">정산서 고치기 <span class="text-xs font-normal text-gray-400">(작성중일 때만)</span></div>
+      <div><label class="block text-xs text-gray-500 mb-1">총 판매금액 (원)</label>
+        <input type="number" name="sales_amount" x-model.number="sales" @input.debounce.300ms="refresh()" min="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="block text-xs text-gray-500 mb-1">수수료율 (%)</label>
+          <input type="number" name="commission_rate_pct" x-model="ratePct" @input.debounce.300ms="refresh()" min="0" max="100" step="any" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+        <div><label class="block text-xs text-gray-500 mb-1">유형</label>
+          <select name="seller_type" x-model="sellerType" @change="refresh()" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+            {% for t in seller_types %}<option {% if s.seller_type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+          </select></div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="block text-xs text-gray-500 mb-1">지급 예정일</label>
+          <input type="date" name="due_date" value="{{ s.due_date or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+        <div><label class="block text-xs text-gray-500 mb-1">정산 기간</label>
+          <input type="text" name="period_label" value="{{ s.period_label or '' }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+      </div>
+      <div class="bg-gray-50 rounded-lg p-2.5 text-xs" x-show="preview">
+        자동 계산 실지급 <b class="text-blue-700" x-text="won(preview && preview.final_payment)"></b>
+        <span class="text-gray-400" x-text="preview && ('· ' + preview.evidence)"></span>
+      </div>
+      <div><label class="block text-xs text-gray-500 mb-1">실지급액 직접 입력 (비우면 자동)</label>
+        <input type="number" name="final_payment_manual" value="{{ (s.final_payment | int) if s.is_manual else '' }}" min="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+      <button type="submit" class="w-full bg-gray-900 text-white text-sm font-medium py-2 rounded-lg hover:bg-gray-700">저장</button>
+    </form>
+    <form method="post" action="/settlements/{{ s.id }}/delete" onsubmit="return confirm('이 정산서를 지울까요?')" class="text-right">
+      <button type="submit" class="text-xs text-gray-400 hover:text-red-600">정산서 지우기</button>
+    </form>
     {% else %}
-    {{ row("부가세", "해당없음", color="#64748b", value_color="#64748b") }}
-    {{ row("원천징수", "해당없음", color="#64748b", value_color="#64748b") }}
+    <div class="bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-500">
+      {% if s.status == 'confirmed' %}발행된 정산서는 고칠 수 없어요. 고치려면 [발행 취소] 후 수정하세요.
+      {% else %}지급 완료된 정산서는 기록으로 남아요 (수정·삭제 불가).{% endif %}
+    </div>
     {% endif %}
-
-    <!-- 최종 지급액 강조 행 -->
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px;margin-top:12px;background:linear-gradient(90deg,rgba(99,102,241,0.2),rgba(99,102,241,0.05));border-radius:12px;border:1px solid rgba(99,102,241,0.3);">
-      <span style="font-size:16px;font-weight:700;color:#c7d2fe;">최종 지급액</span>
-      <span style="font-size:28px;font-weight:900;color:#818cf8;">{{ s.final_payment | won }}</span>
+    {% if s.notes %}
+    <div class="bg-white border border-gray-100 shadow-sm rounded-xl p-4">
+      <div class="text-xs font-semibold text-gray-500 mb-2">메모 · 처리 기록</div>
+      <div class="text-xs text-gray-600 whitespace-pre-line">{{ s.notes }}</div>
     </div>
+    {% endif %}
   </div>
+</div>
 
-  <!-- ── 하단: 인플루언서 정보 + 계좌 정보 ── -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-
-    <!-- 셀러 정보 -->
-    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:24px;">
-      <div style="font-size:11px;font-weight:700;letter-spacing:0.12em;color:#6366f1;text-transform:uppercase;margin-bottom:16px;">셀러 정보</div>
-      {% macro info_row(label, value) %}
-      <div style="margin-bottom:10px;">
-        <div style="font-size:11px;color:#64748b;margin-bottom:2px;">{{ label }}</div>
-        <div style="font-size:14px;font-weight:600;color:#e2e8f0;">{{ value or '-' }}</div>
-      </div>
-      {% endmacro %}
-      {{ info_row("이름", s.influencer.name if s.influencer else '-') }}
-      {{ info_row("사업자 유형", s.seller_type) }}
-      {% if s.influencer %}
-        {% if s.seller_type in ['사업자', '간이사업자'] %}
-        {{ info_row("상호명", s.influencer.business_name) }}
-        {{ info_row("사업자등록번호", s.influencer.business_registration_number) }}
-        {% else %}
-        {{ info_row("실명", s.influencer.legal_name) }}
-        {% endif %}
-      {% endif %}
-    </div>
-
-    <!-- 계좌 정보 -->
-    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:24px;">
-      <div style="font-size:11px;font-weight:700;letter-spacing:0.12em;color:#6366f1;text-transform:uppercase;margin-bottom:16px;">입금 계좌</div>
-      {% set bank = s.bank_name_snapshot or (s.influencer.bank_name if s.influencer else None) %}
-      {% set holder = s.account_holder_snapshot or (s.influencer.account_holder if s.influencer else None) %}
-      {% set acct = s.account_number_snapshot or (s.influencer.account_number if s.influencer else None) %}
-      {% if bank or holder or acct %}
-      {% macro acct_row(label, value) %}
-      <div style="margin-bottom:10px;">
-        <div style="font-size:11px;color:#64748b;margin-bottom:2px;">{{ label }}</div>
-        <div style="font-size:14px;font-weight:600;color:#e2e8f0;">{{ value or '-' }}</div>
-      </div>
-      {% endmacro %}
-      {{ acct_row("은행", bank) }}
-      {{ acct_row("예금주", holder) }}
-      {{ acct_row("계좌번호", acct) }}
-      {% if s.bank_name_snapshot %}
-      <div style="font-size:10px;color:#475569;margin-top:8px;">* 등록 시점 저장된 정보</div>
-      {% endif %}
-      {% else %}
-      <div style="font-size:13px;color:#475569;">계좌 정보 없음</div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- 푸터 -->
-  <div style="position:absolute;bottom:40px;left:64px;right:64px;display:flex;justify-content:space-between;align-items:center;">
-    <div style="font-size:11px;color:#334155;">BLEND PUNCH OS</div>
-    <div style="font-size:11px;color:#334155;">{{ s.created_at.strftime('%Y.%m.%d') if s.created_at else '' }}</div>
-  </div>
-
-</div><!-- end #settlement-card -->
+<style>
+@media print {
+  .no-print, aside, nav, header { display: none !important; }
+  body { background: #fff !important; }
+  #statement { border: none !important; box-shadow: none !important; width: 100% !important; padding: 0 !important; }
+  @page { size: A4; margin: 16mm; }
+}
+</style>
+{% endblock %}
 
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 function saveAsImage() {
-  var card = document.getElementById('settlement-card');
-  html2canvas(card, {
-    scale: 1,
-    width: 1080,
-    height: 1080,
-    backgroundColor: null,
-    useCORS: true,
-    logging: false,
-  }).then(function(canvas) {
-    var link = document.createElement('a');
-    link.download = '정산서_{{ (s.influencer.name if s.influencer else "정산") | replace(" ", "_") }}_{{ (s.period_label or "") | replace(" ", "_") }}.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  });
+  html2canvas(document.getElementById('statement'), { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false })
+    .then(function (canvas) {
+      var a = document.createElement('a');
+      a.download = '정산서_{{ (s.influencer.name if s.influencer else "정산") | replace(" ", "_") }}_{{ s.id[:8] }}.png';
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    });
 }
 </script>
-{% endblock %}
-
 {% endblock %}
