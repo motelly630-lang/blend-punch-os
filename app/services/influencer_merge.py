@@ -26,9 +26,11 @@ _VALID = re.compile(r"^[a-z0-9._]{1,30}$")
 # 합치지 않고 남기는 칸
 _SKIP = {"id", "company_id", "created_at", "updated_at", "is_archived", "enriched_at", "enrich_error",
          "name", "handle", "notes", "categories", "followers", "has_campaign_history"}
-# 두 줄 값이 다르면 사람이 골라야 하는 칸 (돈·연락·시트 연결)
+# 두 줄 값이 다르면 사람이 골라야 하는 칸 (돈·연락)
+# sheet_code 는 막지 않는다 (대표님 결정 2026-09-24): 둘 다 있으면 시트에도 두 줄이 있다는 뜻 → 보관 줄이 자기 번호를
+# 그대로 갖고, 합친 뒤 "시트에서 지울 줄" 목록(sheet_cleanup_list)으로 사람이 시트를 정리한다.
 CONFLICT_FIELDS = ("bank_name", "account_number", "account_holder", "business_type",
-                   "business_registration_number", "legal_name", "contact_phone", "contact_email", "sheet_code")
+                   "business_registration_number", "legal_name", "contact_phone", "contact_email")
 # 블랜드픽이 OS 인플루언서 표에 직접 추가한 칸 — 값이 있으면 블랜드픽과 연결된 사람 (PR-003)
 # (bank_account·bank_holder·phone·tax_email 은 블랜드픽 쪽 돈·연락 칸 — OS 모델에 없어 채우거나 비교할 수 없으므로 값이 있으면 막는다)
 BLENDPICK_LINK_COLS = ("user_id", "shop_managed", "portal_password", "bankbook_file", "id_card_file", "biz_cert_file",
@@ -203,7 +205,7 @@ def merge_group(db: Session, company_id: int, keeper_id: str, member_ids: list[s
         keeper_before, merged_before, moved = {}, {}, {}   # 칸 → [합치기 전 값, 합친 뒤 값]
         # 1) keeper 빈 칸 채우기
         for f in cols:
-            if f in _SKIP:
+            if f in _SKIP or f == "sheet_code":
                 continue
             if _empty(getattr(keeper, f)) and not _empty(getattr(o, f)):
                 _set(keeper, f, getattr(o, f), keeper_before)
@@ -227,7 +229,11 @@ def merge_group(db: Session, company_id: int, keeper_id: str, member_ids: list[s
                 db.execute(text(f"UPDATE {qt} SET influencer_id = :k WHERE influencer_id = :m"), {"k": keeper.id, "m": o.id})
                 moved[t] = rid
 
-        # 3) 보관 — 시트 번호는 keeper 로 옮겼으므로 비운다 (시트 동기화가 보관된 줄을 되살리지 않게)
+        # 3) 시트 번호: keeper 에 없으면 옮긴다(시트 연결 유지). 둘 다 있으면 보관 줄이 자기 번호를 그대로 갖는다
+        #    → sheet_cleanup_list 로 시트에서 지울 줄을 알려준다
+        if o.sheet_code and not keeper.sheet_code:
+            _set(keeper, "sheet_code", o.sheet_code, keeper_before)
+        # 4) 보관
         _set(o, "is_archived", True, merged_before)
         if o.sheet_code and keeper.sheet_code == o.sheet_code:
             _set(o, "sheet_code", None, merged_before)
@@ -242,6 +248,20 @@ def merge_group(db: Session, company_id: int, keeper_id: str, member_ids: list[s
         logs.append(log)
     db.commit()
     return logs
+
+
+def sheet_cleanup_list(db: Session, company_id: int) -> list[dict]:
+    """합쳐서 보관됐는데 아직 시트 번호를 가진 줄 = 통합 시트에서 지워야 할 줄."""
+    logs = (db.query(InfluencerMergeLog)
+              .filter(InfluencerMergeLog.company_id == company_id, InfluencerMergeLog.undone_at.is_(None)).all())
+    out = []
+    for lg in logs:
+        m = db.query(Influencer).filter(Influencer.id == lg.merged_id, Influencer.company_id == company_id).first()
+        k = db.query(Influencer).filter(Influencer.id == lg.keeper_id, Influencer.company_id == company_id).first()
+        if m and m.is_archived and m.sheet_code:
+            out.append({"delete_code": m.sheet_code, "name": m.name, "handle": m.handle,
+                        "keep_code": k.sheet_code if k else None, "keep_name": k.name if k else None})
+    return sorted(out, key=lambda r: r["delete_code"])
 
 
 def undo(db: Session, company_id: int, log_id: str) -> InfluencerMergeLog:

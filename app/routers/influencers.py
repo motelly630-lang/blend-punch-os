@@ -286,7 +286,7 @@ def influencer_duplicates(request: Request, db: Session = Depends(get_db),
         Influencer.id.in_([x for r in recent for x in (r.keeper_id, r.merged_id)] or [""])).all()}
     return templates.TemplateResponse("influencers/duplicates.html", {
         "request": request, "active_page": "influencers", "current_user": current_user,
-        "groups": groups, "recent": recent, "names": names,
+        "groups": groups, "recent": recent, "names": names, "sheet_cleanup": im.sheet_cleanup_list(db, cid),
         "mergeable": sum(1 for g in groups if not g["blocked"]),
         "is_admin": current_user.role == "admin",
     })

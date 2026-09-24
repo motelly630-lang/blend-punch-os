@@ -218,6 +218,22 @@ class MergeTest(unittest.TestCase):
             im.undo(db, CID, log_id)
         db.close()
 
+    def test_시트번호가_둘다_있으면_막지않고_지울_줄로_알려준다(self):
+        a = _inf(name="가상A", handle=self.h, sheet_code="SEL-A" + uid()[:4])
+        b = _inf(name=self.h, handle=self.h, sheet_code="SEL-B" + uid()[:4])
+        _campaign(a)
+        ca, cb = _get(Influencer, a).sheet_code, _get(Influencer, b).sheet_code
+        self.assertEqual(self._groups()[0]["blocked"], [])
+        db = SessionLocal()
+        im.merge_group(db, CID, a, [b])
+        lst = im.sheet_cleanup_list(db, CID)
+        db.close()
+        self.assertEqual(_get(Influencer, a).sheet_code, ca)
+        self.assertEqual(_get(Influencer, b).sheet_code, cb)       # 보관 줄이 자기 번호를 그대로
+        row = [r for r in lst if r["delete_code"] == cb]
+        self.assertEqual(len(row), 1)
+        self.assertEqual(row[0]["keep_code"], ca)
+
 
 class SheetImportArchivedTest(unittest.TestCase):
     def test_이름으로_찾을때_보관된_인플루언서는_고르지_않는다(self):

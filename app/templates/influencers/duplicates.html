@@ -92,6 +92,29 @@
 <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-10 text-center text-sm text-gray-400">중복으로 보이는 인플루언서가 없어요</div>
 {% endfor %}
 
+{% if sheet_cleanup %}
+<div class="bg-white rounded-xl border border-amber-200 shadow-sm mt-6 overflow-hidden">
+  <div class="px-4 py-2.5 bg-amber-50 border-b border-amber-100 text-sm font-medium text-amber-800">
+    통합 시트에서 지울 줄 {{ sheet_cleanup | length }}개
+    <span class="text-xs font-normal text-amber-700">— OS 에서 합쳐 보관된 줄이에요. 시트에서 이 번호의 줄을 지우면 정리가 끝나요.</span>
+  </div>
+  <table class="w-full text-sm">
+    <thead class="text-xs text-gray-400">
+      <tr><th class="text-left px-4 py-2 font-medium">지울 시트 번호</th><th class="text-left px-4 py-2 font-medium">그 줄 이름</th><th class="text-left px-4 py-2 font-medium">남는 시트 번호 (합쳐진 곳)</th></tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for r in sheet_cleanup %}
+      <tr>
+        <td class="px-4 py-2 font-mono text-xs text-red-600">{{ r.delete_code }}</td>
+        <td class="px-4 py-2 text-gray-700">{{ r.name }} <span class="text-xs text-gray-400">@{{ r.handle }}</span></td>
+        <td class="px-4 py-2 text-xs text-gray-500"><span class="font-mono">{{ r.keep_code or '—' }}</span> {{ r.keep_name or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {% if recent %}
 <div class="bg-white rounded-xl border border-gray-100 shadow-sm mt-6 overflow-hidden">
   <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-sm font-medium text-gray-700">최근 합친 기록</div>
