@@ -198,7 +198,7 @@
 
       <!-- Notes (자유 메모) -->
       <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5"
-           x-data="{ editing: false, val: {{ product.notes | tojson if product.notes else '\"\"' }}, saving: false, saved: false }">
+           x-data="{ editing: false, val: {{ product.notes | tojson | forceescape if product.notes else '\"\"' }}, saving: false, saved: false }">
         <div class="flex items-center justify-between mb-2">
           <div class="flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

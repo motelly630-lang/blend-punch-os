@@ -197,7 +197,7 @@
 
     <!-- 처리방법 -->
     <section class="bg-white border border-gray-100 rounded-xl p-5"
-             x-data="{ rtype: '{{ ticket.resolution_type or '' }}', map: {{ RESOLUTION_FIELDS | tojson }}, has(k){ return (this.map[this.rtype]||[]).includes(k) } }">
+             x-data="{ rtype: '{{ ticket.resolution_type or '' }}', map: {{ RESOLUTION_FIELDS | tojson | forceescape }}, has(k){ return (this.map[this.rtype]||[]).includes(k) } }">
       <h2 class="text-sm font-semibold text-gray-800 mb-3">처리방법 · 결과</h2>
       <form method="post" action="/cs/{{ ticket.id }}/resolution" class="space-y-3">
         <select name="resolution_type" x-model="rtype" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
@@ -244,7 +244,7 @@
 
     <!-- 기록 추가 (댓글) + 답변 템플릿 추천 -->
     <section class="bg-white border border-gray-100 rounded-xl p-5"
-             x-data="{ tpls: {{ templates_json | tojson }}, body: '', insert(m){ this.body = this.body ? (this.body + '\n' + m) : m } }">
+             x-data="{ tpls: {{ templates_json | tojson | forceescape }}, body: '', insert(m){ this.body = this.body ? (this.body + '\n' + m) : m } }">
       <h2 class="text-sm font-semibold text-gray-800 mb-3">기록 추가</h2>
       {% if rec_templates %}
       <div class="mb-3">

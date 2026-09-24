@@ -41,7 +41,7 @@
 | RG-003 | `products.status`/`visibility_status` 는 영문 소문자 정규화값만 | R2 SQL | `regression/RG-003-*.md` |
 | RG-004 | EC2 `reset --hard`/`pull` 전에 blob SHA 전수 비교 + 백업 | R2 수동 | `regression/RG-004-*.md` |
 | RG-005 | tailwind safelist 정규식의 `^...$` 앵커 유지 (없으면 CSS 가 5배 부풂) | R2 용량확인 | `regression/RG-005-*.md` |
-| RG-006 | JSON 을 큰따옴표 속성에 넣을 땐 `tojson` 뒤에 `forceescape` (안 하면 Alpine 화면 깨짐) | R1 `check_tojson_attr.py` | `regression/RG-006-*.md` |
+| RG-006 | JSON 을 큰따옴표 속성에 넣을 땐 `tojson` 뒤에 `forceescape` (안 하면 Alpine 화면 깨짐) | R1 테스트 자동 | `regression/RG-006-*.md` |
 
 ## ISSUES — 미해결 문제·기술부채
 
@@ -51,10 +51,10 @@
 | IS-003 | WSL 개인 설정이 프로젝트 설정을 덮어쓴다 (전부 내용 다름, Phase 4) | `issues/IS-003-*.md` |
 | IS-004 | EC2 에만 있는 미추적 파일 9개 — 전부 미참조 잔재, 정리 대상 | `issues/IS-004-*.md` |
 | IS-005 | `static/logo.png` 이 없는데 템플릿 10곳 이상이 참조 (로고 안 보임) | `issues/IS-005-*.md` |
-| IS-006 | tojson 속성 깨짐 8곳 잔존 — **제품 수정 화면 실제 깨짐 확인**, 수정 승인 대기 | `issues/IS-006-*.md` |
 
 해소됨(`status: resolved`, 절차 재사용 목적으로 보존):
 `IS-002` EC2 git 드리프트 · origin 미push · 노출 토큰 — 2026-09-11 전부 해소
+`IS-006` tojson 속성 깨짐 11곳(제품·CS·쇼핑몰·가져오기) — 2026-09-24 수정 + 테스트로 강제
 
 ## WORKFLOWS
 

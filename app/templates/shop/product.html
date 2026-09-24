@@ -33,10 +33,10 @@
 
 <!-- 메인 Alpine 컴포넌트 — 버튼도 이 안에 포함 -->
 <div x-data="shopPage(
-    {{ page_options | tojson }},
+    {{ page_options | tojson | forceescape }},
     {{ page.price | int }},
     '{{ seller_code }}',
-    {{ addon_products | tojson }},
+    {{ addon_products | tojson | forceescape }},
     {{ page.shipping_cost | int if page.shipping_type == 'paid' else 0 }}
   )"
   class="max-w-lg mx-auto px-4 py-6 pb-36">

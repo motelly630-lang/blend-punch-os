@@ -72,7 +72,7 @@
   <!-- Confirm form — all hidden inputs have static values set by vanilla JS -->
   <form id="import-confirm-form" method="post" action="/products/import/confirm">
     <input type="hidden" name="payload_json" value="{{ payload | e }}">
-    <input type="hidden" name="mapping_json" id="import-mapping-json" value="{{ mapping | tojson | e }}">
+    <input type="hidden" name="mapping_json" id="import-mapping-json" value="{{ mapping | tojson | forceescape }}">
     <input type="hidden" name="use_ai" id="import-use-ai" value="">
     <div class="flex items-center justify-between pt-4 border-t border-gray-100">
       <div>
