@@ -29,6 +29,7 @@ disable-model-invocation: true
 되돌리기: 컬럼 추가는 남아도 무해. 데이터 UPDATE 는 되돌릴 수 없음 → 범위를 먼저 SELECT 로 센다
 ```
 **데이터 UPDATE/DELETE 가 들어가면 반드시 승인받는다.** 컬럼·인덱스 추가만이면 알리고 진행.
+운영 데이터를 일괄로 바꾸는 경우 실행 전: 독립 리뷰(`reviewer`) · 영향 행 백업 파일 · 미리보기로 대상 수 확인 (IM-016).
 
 ## 2. 코드 수정
 1. 모델: `app/models/<name>.py` 에 `Column(...)` 추가 (migrate.py 의 타입과 일치시킨다).
