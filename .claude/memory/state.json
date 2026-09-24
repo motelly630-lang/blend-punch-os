@@ -48,6 +48,16 @@
       "id": "T9",
       "title": "인플루언서 중복 합치기 — 운영 31묶음·33줄 보관, 기록 이동(섭외43·캠페인4·정산2). 남은 일: 통합 시트 중복 줄 33개 사람이 삭제(/influencers/duplicates 목록)",
       "status": "done"
+    },
+    {
+      "id": "T10",
+      "title": "9/25 확인: 04:30 인플루언서 자동 보강 첫 실행(journalctl 'Influencer enrich') · 09:10 트렌드 Slack 05 발송 → Obsidian 상태 Active 로",
+      "status": "todo"
+    },
+    {
+      "id": "T11",
+      "title": "대표님 대기: 통합 시트 중복 줄 33개 삭제 · 서버 merge-backup-20260924-042631.json 일주일 뒤 삭제 · Claw 데스크톱 설치·소싱 채널 결정 · 엑셀 샘플",
+      "status": "todo"
     }
   ],
   "last_checkpoint": {
