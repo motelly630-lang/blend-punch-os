@@ -269,6 +269,88 @@ def influencer_create(
     return RedirectResponse(f"/influencers/{influencer.id}?msg=인플루언서가+등록되었습니다", status_code=302)
 
 
+# ── 중복 정리 (같은 인스타 아이디로 두 번 이상 등록된 인플루언서) ─────────────
+# "/{influencer_id}" 보다 먼저 등록해야 "/duplicates" 가 상세 화면으로 잡히지 않는다.
+
+@router.get("/duplicates")
+def influencer_duplicates(request: Request, db: Session = Depends(get_db),
+                          current_user: User = Depends(get_current_user)):
+    from app.services import influencer_merge as im
+    from app.models.influencer_merge_log import InfluencerMergeLog
+    cid = get_company_id(current_user)
+    groups = im.find_groups(db, cid)
+    recent = (db.query(InfluencerMergeLog).filter(InfluencerMergeLog.company_id == cid)
+                .order_by(InfluencerMergeLog.created_at.desc()).limit(30).all())
+    names = {i.id: i for i in db.query(Influencer).filter(
+        Influencer.company_id == cid,
+        Influencer.id.in_([x for r in recent for x in (r.keeper_id, r.merged_id)] or [""])).all()}
+    return templates.TemplateResponse("influencers/duplicates.html", {
+        "request": request, "active_page": "influencers", "current_user": current_user,
+        "groups": groups, "recent": recent, "names": names,
+        "mergeable": sum(1 for g in groups if not g["blocked"]),
+        "is_admin": current_user.role == "admin",
+    })
+
+
+@router.post("/duplicates/merge")
+def influencer_duplicates_merge(request: Request, keeper_id: str = Form(...), member_ids: str = Form(...),
+                                db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from urllib.parse import quote
+    from app.services import influencer_merge as im
+    if current_user.role != "admin":
+        return RedirectResponse("/influencers/duplicates?err=" + quote("관리자만 합칠 수 있어요"), status_code=302)
+    cid = get_company_id(current_user)
+    ids = [x for x in member_ids.split(",") if x.strip()]
+    try:
+        logs = im.merge_group(db, cid, keeper_id, [i for i in ids if i != keeper_id], by=current_user.username)
+        msg = f"합쳤어요 — {len(logs)}줄을 보관하고 기록을 옮겼어요 (아래 '최근 합친 기록'에서 되돌릴 수 있어요)"
+        return RedirectResponse("/influencers/duplicates?msg=" + quote(msg), status_code=302)
+    except ValueError as e:
+        db.rollback()
+        return RedirectResponse("/influencers/duplicates?err=" + quote(str(e)), status_code=302)
+
+
+@router.post("/duplicates/merge-all")
+def influencer_duplicates_merge_all(request: Request, db: Session = Depends(get_db),
+                                    current_user: User = Depends(get_current_user)):
+    """충돌·블랜드픽 연결이 없는 묶음만, 화면이 추천한 남길 줄로 전부 합친다."""
+    from urllib.parse import quote
+    from app.services import influencer_merge as im
+    if current_user.role != "admin":
+        return RedirectResponse("/influencers/duplicates?err=" + quote("관리자만 합칠 수 있어요"), status_code=302)
+    cid = get_company_id(current_user)
+    done = failed = 0
+    for g in im.find_groups(db, cid):
+        if g["blocked"]:
+            continue
+        try:
+            im.merge_group(db, cid, g["keeper_id"], [m["inf"].id for m in g["members"][1:]], by=current_user.username)
+            done += 1
+        except ValueError:
+            db.rollback()
+            failed += 1
+    msg = f"{done}묶음을 합쳤어요" + (f" · {failed}묶음은 조건이 바뀌어 건너뜀" if failed else "")
+    return RedirectResponse("/influencers/duplicates?msg=" + quote(msg), status_code=302)
+
+
+@router.post("/duplicates/undo/{log_id}")
+def influencer_duplicates_undo(log_id: str, db: Session = Depends(get_db),
+                               current_user: User = Depends(get_current_user)):
+    from urllib.parse import quote
+    from app.services import influencer_merge as im
+    if current_user.role != "admin":
+        return RedirectResponse("/influencers/duplicates?err=" + quote("관리자만 되돌릴 수 있어요"), status_code=302)
+    try:
+        log = im.undo(db, get_company_id(current_user), log_id)
+        msg = "되돌렸어요"
+        if getattr(log, "skipped", None):
+            msg += f" — 합친 뒤 직접 고친 칸({', '.join(log.skipped)})은 그대로 뒀어요"
+        return RedirectResponse("/influencers/duplicates?msg=" + quote(msg), status_code=302)
+    except ValueError as e:
+        db.rollback()
+        return RedirectResponse("/influencers/duplicates?err=" + quote(str(e)), status_code=302)
+
+
 @router.get("/{influencer_id}")
 def influencer_detail(influencer_id: str, request: Request, db: Session = Depends(get_db),
                       current_user: User = Depends(get_current_user)):

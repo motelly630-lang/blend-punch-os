@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}중복 정리 | 인플루언서 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}인플루언서 중복 정리{% endblock %}
+
+{% block header_actions %}
+<a href="/influencers" class="text-sm text-gray-500 hover:text-gray-700">← 인플루언서 목록</a>
+{% endblock %}
+
+{% block content %}
+{% set msg = request.query_params.get('msg') %}
+{% set err = request.query_params.get('err') %}
+{% if msg %}<div class="mb-4 px-4 py-2.5 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg">{{ msg }}</div>{% endif %}
+{% if err %}<div class="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{{ err }}</div>{% endif %}
+
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <div class="text-sm font-semibold text-gray-800">같은 인스타 아이디로 두 번 이상 등록된 인플루언서 {{ groups | length }}묶음</div>
+      <div class="text-xs text-gray-500 mt-1">
+        합치면 <b>남길 줄</b>의 빈 칸만 채우고(이미 있는 값은 그대로), 캠페인·정산·섭외 기록을 남길 줄로 옮겨요.
+        나머지 줄은 지우지 않고 <b>보관</b>해요. 잘못 합쳤으면 아래 기록에서 되돌릴 수 있어요.
+      </div>
+    </div>
+    {% if is_admin and mergeable %}
+    <form method="post" action="/influencers/duplicates/merge-all"
+      onsubmit="return confirm('문제없는 {{ mergeable }}묶음을 추천대로 모두 합칠까요? (되돌리기 가능)')">
+      <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+        문제없는 {{ mergeable }}묶음 모두 합치기
+      </button>
+    </form>
+    {% endif %}
+  </div>
+  {% if not is_admin %}<div class="mt-3 text-xs text-amber-700">합치기는 관리자만 할 수 있어요 — 목록 확인만 가능해요.</div>{% endif %}
+</div>
+
+{% for g in groups %}
+<form method="post" action="/influencers/duplicates/merge"
+  class="bg-white rounded-xl border {% if g.blocked %}border-amber-200{% else %}border-gray-100{% endif %} shadow-sm mb-3 overflow-hidden"
+  onsubmit="return confirm('@{{ g.key }} 묶음을 선택한 줄로 합칠까요?')">
+  <input type="hidden" name="member_ids" value="{% for m in g.members %}{{ m.inf.id }}{% if not loop.last %},{% endif %}{% endfor %}">
+  <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+    <div class="text-sm font-medium text-gray-700">@{{ g.key }} <span class="text-xs text-gray-400">· {{ g.members | length }}줄</span></div>
+    {% if g.blocked %}
+    <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">직접 확인 필요</span>
+    {% else %}
+    <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">합치기 가능</span>
+    {% endif %}
+  </div>
+  <table class="w-full text-sm">
+    <thead class="text-xs text-gray-400">
+      <tr>
+        <th class="text-left px-4 py-2 font-medium w-20">남길 줄</th>
+        <th class="text-left px-4 py-2 font-medium">이름 · 아이디</th>
+        <th class="text-right px-4 py-2 font-medium">팔로워</th>
+        <th class="text-left px-4 py-2 font-medium">붙은 기록</th>
+        <th class="text-left px-4 py-2 font-medium">등록일</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for m in g.members %}
+      <tr>
+        <td class="px-4 py-2">
+          <input type="radio" name="keeper_id" value="{{ m.inf.id }}" {% if m.inf.id == g.keeper_id %}checked{% endif %}
+            {% if g.blocked or not is_admin %}disabled{% endif %}>
+          {% if m.inf.id == g.keeper_id %}<span class="text-xs text-blue-600 ml-1">추천</span>{% endif %}
+        </td>
+        <td class="px-4 py-2">
+          <a href="/influencers/{{ m.inf.id }}" target="_blank" class="font-medium text-gray-800 hover:text-blue-600">{{ m.inf.name }}</a>
+          <span class="text-xs text-gray-400">@{{ m.inf.handle }}</span>
+          {% if m.blendpick %}<span class="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 ml-1">블랜드픽 연결</span>{% endif %}
+        </td>
+        <td class="px-4 py-2 text-right text-gray-700">{{ "{:,}".format(m.inf.followers or 0) }}</td>
+        <td class="px-4 py-2 text-xs text-gray-500">
+          {% set labels = {'campaigns': '캠페인', 'settlements': '정산', 'outreach_logs': '섭외', 'sellers': '셀러',
+                           'cs_tickets': 'CS', 'crm_pipelines': 'CRM', 'proposals': '제안서', 'sample_logs': '샘플',
+                           'campaign_recommendations': '추천'} %}
+          {% for t, n in m.refs.items() %}{{ labels.get(t, t) }} {{ n }}{% if not loop.last %} · {% endif %}{% else %}—{% endfor %}
+        </td>
+        <td class="px-4 py-2 text-xs text-gray-400">{{ m.inf.created_at.strftime('%Y-%m-%d') if m.inf.created_at else '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="px-4 py-2.5 border-t border-gray-50 flex items-center justify-between gap-3">
+    <div class="text-xs text-amber-700">{% for b in g.blocked %}{{ b }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div>
+    {% if is_admin and not g.blocked %}
+    <button type="submit" class="px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 flex-shrink-0">이 묶음 합치기</button>
+    {% endif %}
+  </div>
+</form>
+{% else %}
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm p-10 text-center text-sm text-gray-400">중복으로 보이는 인플루언서가 없어요</div>
+{% endfor %}
+
+{% if recent %}
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm mt-6 overflow-hidden">
+  <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-sm font-medium text-gray-700">최근 합친 기록</div>
+  <table class="w-full text-sm">
+    <tbody class="divide-y divide-gray-50">
+      {% for r in recent %}
+      {% set k = names.get(r.keeper_id) %}{% set mg = names.get(r.merged_id) %}
+      <tr>
+        <td class="px-4 py-2 text-xs text-gray-400 w-36">{{ r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '' }}</td>
+        <td class="px-4 py-2 text-gray-700">
+          {{ mg.name if mg else r.merged_id }} → <b>{{ k.name if k else r.keeper_id }}</b>
+          <span class="text-xs text-gray-400">
+            {% for t, ids in (r.moved or {}).items() %}{{ t }} {{ ids | length }}{% if not loop.last %} · {% endif %}{% endfor %}
+          </span>
+        </td>
+        <td class="px-4 py-2 text-right">
+          {% if r.undone_at %}
+          <span class="text-xs text-gray-400">되돌림 {{ r.undone_at.strftime('%m/%d %H:%M') }}</span>
+          {% elif is_admin %}
+          <form method="post" action="/influencers/duplicates/undo/{{ r.id }}" class="inline"
+            onsubmit="return confirm('이 합치기를 되돌릴까요?')">
+            <button type="submit" class="text-xs text-red-500 hover:text-red-700">되돌리기</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

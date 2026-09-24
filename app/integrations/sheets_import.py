@@ -118,15 +118,22 @@ def _reject_nameless(rep: dict, data: dict, special: dict,
 
 
 def _find(db: Session, model, company_id: int, code: str | None,
-          name_field: str | None = None, name: str | None = None):
-    """sheet_code 우선, 없으면 이름으로 기존 행 찾기."""
+          name_field: str | None = None, name: str | None = None, skip_archived_by_name: bool = False):
+    """sheet_code 우선, 없으면 이름으로 기존 행 찾기.
+
+    skip_archived_by_name: 이름으로 찾을 때 보관된 줄은 빼기 (인플루언서 — 중복 합치기로 보관된 줄을
+    시트 가져오기가 다시 고르지 않게. 브랜드 등은 보관된 줄도 이름으로 찾아야 해서 기본값은 그대로).
+    """
     q = db.query(model).filter(model.company_id == company_id)
     if code:
         found = q.filter(model.sheet_code == code).first()
         if found:
             return found
     if name_field and name:
-        return q.filter(getattr(model, name_field) == name).first()
+        nq = q.filter(getattr(model, name_field) == name)
+        if skip_archived_by_name and hasattr(model, "is_archived"):
+            nq = nq.filter(model.is_archived.isnot(True))
+        return nq.first()
     return None
 
 
@@ -343,7 +350,7 @@ def import_sellers(db: Session, company_id: int = 1, dry_run: bool = True,
             continue
 
         platform = sb.PLATFORM_MAP.get(special.get("_platform_ko", ""), None)
-        obj = _find(db, Influencer, company_id, code, "name", name)
+        obj = _find(db, Influencer, company_id, code, "name", name, skip_archived_by_name=True)
         creating = obj is None
         changes: list[str] = []
         if creating:

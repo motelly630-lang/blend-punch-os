@@ -127,6 +127,7 @@
     class="text-xs px-3 py-1.5 rounded-full border transition-colors {% if data_filter == 'failed' %}border-amber-600 bg-amber-600 text-white{% else %}border-amber-200 text-amber-700 hover:border-amber-400{% endif %}">자동 조회 안 됨 {{ failed_count }}</a>
   <a href="/influencers?view={{ view }}{{ P }}&data=empty"
     class="text-xs px-3 py-1.5 rounded-full border transition-colors {% if data_filter == 'empty' %}border-blue-600 bg-blue-600 text-white{% else %}border-gray-200 text-gray-600 hover:border-gray-400{% endif %}">팔로워·사진 비어 있음 {{ empty_count }}</a>
+  <a href="/influencers/duplicates" class="text-xs px-3 py-1.5 text-gray-500 hover:text-blue-600">중복 정리 →</a>
 </div>
 {% if data_filter == 'failed' %}
 <div class="mb-4 px-4 py-3 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-800">
