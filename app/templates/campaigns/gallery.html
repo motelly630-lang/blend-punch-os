@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}공구 아카이브 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}공구 아카이브{% endblock %}
+
+{% block header_actions %}
+<a href="/campaigns" class="text-sm text-gray-500 hover:text-gray-700">← 캠페인 목록</a>
+{% endblock %}
+
+{% block content %}
+<!-- 보기 · 검색 -->
+<div class="flex flex-wrap items-center gap-2 mb-5">
+  <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
+    {% for key, label in [('active', '진행 중'), ('upcoming', '예정'), ('past', '지난 공구'), ('all', '전체')] %}
+    <a href="/campaigns/gallery?show={{ key }}{% if q %}&q={{ q | urlencode }}{% endif %}"
+      class="px-4 py-1.5 text-sm font-medium rounded-md whitespace-nowrap {% if show == key %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <form method="get" action="/campaigns/gallery" class="flex gap-2 flex-1 min-w-0">
+    <input type="hidden" name="show" value="{{ show }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="공구·인플루언서 이름 검색"
+      class="flex-1 sm:w-64 sm:flex-none px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <button type="submit" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700">검색</button>
+  </form>
+  <span class="text-xs text-gray-400">{{ cards | length }}개 · 영상 {{ cards | selectattr('media') | list | length }}개</span>
+</div>
+
+{% if cards %}
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+  {% for card in cards %}
+  {% set c = card.c %}
+  {% set prod = (c.product.name if c.product else c.product_name_manual) or c.name %}
+  {% set brand = (c.product.brand if c.product else c.brand_name_manual) or '' %}
+  {% if c.start_date and c.start_date > today %}{% set dday = (c.start_date - today).days %}{% set dlabel = '시작 D-' ~ dday %}{% set dcls = 'bg-blue-600 text-white' %}
+  {% elif c.end_date and c.end_date >= today %}{% set dday = (c.end_date - today).days %}
+    {% set dlabel = '오늘 마감' if dday == 0 else '마감 D-' ~ dday %}
+    {% set dcls = 'bg-red-600 text-white' if dday == 0 else ('bg-orange-500 text-white' if dday <= 3 else 'bg-green-600 text-white') %}
+  {% elif c.end_date %}{% set dlabel = '종료' %}{% set dcls = 'bg-gray-800/70 text-white' %}
+  {% else %}{% set dlabel = '' %}{% set dcls = '' %}{% endif %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+    <!-- 영상 -->
+    <div class="relative bg-gray-50">
+      {% if card.media %}
+      <iframe src="{{ card.media[0].embed }}" loading="lazy" class="w-full h-[520px]" frameborder="0" scrolling="no" allowfullscreen
+        title="{{ prod }} 공구 콘텐츠"></iframe>
+      {% if card.media | length > 1 %}<span class="absolute bottom-2 right-2 text-xs px-2 py-0.5 rounded-full bg-black/60 text-white">영상 {{ card.media | length }}개</span>{% endif %}
+      {% else %}
+      <div class="h-40 flex flex-col items-center justify-center text-center px-6">
+        <div class="text-3xl mb-1">🎬</div>
+        <div class="text-xs text-gray-400 mb-2">아직 릴스 링크가 없어요</div>
+        <form method="post" action="/campaigns/{{ c.id }}/links" class="flex gap-1 w-full">
+          <input type="hidden" name="back" value="/campaigns/gallery?show={{ show }}">
+          <input type="text" name="url" required placeholder="릴스 주소 붙여넣기" class="flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded text-xs">
+          <button type="submit" class="px-2 py-1.5 bg-gray-900 text-white text-xs rounded">추가</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+    <!-- 정보 -->
+    <a href="/campaigns/{{ c.id }}" class="block p-4 hover:bg-gray-50 flex-1">
+      {% if dlabel %}<span class="inline-block text-xs font-bold px-2.5 py-0.5 rounded-full mb-1.5 {{ dcls }}">{{ dlabel }}</span>{% endif %}
+      <div class="text-base font-bold text-gray-900 leading-snug break-keep">{{ prod }}</div>
+      <div class="flex items-center gap-1.5 mt-1.5 text-sm">
+        {% if c.influencer %}
+        {% if c.influencer.profile_image %}<img src="{{ c.influencer.profile_image }}" alt="" class="w-6 h-6 rounded-full object-cover">{% endif %}
+        <span class="font-semibold text-purple-600">{{ c.influencer.name }}</span>
+        {% if c.influencer.followers %}<span class="text-xs text-gray-400">팔로워 {{ c.influencer.followers | num }}</span>{% endif %}
+        {% endif %}
+      </div>
+      <div class="text-xs text-gray-500 mt-1.5">
+        {% if brand %}{{ brand }} · {% endif %}{% if c.start_date %}{{ c.start_date | date }}{% if c.end_date %} ~ {{ c.end_date | date }}{% endif %}{% else %}날짜 미정{% endif %}
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-xl border border-gray-100 p-12 text-center text-sm text-gray-400">
+  {% if q %}검색 결과가 없어요{% elif show == 'active' %}지금 진행 중인 공구가 없어요{% elif show == 'upcoming' %}예정된 공구가 없어요{% else %}공구가 없어요{% endif %}
+</div>
+{% endif %}
+{% endblock %}

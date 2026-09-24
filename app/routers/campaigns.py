@@ -16,7 +16,7 @@ from app.models.sales_page import SalesPage
 from app.models.user import User
 from app.auth.dependencies import get_current_user, require_admin
 from app.auth.tenant import get_company_id
-from app.services import campaign_progress
+from app.services import campaign_progress, content_embed
 from app.services.campaign_service import (
     CAMPAIGN_STATUSES,
     PHASE_LABELS,
@@ -452,6 +452,72 @@ def campaign_create(
     return RedirectResponse(f"/campaigns/{campaign.id}?msg=캠페인이+생성되었습니다", status_code=302)
 
 
+@router.get("/gallery")
+def campaign_gallery(request: Request, db: Session = Depends(get_db),
+                     current_user: User = Depends(get_current_user), show: str = "active", q: str = ""):
+    """공구 아카이브 — 인플루언서가 올린 릴스가 카드로 보이는 곳 (진행 중 · 예정 · 지난 공구)."""
+    cid = get_company_id(current_user)
+    today = _kst_today()
+    qry = (db.query(Campaign).options(joinedload(Campaign.influencer), joinedload(Campaign.product))
+           .filter(Campaign.company_id == cid, (Campaign.status != "cancelled") | (Campaign.status.is_(None))))
+    if show == "active":
+        qry = qry.filter(Campaign.start_date <= today, (Campaign.end_date >= today) | (Campaign.end_date.is_(None)),
+                         Campaign.is_archived.isnot(True))
+    elif show == "upcoming":
+        qry = qry.filter(Campaign.start_date > today)
+    elif show == "past":
+        qry = qry.filter(Campaign.end_date < today)
+    elif show != "all":
+        show = "active"
+    if q:
+        like = f"%{q.strip()}%"
+        qry = qry.outerjoin(Influencer, Influencer.id == Campaign.influencer_id).filter(
+            Campaign.name.ilike(like) | Influencer.name.ilike(like) | Campaign.product_name_manual.ilike(like))
+    order = Campaign.start_date.asc() if show == "upcoming" else Campaign.start_date.desc()
+    camps = qry.order_by(order.nullslast()).limit(120).all()
+    cards = [{"c": c, "media": content_embed.parse_many(c.content_urls)} for c in camps]
+    if show in ("past", "all"):
+        cards.sort(key=lambda x: (not x["media"],))            # 지난·전체는 영상 있는 것부터 (순서는 유지)
+    return templates.TemplateResponse("campaigns/gallery.html", {
+        "request": request, "active_page": "campaigns", "current_user": current_user,
+        "cards": cards, "show": show, "q": q, "today": today,
+    })
+
+
+@router.post("/{campaign_id}/links")
+def campaign_add_link(campaign_id: str, url: str = Form(""), back: str = Form(""),
+                      db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """릴스·게시물 링크 추가 (인스타 · 유튜브만)."""
+    from urllib.parse import quote
+    back = back if back.startswith("/campaigns") else f"/campaigns/{campaign_id}"
+    sep = "&" if "?" in back else "?"
+    c = db.query(Campaign).filter(Campaign.company_id == get_company_id(current_user), Campaign.id == campaign_id).first()
+    if not c:
+        return RedirectResponse("/campaigns", status_code=302)
+    p = content_embed.parse(url)
+    if not p:
+        return RedirectResponse(back + sep + "err=" + quote("인스타 릴스·게시물 또는 유튜브 링크만 넣을 수 있어요"), status_code=302)
+    urls = list(c.content_urls or [])
+    if p["url"] not in [(content_embed.parse(u) or {}).get("url") for u in urls]:
+        urls.append(p["url"])
+        c.content_urls = urls                 # JSON 칸은 새 목록을 넣어야 저장된다
+        db.commit()
+    return RedirectResponse(back + sep + "msg=" + quote("링크를 추가했어요"), status_code=302)
+
+
+@router.post("/{campaign_id}/links/remove")
+def campaign_remove_link(campaign_id: str, url: str = Form(""), back: str = Form(""),
+                         db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from urllib.parse import quote
+    back = back if back.startswith("/campaigns") else f"/campaigns/{campaign_id}"
+    sep = "&" if "?" in back else "?"
+    c = db.query(Campaign).filter(Campaign.company_id == get_company_id(current_user), Campaign.id == campaign_id).first()
+    if c and url in (c.content_urls or []):
+        c.content_urls = [u for u in c.content_urls if u != url]
+        db.commit()
+    return RedirectResponse(back + sep + "msg=" + quote("링크를 뺐어요"), status_code=302)
+
+
 @router.get("/{campaign_id}")
 def campaign_detail(campaign_id: str, request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
@@ -483,6 +549,7 @@ def campaign_detail(campaign_id: str, request: Request, db: Session = Depends(ge
     ).order_by(SalesPage.created_at.desc()).all()
 
     return templates.TemplateResponse("campaigns/detail.html", {
+        "content_media": content_embed.parse_many(campaign.content_urls),
         "request": request, "active_page": "campaigns", "current_user": current_user,
         "campaign": campaign,
         "camp_rev": txn_rev,

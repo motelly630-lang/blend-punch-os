@@ -74,6 +74,38 @@
     {% endif %}
   </div>
 
+  <!-- 공구 콘텐츠 (릴스·게시물) — 공구 아카이브에 보인다 -->
+  {% set media = content_media %}
+  <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold text-gray-800">공구 콘텐츠 (릴스·게시물) <span class="text-xs font-normal text-gray-400">{{ media | length }}개</span></h3>
+      <a href="/campaigns/gallery" class="text-xs text-blue-600 hover:text-blue-700">공구 아카이브 보기 →</a>
+    </div>
+    <form method="post" action="/campaigns/{{ campaign.id }}/links" class="flex gap-2 mb-3">
+      <input type="text" name="url" required placeholder="인플루언서가 올린 릴스 주소 붙여넣기 (instagram.com/reel/...)"
+        class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <button type="submit" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 flex-shrink-0">추가</button>
+    </form>
+    {% if media %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {% for m in media %}
+      <div class="border border-gray-100 rounded-lg overflow-hidden">
+        <iframe src="{{ m.embed }}" loading="lazy" class="w-full h-[480px] bg-gray-50" frameborder="0" scrolling="no" allowfullscreen></iframe>
+        <div class="flex items-center justify-between px-3 py-2 text-xs">
+          <a href="{{ m.url }}" target="_blank" rel="noopener" class="text-gray-500 hover:text-blue-600">{{ m.label }} 열기 ↗</a>
+          <form method="post" action="/campaigns/{{ campaign.id }}/links/remove" onsubmit="return confirm('이 링크를 뺄까요?')">
+            <input type="hidden" name="url" value="{{ m.url }}">
+            <button type="submit" class="text-gray-400 hover:text-red-600">빼기</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-xs text-gray-400">아직 링크가 없어요. 인플루언서가 공구 릴스를 올리면 주소를 붙여넣어 주세요 — 아카이브에 영상으로 보여요.</p>
+    {% endif %}
+  </div>
+
   <!-- 연결된 판매 페이지 (공구) -->
   {% if sales_pages %}
   <div class="bg-white rounded-xl border border-blue-100 shadow-sm p-5">

@@ -12,6 +12,9 @@
       선택 삭제 (<span id="bulk-count">0</span>)
     </button>
   </form>
+  <a href="/campaigns/gallery" class="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+    🎬 공구 아카이브
+  </a>
   {% if current_user.role == 'admin' %}
   <a href="/campaigns/progress-review" class="hidden sm:inline-flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
     title="일정 기준 진행·완료·보관 처리를 미리보기 후 선택 적용">
@@ -245,7 +248,28 @@
   {% endif %}{# end 빠른생성 (활성 탭 전용) #}
 
   {# ── 통합 캠페인 리스트 (그룹 헤더는 JS가 주입, 행은 여기에) ── #}
-  <div id="camp-list" data-mode="{{ 'archive' if tab == 'archive' else 'active' }}" class="grid grid-cols-1 lg:grid-cols-2 gap-2 items-start">
+  {# ── 급한 것 한눈에: 오늘 마감 · 3일 안 마감 · 오늘 시작 ── #}
+  {% set urg = namespace(today_end=[], soon_end=[], today_start=[]) %}
+  {% for c in campaigns %}{% set st0 = status_map[c.id] %}
+    {% if st0 == 'active' and c.end_date %}{% set dd0 = (c.end_date - today).days %}
+      {% if dd0 == 0 %}{% set urg.today_end = urg.today_end + [c] %}{% elif 0 < dd0 <= 3 %}{% set urg.soon_end = urg.soon_end + [c] %}{% endif %}
+    {% endif %}
+    {% if st0 not in ['completed','cancelled'] and c.start_date and c.start_date == today %}{% set urg.today_start = urg.today_start + [c] %}{% endif %}
+  {% endfor %}
+  {% if tab != 'archive' and (urg.today_end or urg.soon_end or urg.today_start) %}
+  <div class="flex flex-wrap gap-2 mb-3">
+    {% for label, items, cls in [('오늘 마감', urg.today_end, 'bg-red-600 text-white'), ('3일 안에 마감', urg.soon_end, 'bg-orange-500 text-white'), ('오늘 시작', urg.today_start, 'bg-blue-600 text-white')] %}
+    {% if items %}
+    <div class="flex items-center gap-2 rounded-xl px-3 py-2 {{ cls }}">
+      <span class="text-sm font-bold whitespace-nowrap">{{ label }} {{ items | length }}</span>
+      <span class="text-xs opacity-90 truncate max-w-[22rem]">{% for c in items %}{{ (c.product.name if c.product else c.product_name_manual) or c.name }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div id="camp-list" data-mode="{{ 'archive' if tab == 'archive' else 'active' }}" class="grid grid-cols-1 gap-2 items-start">
     {% set ST_LABEL = {'planning':'기획중','negotiating':'협의중','contracted':'계약완료','active':'진행중','completed':'완료','cancelled':'취소'} %}
     {% set ST_CHIP = {'planning':'bg-gray-100 text-gray-600','negotiating':'bg-blue-100 text-blue-700','contracted':'bg-indigo-100 text-indigo-700','active':'bg-green-100 text-green-700','completed':'bg-gray-100 text-gray-600','cancelled':'bg-red-100 text-red-600'} %}
     {% set NEXT_M = (today.month % 12) + 1 %}
@@ -296,22 +320,31 @@
 
         <div class="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5">
           <input type="checkbox" class="camp-check w-4 h-4 rounded border-gray-300 flex-shrink-0" value="{{ c.id }}" onchange="updateBulkDelete()">
-          <div class="w-1 h-9 rounded-full {{ bar }} flex-shrink-0"></div>
+          <!-- D-day 배지 (크게) -->
+          {% if dday is not none and dday >= 0 %}
+            {% if dpfx == '마감' and dday == 0 %}{% set dbadge = 'bg-red-600 text-white' %}
+            {% elif dday <= 3 %}{% set dbadge = 'bg-orange-500 text-white' %}
+            {% elif st == 'active' %}{% set dbadge = 'bg-green-100 text-green-800' %}
+            {% else %}{% set dbadge = 'bg-blue-50 text-blue-700' %}{% endif %}
+          {% else %}{% set dbadge = 'bg-gray-100 text-gray-400' %}{% endif %}
+          <div class="w-16 flex-shrink-0 rounded-lg text-center py-1.5 {{ dbadge }}" x-show="!editing">
+            {% if dday is not none and dday >= 0 %}
+            <div class="text-[11px] leading-none opacity-90">{{ dpfx }}</div>
+            <div class="text-base font-extrabold leading-tight">{% if dday == 0 %}D-DAY{% else %}D-{{ dday }}{% endif %}</div>
+            {% elif grp == 'done' %}<div class="text-xs font-semibold py-1">{{ '취소' if st == 'cancelled' else '종료' }}</div>
+            {% else %}<div class="text-xs py-1">{{ '날짜 없음' if not c.end_date and not c.start_date else ('+' ~ (dday | abs) ~ '일' if dday is not none else '-') }}</div>{% endif %}
+          </div>
 
-          <!-- VIEW: 좌측 정보 -->
+          <!-- VIEW: 좌측 정보 (이름 크게 · 잘리지 않게) -->
           <div class="flex-1 min-w-0" x-show="!editing">
-            {% if prod_name %}<div class="text-sm font-bold text-gray-800 truncate">{{ prod_name }}</div>
-            {% else %}<div class="text-sm text-gray-400 italic truncate">{{ c.name }}</div>{% endif %}
-            <div class="flex items-center gap-1.5 mt-0.5 flex-wrap text-xs">
-              {% if prod_name and c.name != prod_name %}<span class="text-gray-400 truncate max-w-[140px]">{{ c.name }}</span>{% endif %}
-              {% if brand_name %}{% if prod_name and c.name != prod_name %}<span class="text-gray-300">·</span>{% endif %}<span class="text-gray-400">{{ brand_name }}</span>{% endif %}
-              {% if cat_name %}<span class="text-gray-300">·</span><span class="text-gray-400">{{ cat_name }}</span>{% endif %}
+            <div class="text-base font-bold text-gray-900 leading-snug break-keep">{{ prod_name or c.name }}</div>
+            <div class="flex items-center gap-1.5 mt-1 flex-wrap text-sm">
               {% if c.influencer %}
-              <span class="text-gray-300">·</span>
-              {% set img = c.influencer.profile_image_path or c.influencer.profile_image_url %}
-              {% if img %}<img src="{{ img }}" alt="" class="w-4 h-4 rounded-full object-cover">{% endif %}
-              <span class="text-purple-500 font-medium">{{ c.influencer.name }}</span>
+              {% if c.influencer.profile_image %}<img src="{{ c.influencer.profile_image }}" alt="" class="w-5 h-5 rounded-full object-cover">{% endif %}
+              <span class="text-purple-600 font-semibold">{{ c.influencer.name }}</span>
               {% endif %}
+              {% if brand_name %}<span class="text-gray-300">·</span><span class="text-gray-500">{{ brand_name }}</span>{% endif %}
+              {% if prod_name and c.name != prod_name %}<span class="text-gray-300">·</span><span class="text-gray-400 text-xs">{{ c.name }}</span>{% endif %}
             </div>
           </div>
           <span class="flex-1 min-w-0 text-sm font-semibold text-gray-700 truncate" x-show="editing" x-cloak>{{ prod_name or c.name }}</span>
@@ -327,9 +360,7 @@
               {% endif %}
               <div class="text-right">
                 {% if c.start_date %}<div class="text-xs text-gray-400 whitespace-nowrap">{{ c.start_date | date }}{% if c.end_date %} ~ {{ c.end_date | date }}{% endif %}</div>{% endif %}
-                {% if dday is not none %}
-                <div class="text-xs font-semibold {{ dcolor }} whitespace-nowrap">{{ dpfx }} {% if dday < 0 %}+{{ dday | abs }}{% elif dday == 0 %}D-DAY{% else %}D-{{ dday }}{% endif %}</div>
-                {% endif %}
+
               </div>
               {% if note_map.get(c.id) %}
               <span class="text-xs px-2 py-0.5 rounded-full whitespace-nowrap bg-amber-50 text-amber-600" title="저장된 상태는 바뀌지 않았습니다 · 일정: {{ phase_map.get(c.id) }}">{{ note_map.get(c.id) }}</span>

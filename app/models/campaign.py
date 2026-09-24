@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Date, ForeignKey, Boolean
+from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Date, ForeignKey, Boolean, JSON
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -40,6 +40,7 @@ class Campaign(Base):
     # 내부/외부 구분
     campaign_type = Column(String(20), default="internal")  # internal|external
     external_url = Column(Text, nullable=True)               # 외부 링크 (external일 때)
+    content_urls = Column(JSON, nullable=True)               # 인플루언서가 올린 릴스·게시물 링크 목록 (공구 아카이브, 2026-09-24)
 
     # 통합 운영 스프레드시트 미러 (OS가 진실, 시트는 읽기전용)
     sheet_code   = Column(String(50), nullable=True, index=True)
