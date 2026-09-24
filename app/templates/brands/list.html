@@ -36,7 +36,16 @@
       class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
   </div>
   <span id="brand-count" class="text-xs text-gray-400 flex-shrink-0">총 {{ brands | length }}개</span>
+  <a href="/brands{% if need != '1' %}?need=1{% endif %}"
+    class="text-xs px-3 py-1.5 rounded-full border whitespace-nowrap {% if need == '1' %}bg-amber-600 text-white border-amber-600{% else %}border-amber-200 text-amber-700 hover:border-amber-400{% endif %}">
+    정보 입력 필요 {{ need_count }}
+  </a>
 </div>
+{% if need == '1' %}
+<div class="mb-4 px-4 py-3 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-800">
+  설명·로고가 없는 브랜드예요 (공구 한 번에 등록으로 이름만 만들어진 브랜드 포함). 눌러서 정보를 채워 주세요.
+</div>
+{% endif %}
 
 <div id="no-results" style="display:none" class="bg-white rounded-xl border border-gray-100 p-10 text-center text-sm text-gray-400">
   검색 결과가 없습니다
@@ -62,6 +71,7 @@
     <!-- Name & desc -->
     <div class="text-center flex-1">
       <div class="font-semibold text-gray-900 text-sm truncate">{{ b.name }}</div>
+      {% if b.id in needs %}<span class="inline-block mt-1 text-[11px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">정보 입력 필요</span>{% endif %}
       {% if b.description %}
       <div class="text-xs text-gray-400 mt-0.5 line-clamp-2">{{ b.description }}</div>
       {% endif %}

@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -450,6 +451,62 @@ def campaign_create(
         _auto_settle(db, campaign)
         db.commit()
     return RedirectResponse(f"/campaigns/{campaign.id}?msg=캠페인이+생성되었습니다", status_code=302)
+
+
+@router.get("/quick")
+def campaign_quick_form(request: Request, db: Session = Depends(get_db),
+                        current_user: User = Depends(get_current_user)):
+    """공구 한 번에 등록 — 인스타 주소 · 제품 · 기간만."""
+    cid = get_company_id(current_user)
+    products = (db.query(Product.id, Product.name, Product.brand, Product.seller_commission_rate)
+                .filter(Product.company_id == cid, Product.is_archived.isnot(True))
+                .order_by(Product.created_at.desc()).limit(500).all())
+    return templates.TemplateResponse("campaigns/quick.html", {
+        "request": request, "active_page": "campaigns", "current_user": current_user, "products": products,
+    })
+
+
+@router.post("/quick")
+def campaign_quick_create(request: Request, db: Session = Depends(get_db),
+                          current_user: User = Depends(get_current_user),
+                          insta: str = Form(""), influencer_name: str = Form(""), product_pick: str = Form(""),
+                          brand_name: str = Form(""), groupbuy_price: str = Form(""), rate_pct: str = Form(""),
+                          start_date: str = Form(""), end_date: str = Form(""), reel_url: str = Form("")):
+    from urllib.parse import quote
+    from app.services import quick_campaign as qc
+    cid = get_company_id(current_user)
+
+    def _d(v):
+        try:
+            return date.fromisoformat(v) if v else None
+        except ValueError:
+            return None
+
+    def _f(v):
+        try:
+            return float(str(v).replace(",", "").strip() or 0)
+        except ValueError:
+            return 0.0
+
+    # 제품 칸: 목록에서 고르면 "이름 · 브랜드  [#id]" 모양 → id 로, 아니면 새 제품 이름으로
+    pick = (product_pick or "").strip()
+    m = re.search(r"\[#([0-9a-f-]{36})\]$", pick)
+    product_id, product_name = (m.group(1), "") if m else ("", pick)
+    try:
+        r = qc.create(db, cid, _kst_today(), insta=insta, influencer_name=influencer_name, product_id=product_id,
+                      product_name=product_name, brand_name=brand_name, groupbuy_price=_f(groupbuy_price),
+                      rate_pct=_f(rate_pct), start=_d(start_date), end=_d(end_date), reel_url=reel_url)
+    except ValueError as e:
+        db.rollback()
+        return RedirectResponse("/campaigns/quick?err=" + quote(str(e)), status_code=302)
+    made = []
+    made.append(("새 인플루언서 " if r["influencer_new"] else "인플루언서 ") + r["influencer"].name
+                + (f"({r['influencer_note']})" if r["influencer_note"] else ""))
+    made.append("새 제품(작성 필요) " + r["product"].name if r["product_new"] else "제품 " + r["product"].name)
+    if r["brand_new"]:
+        made.append("새 브랜드(정보 입력 필요) " + r["brand"].name)
+    return RedirectResponse(f"/campaigns/{r['campaign'].id}?msg=" + quote("공구를 만들었어요 — " + " · ".join(made)),
+                            status_code=302)
 
 
 @router.get("/gallery")

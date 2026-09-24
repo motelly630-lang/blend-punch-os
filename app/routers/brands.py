@@ -16,16 +16,21 @@ templates = Jinja2Templates(directory="app/templates")
 
 @router.get("")
 def brand_list(request: Request, db: Session = Depends(get_db),
-               current_user: User = Depends(get_current_user)):
+               current_user: User = Depends(get_current_user), need: str = ""):
     cid = get_company_id(current_user)
     brands = db.query(Brand).filter(
         Brand.company_id == cid,
         (Brand.is_archived == False) | (Brand.is_archived == None),
     ).order_by(Brand.name).all()
+    # 설명·로고가 둘 다 없는 브랜드 = 정보 입력 필요 (공구 한 번에 등록으로 이름만 생긴 브랜드 등)
+    needs = {b.id for b in brands if not (b.description or "").strip() and not (b.logo or "").strip()}
+    need_count = len(needs)
+    if need == "1":
+        brands = [b for b in brands if b.id in needs]
     return templates.TemplateResponse(
         "brands/list.html",
         {"request": request, "active_page": "brands", "current_user": current_user,
-         "brands": brands},
+         "brands": brands, "needs": needs, "need_count": need_count, "need": need},
     )
 
 
