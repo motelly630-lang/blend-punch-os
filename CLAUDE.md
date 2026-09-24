@@ -110,16 +110,18 @@ Windows·WSL 양쪽에서 같이 쓰는 **프로젝트 공용 설정**. 개인 �
 | `.claude/hooks/os-router-parity.sh` → `.py` | 라우터 3점세트 정합성 검사 (규칙 1 자동화) |
 | `.claude/hooks/os-py-check.py` | PostToolUse(Write\|Edit)에 수정한 `.py` 문법 검사 (`.venv` python, 오류 시 exit 2) |
 | `.claude/hooks/os-remote-guard.py` | PreToolUse(Bash)에 `ssh`·`scp`·`rsync`·`git push`·AWS 변경 명령은 자동 모드에서도 확인 창 |
-| `.claude/hooks/os-mem-load.sh` → `.py` | SessionStart에 프로젝트 메모리 INDEX + 현재 상태 주입 |
+| `.claude/hooks/os-mem-load.sh` → `.py` | SessionStart에 프로젝트 메모리 INDEX + 현재 상태 + 학습 반영 대기 세션 주입 |
 | `.claude/hooks/os-mem-route.py` | UserPromptSubmit에 요청 관련 메모리 **포인터만** 주입 (어휘 일치) |
 | `.claude/hooks/os-mem-journal.py` | PostToolUse(Write\|Edit)에 수정 파일을 기계적으로만 저널링 |
 | `.claude/hooks/os-mem-flush.py` | SessionEnd·PreCompact에 state 확정 (SessionEnd는 1.5초 예산) |
 | `.claude/hooks/os-hook.sh` | 훅 파이썬을 WSL python3으로 실행시키는 공용 래퍼 |
 | `.claude/lib/osmem.py` | 메모리·상태 공유 라이브러리 (python3 stdlib만). UNC→POSIX 정규화 포함 |
+| `.claude/lib/learn.py` | 학습 반영 점검 — `pending`(반영 안 한 세션) · `lint`(스킬·메모리·원장 낡음/충돌) · `metrics`(git 지표) |
+| `.claude/lib/check_tojson_attr.py` | RG-006 검사 — 큰따옴표 속성 안 이스케이프 없는 `tojson` |
 | `.claude/memory/` | **프로젝트 메모리** (커밋 대상). 아래 「프로젝트 메모리」 참조 |
 | `.claude/state/` | 머신 로컬 작업 상태 (gitignore). 세션 스크래치·저널·체크포인트 |
 | `.claude/mcp/os-db-launch.sh` | `os-db-local`/`os-db-prod` MCP를 WSL 안에서 기동 (sslmode 부착) |
-| `.claude/skills/`, `.claude/agents/` | `ec2-deploy` · `os-locate` · `os-ai-pipeline` · `os-mem` · `create-migration` · `gen-test` · `tenant-scope-reviewer` |
+| `.claude/skills/`, `.claude/agents/` | `ec2-deploy` · `os-locate` · `os-ai-pipeline` · `os-mem` · `os-learn` · `create-migration` · `gen-test` · `tenant-scope-reviewer` |
 
 훅은 `bash .claude/hooks/<파일>` (**프로젝트 루트 기준 상대경로**)로 등록돼 있어 Windows·macOS 공용이다.
 Windows 는 훅을 PowerShell 로 실행하고 `bash`(WSL 런처)가 UNC cwd 를 POSIX 로 바꿔 주므로 항상
@@ -137,6 +139,7 @@ WSL 안에서 돌며, macOS 는 `sh -c` 로 그대로 돈다. **Claude Code 는 
 INDEX.md     세션 시작 시 자동 주입되는 유일한 파일 (120줄 상한)
 state.json   현재 작업 · task 체크리스트 · 체크포인트  ← 진행률의 유일한 근거
 project/ decisions/ preferences/ workflows/ issues/ regression/
+learning/    LEDGER.md(배운 것 반영 원장) · evals/(대표 사례 전후 비교)
 ```
 
 - 읽기·쓰기·검색은 `/os-mem` 스킬로 한다 (`save` `find <키워드>` `state` `update` `supersede`).
@@ -148,6 +151,8 @@ project/ decisions/ preferences/ workflows/ issues/ regression/
 - **비밀값을 쓰지 않는다** — 커밋되는 디렉터리다. 위치만 가리킨다.
 - **진행률은 `state.json`의 `tasks[]` done/total 로만 계산한다.** 체크리스트가 없으면 `—`.
 - 수정 작업 전 `regression/` 에 관련 불변조건이 있는지 확인하고, 수정 후 그 조건을 확인한다.
+- **배운 것 반영** — 대표님이 "이번 작업에서 배운 것 반영해줘" 하면 `/os-learn` ([[PF-003]]).
+  배포·버그 수정처럼 큰 작업을 마친 뒤에는 보고 끝에 한 줄로 제안만 한다 (자동 실행하지 않는다).
 
 확인: `wsl -- bash -lc "cd /home/blendpunch/blend-punch-os && python3 .claude/lib/osmem.py --selftest"`
 

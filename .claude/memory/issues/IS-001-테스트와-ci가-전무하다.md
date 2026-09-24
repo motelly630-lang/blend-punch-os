@@ -1,12 +1,16 @@
 ---
 id: IS-001
 type: issue
-title: 테스트·CI·린트가 부족하다 — regression guard 의 근본 공백 (캠페인만 테스트 있음)
+title: 테스트·CI·린트가 부족하다 — regression guard 의 근본 공백 (일부 영역만 테스트 있음)
 status: active
 tags: [테스트, pytest, ci, 린트, ruff, mypy, 기술부채, regression, 검증]
 paths: ["pyproject.toml", "tests/**", ".github/**"]
-updated: 2026-09-23
+updated: 2026-09-24
 ---
+
+**갱신 (2026-09-24):** 커밋된 테스트 8파일 90건 — 캠페인 3 · Slack 2 · 인플루언서 2 · Meta 1
+(`git ls-files tests` + `def test_` 수로 확인). 위 날짜 기록의 "미커밋 테스트 4파일"은 이 맥북
+작업트리에 없다 (다른 머신 여부 미확인). **여전히 없는 것:** 제품·주문·정산 등 나머지 영역, CI, 린트.
 
 **갱신 (2026-09-23):** `83aefe1` 로 격리 테스트 하네스가 들어왔다 — `tests/_env.py`(임시 SQLite,
 외부 호출 mock) + 캠페인 테스트 2파일 15건. 실행: `.venv/bin/python -m unittest discover -s tests -t .`

@@ -5,7 +5,7 @@ description: blend-punch-os 에 기존 테스트 하네스(tests/_env.py, unitte
 
 # 테스트 추가 (gen-test)
 
-현재 테스트는 캠페인 2파일뿐이다 ([IS-001]). 한 번에 많이 만들지 말고, **방금 고친 것·깨지면 비싼 것**부터
+현재 테스트는 일부 영역뿐이다 ([IS-001] — `ls tests/` 로 확인). 한 번에 많이 만들지 말고, **방금 고친 것·깨지면 비싼 것**부터
 작게 늘린다. 테스트는 운영·개발 DB 에 절대 닿지 않는다 — `tests/_env.py` 가 임시 SQLite 로 바꾼다.
 
 ## 1. 무엇을 테스트할지 정하기
@@ -16,6 +16,16 @@ description: blend-punch-os 에 기존 테스트 하네스(tests/_env.py, unitte
 4. 폼 POST → 302 리다이렉트(PRG) → 저장 값
 
 대상 1개에 테스트 3~8개. 대상 라우터·모델을 먼저 읽고 실제 동작 기준으로 쓴다(추측 금지).
+
+### 폼 템플릿을 새로 쓰거나 구조를 바꿨을 때 (IM-001 · IM-003)
+저장 주소로 **직접 POST 하는 테스트만으로는 화면 쪽 실수를 못 잡는다** (2026-09-24: action 의 `/` 가
+빠져 운영에서 404 — `29c455c`). 다음 둘을 같이 쓴다:
+1. **GET 으로 화면을 받아** 렌더된 `action="…"`(htmx 면 `hx-post`)이 실제 라우트 주소인지 확인
+   (새 화면 + 편집 화면 둘 다).
+2. 같은 이름 칸이 여러 번 가는 폼(숨은 빈 칸으로 지우는 패턴)은 브라우저 모양대로 보낸다:
+   `data={"칸": ["옛값", ""]}` + `files={"profile_image": ("", b"", "application/octet-stream")}`
+   (multipart 강제). `data=[(k, v), …]` 튜플 목록은 이 경로에서 422 가 났다.
+JSON 을 속성에 넣는 템플릿이면 `python3 .claude/lib/check_tojson_attr.py` 도 돌린다 ([RG-006]).
 
 ## 2. 파일 규칙 — `tests/test_campaigns.py` 를 본보기로 읽고 따른다
 - 위치: `tests/test_<기능>.py`, **첫 줄 import 는 반드시** `from tests import _env`

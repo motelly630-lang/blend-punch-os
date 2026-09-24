@@ -112,7 +112,8 @@ def main():
     if d.get("user_input_type") == "command":
         return                                 # 슬래시 명령에는 끼어들지 않는다
     try:
-        ctx, msg = build(d.get("user_input") or "")
+        # 공식 문서의 필드명은 prompt — 둘 다 받는다 (IM-009, 실제 페이로드 필드명은 미확인)
+        ctx, msg = build(d.get("user_input") or d.get("prompt") or "")
     except Exception as e:
         osmem.emit({"systemMessage": "✗ 메모리 라우터 오류: %s" % e})
         return

@@ -46,7 +46,25 @@ def state_block(st):
     return "\n".join(lines)
 
 
-def build_context():
+def learn_block(sid):
+    """반영 기록이 없는 지난 세션 알림 (없으면 None). 실패해도 세션 시작을 막지 않는다."""
+    try:
+        import learn
+        rows = learn.pending(current_sid=sid)
+    except Exception:
+        return None, 0
+    if not rows:
+        return None, 0
+    lines = ["## 학습 반영 대기 (`/os-learn`, 대표님이 요청할 때만 실행)"]
+    for s, n, d in rows[:3]:
+        lines.append("- %s 세션 %s — 파일 %d개 수정, 원장에 반영 기록 없음" % (d, s, n))
+    if len(rows) > 3:
+        lines.append("- ... 외 %d건" % (len(rows) - 3))
+    lines.append("- 지난 세션 대화는 읽을 수 없다. 반영하려면 저널·git·changelog 만 근거로 쓴다.")
+    return "\n".join(lines), len(rows)
+
+
+def build_context(sid=None):
     """(additional_context, system_message). INDEX 가 없으면 (None, None)."""
     if not osmem.INDEX.is_file():
         return None, None
@@ -82,6 +100,10 @@ def build_context():
                         for k, v in sorted(counts.items()) if v))
     if omitted:
         msg += " · INDEX %d줄 생략" % omitted
+    lb, n_pending = learn_block(sid)
+    if lb:
+        parts += ["", lb]
+        msg += " · 📝 학습 반영 대기 %d" % n_pending
     return "\n".join(parts), msg
 
 
@@ -105,7 +127,7 @@ def touch_session(d):
 def main():
     d = osmem.hook_json()          # None 이어도 계속 — 주입은 stdin 없이도 가능하다
     try:
-        ctx, msg = build_context()
+        ctx, msg = build_context((d or {}).get("session_id"))
     except Exception as e:
         osmem.emit({"systemMessage": "✗ 메모리 로드 실패: %s" % e})
         return
