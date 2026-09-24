@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import re
 import uuid
 from pathlib import Path
@@ -24,7 +25,38 @@ _HANDLE_RE = re.compile(r"^[A-Za-z0-9._]{1,30}$")
 
 
 class MetaError(Exception):
-    """사람이 읽을 수 있는 한국어 메시지를 담는다 (화면에 그대로 보여줘도 되는 내용만)."""
+    """사람이 읽을 수 있는 한국어 메시지를 담는다 (화면에 그대로 보여줘도 되는 내용만).
+
+    kind: token(토큰 끊김) · rate(호출 한도) · notfound(개인 계정·없는 아이디) · network · other
+    일괄 수집이 "다음에 다시 시도할지 / 이 계정은 건너뛸지"를 kind 로 가른다.
+    """
+
+    def __init__(self, message: str, kind: str = "other"):
+        super().__init__(message)
+        self.kind = kind
+
+
+# 마지막 조회 때 Meta 가 알려준 사용량(%) — X-App-Usage / X-Business-Use-Case-Usage 중 가장 큰 값.
+# 일괄 수집이 한도에 닿기 전에 스스로 멈추는 데 쓴다. 헤더가 없으면 None.
+last_usage_pct: float | None = None
+
+
+def _usage_pct(headers) -> float | None:
+    vals = []
+    for key in ("x-app-usage", "x-business-use-case-usage"):
+        raw = headers.get(key) if hasattr(headers, "get") else None
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except Exception:
+            continue
+        items = [data] if key == "x-app-usage" else [u for lst in data.values() for u in (lst or [])]
+        for u in items:
+            for f in ("call_count", "total_cputime", "total_time"):
+                if isinstance(u.get(f), (int, float)):
+                    vals.append(float(u[f]))
+    return max(vals) if vals else None
 
 
 def available() -> bool:
@@ -36,15 +68,16 @@ def _redact(text: str) -> str:
     return _TOKEN_RE.sub("EAA…(가림)", text or "")
 
 
-def _friendly(err: dict) -> str:
+def _friendly(err: dict) -> MetaError:
     code, sub = err.get("code"), err.get("error_subcode")
     if code == 190:
-        return "Meta 토큰이 만료됐거나 끊겼어요 — 관리자가 토큰을 다시 받아야 해요"
+        return MetaError("Meta 토큰이 만료됐거나 끊겼어요 — 관리자가 토큰을 다시 받아야 해요", "token")
     if code in (4, 17, 32, 613) or sub == 2207051:
-        return "Meta 조회 한도에 걸렸어요 — 잠시 후 다시 시도해 주세요"
+        return MetaError("Meta 조회 한도에 걸렸어요 — 잠시 후 다시 시도해 주세요", "rate")
     if code == 110 or sub in (2207013, 2207003):
-        return "조회할 수 없는 계정이에요 — 개인 계정이거나 아이디가 틀렸을 수 있어요 (비즈니스·크리에이터 계정만 가능)"
-    return "Meta 조회 실패: " + _redact(str(err.get("message", "")))[:150]
+        return MetaError("조회할 수 없는 계정이에요 — 개인 계정이거나 아이디가 틀렸을 수 있어요 "
+                         "(비즈니스·크리에이터 계정만 가능)", "notfound")
+    return MetaError("Meta 조회 실패: " + _redact(str(err.get("message", "")))[:150])
 
 
 def fetch_profile(username: str) -> dict:
@@ -55,24 +88,26 @@ def fetch_profile(username: str) -> dict:
     from app.config import settings
     handle = (username or "").strip().lstrip("@").rstrip("/")
     if not _HANDLE_RE.match(handle):
-        raise MetaError("인스타 아이디 형식이 아니에요")
+        raise MetaError("인스타 아이디 형식이 아니에요", "notfound")
     if not available():
-        raise MetaError("Meta 연결 설정이 없어요 (META_PAGE_TOKEN)")
+        raise MetaError("Meta 연결 설정이 없어요 (META_PAGE_TOKEN)", "token")
     fields = (f"business_discovery.username({handle})"
               "{username,name,biography,profile_picture_url,followers_count,media_count}")
+    global last_usage_pct
     try:
         # 토큰은 주소(쿼리)가 아니라 헤더로 — 주소는 로그·프록시에 남는다
         with httpx.Client(timeout=15) as c:
             r = c.get(f"https://graph.facebook.com/{settings.meta_graph_version}/{settings.meta_ig_user_id}",
                       params={"fields": fields},
                       headers={"Authorization": f"Bearer {settings.meta_page_token}"})
+        last_usage_pct = _usage_pct(r.headers)
         body = r.json()
     except Exception as e:
         logger.warning("Meta 조회 통신 오류: %s", _redact(str(e)))
-        raise MetaError("Meta 서버에 연결하지 못했어요 — 잠시 후 다시 시도해 주세요")
+        raise MetaError("Meta 서버에 연결하지 못했어요 — 잠시 후 다시 시도해 주세요", "network")
     if "error" in body:
         logger.info("Meta 조회 실패 @%s: %s", handle, _redact(str(body["error"].get("message"))))
-        raise MetaError(_friendly(body["error"]))
+        raise _friendly(body["error"])
     bd = body.get("business_discovery") or {}
     return {
         "handle": bd.get("username") or handle,

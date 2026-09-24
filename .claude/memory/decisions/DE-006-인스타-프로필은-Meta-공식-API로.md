@@ -28,4 +28,9 @@ updated: 2026-09-24
 토큰 재발급: 그래프 API 탐색기(권한 5개 + business_management) → 액세스 토큰 도구 '연장' → 페이지 토큰 도출.
 페이스북 '비즈니스 통합'에서 앱을 제거하면 모든 토큰이 무효가 된다(노출 시 대응 절차).
 
+**일괄 보강 (2026-09-24, T4):** `app/services/influencer_enrich.py` 가 Meta 경로를 쓴다 (새벽 04:30 스케줄, `INFLUENCER_ENRICH`·`_LIMIT`).
+실측: 5명 조회 = `X-App-Usage` 1% (한 명 약 0.2%, 약 4초). 사용량 50% 에서 스스로 멈추고, 한도·토큰·통신 오류는
+기록하지 않고 멈춰 다음 실행에서 이어간다. 개인 계정은 `enrich_error` + 30일 제외. 로컬 5명 시험: 수집 4 · 조회불가 1.
+수동 실행: `.venv/bin/python -m app.services.influencer_enrich --dry-run | --limit N`.
+
 관련: [[DE-005]]
