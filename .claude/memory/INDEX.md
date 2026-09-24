@@ -12,6 +12,7 @@
 |---|---|---|
 | PR-001 | 어디를 먼저 읽어야 하는가 (CLAUDE.md / SECOND_BRAIN / os-locate 진입점) | `project/PR-001-*.md` |
 | PR-002 | 멀티테넌시는 2축 — `company_id`(내부) + `partner_id`(협력사 포털) | `project/PR-002-*.md` |
+| PR-003 | **블랜드픽·산지픽이 OS 운영 DB 를 직접 읽고 씀** (인플루언서·캠페인·회원·제품·문의) — 연결 지도 | `project/PR-003-*.md` |
 
 ## DECISIONS — 확정된 결정과 근거
 
@@ -23,7 +24,7 @@
 | DE-004 | 정적 파일은 nginx 가 직접 서빙·압축. uvicorn 워커 증설은 스케줄러 중복 때문에 금지 | `decisions/DE-004-*.md` |
 | DE-005 | 인플루언서 주민등록번호는 OS 에 저장하지 않는다 (세무 쪽 별도 관리, 평문 저장 금지) | `decisions/DE-005-*.md` |
 | DE-006 | 인스타 프로필 자동 수집은 Meta 공식 Business Discovery API (봇 로그인 금지) | `decisions/DE-006-*.md` |
-| DE-007 | OS 안의 쇼핑몰(`/shop`)은 안 쓴다 — 별도 쇼핑몰 사용. 코드는 남김, 우선순위 제외 | `decisions/DE-007-*.md` |
+| DE-007 | OS 안의 쇼핑몰(`/shop`) **삭제**(2026-09-24) — 판매는 블랜드픽·산지픽, 나중에 OS 와 연결 예정 | `decisions/DE-007-*.md` |
 
 ## PREFERENCES — 반복 요구하는 작업 방식
 
@@ -43,6 +44,7 @@
 | RG-004 | EC2 `reset --hard`/`pull` 전에 blob SHA 전수 비교 + 백업 | R2 수동 | `regression/RG-004-*.md` |
 | RG-005 | tailwind safelist 정규식의 `^...$` 앵커 유지 (없으면 CSS 가 5배 부풂) | R2 용량확인 | `regression/RG-005-*.md` |
 | RG-006 | JSON 을 큰따옴표 속성에 넣을 땐 `tojson` 뒤에 `forceescape` (안 하면 Alpine 화면 깨짐) | R1 테스트 자동 | `regression/RG-006-*.md` |
+| RG-007 | 블랜드픽이 쓰는 OS 표·문의 주소의 구조 변경 전 블랜드픽 영향 확인 | R2 수동 (EC2 grep) | `regression/RG-007-*.md` |
 
 ## ISSUES — 미해결 문제·기술부채
 

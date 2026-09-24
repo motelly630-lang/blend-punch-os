@@ -18,6 +18,8 @@ disable-model-invocation: true
   `app/database.py` `init_db()` import 목록에 추가해야 한다 (빠지면 테이블이 안 생긴다).
 - 테넌트 테이블이면 `company_id`(필요 시 `partner_id`) 컬럼 + 인덱스 — [RG-002] 참조.
 - 제품 코드값(`status`/`visibility_status`)을 건드리면 [RG-003] 을 먼저 읽는다.
+- `influencers` `campaigns` `products` `brands` `sales_pages` `shop_users` 의 칸을 **이름 변경·삭제·타입 변경·NOT NULL**
+  하려면 [RG-007] — 블랜드픽·산지픽이 같은 운영 DB 를 직접 쓴다. 계획(§1)에 블랜드픽 영향 확인 결과를 적는다.
 
 ## 1. 계획을 쓰고 승인받기
 ```
