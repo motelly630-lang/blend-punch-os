@@ -748,7 +748,11 @@ def campaign_delete(campaign_id: str, db: Session = Depends(get_db),
     cid = get_company_id(current_user)
     campaign = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.id == campaign_id).first()
     if campaign:
-        db.query(Settlement).filter_by(campaign_id=campaign_id).delete()
+        # 정산서는 돈 기록 — 캠페인을 지워도 사라지면 안 된다 (DE-008). 정산서가 있으면 삭제 대신 보관.
+        if db.query(Settlement.id).filter(Settlement.company_id == cid, Settlement.campaign_id == campaign_id).first():
+            from urllib.parse import quote
+            return RedirectResponse(f"/campaigns/{campaign_id}?err=" + quote(
+                "정산서가 있는 공구는 지울 수 없어요 — 보관 처리해 주세요 (정산 기록을 지키기 위해)"), status_code=302)
         db.delete(campaign)
         db.commit()
     return RedirectResponse("/campaigns?msg=삭제되었습니다", status_code=302)
@@ -770,8 +774,16 @@ def campaign_bulk_delete(
                 Campaign.company_id == cid, Campaign.id.in_(id_list)
             ).all()
         ]
-        if owned_ids:
-            db.query(Settlement).filter(Settlement.campaign_id.in_(owned_ids)).delete(synchronize_session=False)
-            db.query(Campaign).filter(Campaign.id.in_(owned_ids)).delete(synchronize_session=False)
+        # 정산서가 있는 공구는 건너뛴다 (정산 기록 보존 — DE-008)
+        with_settle = {c for (c,) in db.query(Settlement.campaign_id).filter(
+            Settlement.company_id == cid, Settlement.campaign_id.in_(owned_ids or [""])).distinct()}
+        deletable = [x for x in owned_ids if x not in with_settle]
+        if deletable:
+            db.query(Campaign).filter(Campaign.id.in_(deletable)).delete(synchronize_session=False)
         db.commit()
-    return RedirectResponse(f"/campaigns?msg={len(id_list)}개+캠페인+삭제됨", status_code=302)
+        from urllib.parse import quote
+        msg = f"{len(deletable)}개 캠페인 삭제됨"
+        if with_settle:
+            msg += f" · 정산서가 있는 {len(with_settle)}개는 지우지 않았어요 (보관 처리해 주세요)"
+        return RedirectResponse("/campaigns?msg=" + quote(msg), status_code=302)
+    return RedirectResponse("/campaigns?msg=0개+캠페인+삭제됨", status_code=302)

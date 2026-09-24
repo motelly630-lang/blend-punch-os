@@ -25,9 +25,6 @@
 {% endblock %}
 
 {% block content %}
-{% set msg = request.query_params.get('msg') %}{% set err = request.query_params.get('err') %}
-{% if msg %}<div class="mb-4 px-4 py-2.5 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg no-print">{{ msg }}</div>{% endif %}
-{% if err %}<div class="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg no-print">{{ err }}</div>{% endif %}
 {% if legacy %}
 <div class="mb-4 px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-600 text-xs rounded-lg no-print">
   개편 전 계산식으로 만든 정산서예요. 금액은 그때 그대로 보여줘요.

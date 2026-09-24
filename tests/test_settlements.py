@@ -217,6 +217,23 @@ class FlowTest(unittest.TestCase):
         self.assertIn(f"/settlements/{sid}", self.c.get("/settlements?tab=paid&month=2026-10").text)
         self.assertNotIn(f"/settlements/{sid}", self.c.get("/settlements?tab=paid&month=2026-09").text)
 
+    def test_정산서가_있는_캠페인은_지우지_못한다(self):
+        db = SessionLocal()
+        keep = Campaign(name="가상공구" + uid(), company_id=CID)
+        free = Campaign(name="가상공구" + uid(), company_id=CID)
+        db.add_all([keep, free]); db.commit()
+        s = Settlement(company_id=CID, campaign_id=keep.id, final_payment=1000, status="paid", calc_version=sc.CALC_VERSION)
+        db.add(s); db.commit(); kid, fid, sid = keep.id, free.id, s.id; db.close()
+        self.c.post(f"/campaigns/{kid}/delete")
+        self.c.post("/campaigns/bulk-delete", data={"ids": f"{kid},{fid}"})
+        db = SessionLocal()
+        try:
+            self.assertIsNotNone(db.get(Campaign, kid))
+            self.assertIsNone(db.get(Campaign, fid))                   # 정산서 없는 건 지워진다
+            self.assertIsNotNone(db.get(Settlement, sid))
+        finally:
+            db.close()
+
 
 class TenantTest(unittest.TestCase):
     def test_다른_회사_정산서는_못_본다(self):
