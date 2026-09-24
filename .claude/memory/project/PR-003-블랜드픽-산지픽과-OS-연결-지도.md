@@ -26,7 +26,7 @@ updated: 2026-09-24
 
 **블랜드픽이 OS `influencers` 표에 직접 추가한 칸 15개 (2026-09-24 DB 확인, OS 모델에 없음):**
 `user_id` `shop_managed` `portal_password` `id_card_file`(신분증) `bankbook_file`(통장) `biz_cert_file`(사업자등록증)
-`bank_account` `bank_holder` `phone` `tax_email` `memo` `category` `followers_count` `hotel_sale_start` `hotel_sale_end`(추정).
+`bank_account` `bank_holder` `phone` `tax_email` `memo` `category` `followers_count` `hotel_sale_start` `hotel_sale_deadline`.
 → 민감 정보가 OS 표에 있다 — 개발자와 보관·권한 방식 논의 필요. OS 합치기 도구는 이 칸에 값이 있으면 막는다.
 
 **닿지 않는 곳:** 주문·결제(블랜드픽이 토스를 직접 확인, 자체 DB). OS `/api/v1` 과 옛 `/shop` 은 미사용
