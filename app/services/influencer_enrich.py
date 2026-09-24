@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 import time
 from datetime import datetime, timedelta
 
@@ -41,6 +42,8 @@ RETRY_AFTER_DAYS = 30
 USAGE_STOP_PCT = 50.0
 # 예전 instagrapi 경로: 연속 실패가 이만큼이면 접는다 (계정 차단·세션 만료 신호)
 ABORT_AFTER_CONSECUTIVE_FAILS = 5
+# 인스타에서 복사할 때 딸려 온 꼬리 글자 (예: "uu._.home ·")
+_HANDLE_TAIL = re.compile(r"[\s·•・|,]+$")
 # Meta 경로에서 실행을 멈추는 오류 — 그 사람 탓이 아니므로 기록하지 않고 다음 실행에서 다시 시도
 _STOP_KINDS = {"rate", "token", "network"}
 
@@ -82,11 +85,17 @@ def _apply(inf: Influencer, handle: str, followers: int, image_path: str) -> lis
     return changed
 
 
+def clean_handle(raw: str) -> str:
+    """'@uu._.home ·' → 'uu._.home'. 앞의 @·공백, 뒤의 / · 공백 같은 복사 찌꺼기를 뗀다."""
+    h = (raw or "").strip().lstrip("@").strip()
+    return _HANDLE_TAIL.sub("", h).rstrip("/").strip()
+
+
 def _enrich_meta(db: Session, targets: list, rep: dict, sleep: bool) -> None:
     from app.services import meta_instagram as mi
 
     for idx, inf in enumerate(targets):
-        handle = (inf.handle or "").lstrip("@").strip().rstrip("/")
+        handle = clean_handle(inf.handle)
         now = datetime.utcnow()
         try:
             prof = mi.fetch_profile(handle)
@@ -102,6 +111,9 @@ def _enrich_meta(db: Session, targets: list, rep: dict, sleep: bool) -> None:
             need_img = not (inf.profile_image or "").strip()
             img = mi.save_profile_image(prof["profile_picture_url"]) if need_img and prof["profile_picture_url"] else ""
             changed = _apply(inf, handle, prof["followers"], img)
+            if prof.get("handle") and inf.handle != prof["handle"]:
+                inf.handle = prof["handle"]            # 복사 찌꺼기·@ 를 뗀 인스타 공식 아이디로 정리
+                changed.append("아이디 정리")
             inf.enriched_at, inf.enrich_error = now, None
             rep["updated"] += 1
             rep["rows"].append({"name": inf.name, "handle": handle, "action": "수집",

@@ -7,7 +7,7 @@
 - 사진만 비어 있는 사람도 대상이다
 """
 from tests import _env  # noqa: F401  (app 보다 먼저)
-from tests._env import SessionLocal, uid
+from tests._env import SessionLocal, client_for, make_user, uid
 
 import unittest
 from unittest import mock
@@ -139,6 +139,21 @@ class EnrichTest(unittest.TestCase):
                 db.close()
         self.assertEqual((rep["picked"], rep["rows"][0]["action"]), (1, "예정"))
 
+    def test_복사_찌꺼기가_붙은_아이디도_정리해서_조회한다(self):
+        db = SessionLocal()
+        i = Influencer(name="가상셀러", platform="instagram", handle="@uu._.home ·", company_id=CID)
+        db.add(i); db.commit(); iid = i.id; db.close()
+        seen = []
+
+        def fetch(h):
+            seen.append(h)
+            return _profile()(h)
+        rep = self._run(fetch)
+        self.assertEqual(seen, ["uu._.home"])
+        self.assertEqual(rep["updated"], 1)
+        self.assertEqual(_get(iid).handle, "uu._.home")
+        self.assertEqual(ie.clean_handle(" @abc.def/ "), "abc.def")
+
 
 class UsageHeaderTest(unittest.TestCase):
     def test_사용량_헤더에서_가장_큰_값을_읽는다(self):
@@ -147,6 +162,35 @@ class UsageHeaderTest(unittest.TestCase):
         self.assertEqual(mi._usage_pct({"x-business-use-case-usage": buc}), 55.0)
         self.assertIsNone(mi._usage_pct({}))
         self.assertIsNone(mi._usage_pct({"x-app-usage": "깨진값"}))
+
+
+class ListFilterTest(unittest.TestCase):
+    """인플루언서 목록 '정보 상태' 필터 — 자동 조회 안 됨 / 팔로워·사진 비어 있음."""
+
+    def test_자동조회_안된_사람과_빈_사람을_나눠_보여준다(self):
+        user = make_user("admin", company_id=CID)
+        db = SessionLocal()
+        db.query(Influencer).filter(Influencer.company_id == CID).delete()
+        tag = uid()
+        rows = [Influencer(name=f"실패{tag}", platform="instagram", handle="a" + tag, company_id=CID,
+                           enrich_error="조회할 수 없는 계정이에요"),
+                Influencer(name=f"빈사람{tag}", platform="instagram", handle="b" + tag, company_id=CID),
+                Influencer(name=f"채움{tag}", platform="instagram", handle="c" + tag, company_id=CID,
+                           followers=100, profile_image="/x.jpg"),
+                # 조회는 실패했지만 직원이 직접 채운 사람 → 더 이상 '안 됨' 목록에 없어야 한다
+                Influencer(name=f"직접채움{tag}", platform="instagram", handle="d" + tag, company_id=CID,
+                           followers=100, profile_image="/y.jpg", enrich_error="조회할 수 없는 계정이에요")]
+        db.add_all(rows); db.commit(); db.close()
+        c = client_for(user)
+        failed = c.get("/influencers?view=list&data=failed").text
+        empty = c.get("/influencers?view=list&data=empty").text
+        self.assertIn(f"실패{tag}", failed)
+        self.assertNotIn(f"빈사람{tag}", failed)
+        self.assertNotIn(f"직접채움{tag}", failed)
+        self.assertIn(f"빈사람{tag}", empty)
+        self.assertNotIn(f"실패{tag}", empty)
+        self.assertIn("자동 조회 안 됨 1", failed)
+        self.assertIn("팔로워·사진 비어 있음 1", failed)
 
 
 if __name__ == "__main__":

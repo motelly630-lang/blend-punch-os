@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Influencer
@@ -59,7 +59,7 @@ def _parse_categories(json_str: str, fallback_raw: str = "") -> list | None:
 
 @router.get("")
 def influencer_list(request: Request, db: Session = Depends(get_db), q: str = "", platform: str = "",
-                    view: str = "gallery", current_user: User = Depends(get_current_user)):
+                    view: str = "gallery", data: str = "", current_user: User = Depends(get_current_user)):
     cid = get_company_id(current_user)
     query = db.query(Influencer).filter(
         Influencer.company_id == cid,
@@ -69,6 +69,16 @@ def influencer_list(request: Request, db: Session = Depends(get_db), q: str = ""
         query = query.filter(Influencer.name.ilike(f"%{q}%") | Influencer.handle.ilike(f"%{q}%"))
     if platform:
         query = query.filter(Influencer.platform == platform)
+    # 정보 상태 필터 — 팔로워·사진이 아직 빈 사람 중 자동 조회(Meta)가 안 된 사람 / 아직 조회 전인 사람
+    missing = (or_(Influencer.followers == 0, Influencer.followers.is_(None),
+                   Influencer.profile_image.is_(None), Influencer.profile_image == ""))
+    failed = and_(Influencer.enrich_error.isnot(None), Influencer.enrich_error != "")
+    if data == "failed":
+        query = query.filter(missing, failed)
+    elif data == "empty":
+        query = query.filter(missing, ~failed)
+    else:
+        data = ""
     influencers = query.order_by(Influencer.followers.desc()).limit(300).all()
 
     # Stats — SQL aggregates instead of loading all rows into Python
@@ -76,6 +86,12 @@ def influencer_list(request: Request, db: Session = Depends(get_db), q: str = ""
     active_count = db.query(func.count(Influencer.id)).filter(Influencer.company_id == cid, Influencer.status == "active").scalar()
     inactive_count = db.query(func.count(Influencer.id)).filter(Influencer.company_id == cid, Influencer.status == "inactive").scalar()
     blacklist_count = db.query(func.count(Influencer.id)).filter(Influencer.company_id == cid, Influencer.status == "blacklist").scalar()
+
+    base = db.query(func.count(Influencer.id)).filter(
+        Influencer.company_id == cid,
+        (Influencer.is_archived == False) | (Influencer.is_archived == None), missing)
+    failed_count = base.filter(failed).scalar()
+    empty_count = base.filter(~failed).scalar()
 
     platform_rows = db.query(Influencer.platform, func.count(Influencer.id)).filter(Influencer.company_id == cid).group_by(Influencer.platform).all()
     platform_counts = {row[0]: row[1] for row in platform_rows}
@@ -92,6 +108,7 @@ def influencer_list(request: Request, db: Session = Depends(get_db), q: str = ""
         "influencers": influencers, "q": q, "platform_filter": platform, "platforms": PLATFORMS,
         "total": total, "active_count": active_count, "inactive_count": inactive_count, "blacklist_count": blacklist_count,
         "platform_counts": dict(platform_counts), "top_categories": top_categories, "view": view,
+        "data_filter": data, "failed_count": failed_count, "empty_count": empty_count,
     })
 
 

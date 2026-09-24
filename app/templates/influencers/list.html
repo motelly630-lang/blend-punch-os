@@ -6,14 +6,14 @@
 <div class="flex items-center gap-2">
   <!-- View toggle -->
   <div class="flex items-center bg-gray-100 rounded-lg p-0.5">
-    <a href="/influencers?view=gallery{% if platform_filter %}&platform={{ platform_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+    <a href="/influencers?view=gallery{% if platform_filter %}&platform={{ platform_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if data_filter %}&data={{ data_filter }}{% endif %}"
       onclick="localStorage.setItem('inf_view','gallery')"
       class="p-1.5 rounded-md transition-colors {% if view == 'gallery' %}bg-white shadow-sm text-gray-900{% else %}text-gray-400 hover:text-gray-600{% endif %}">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
       </svg>
     </a>
-    <a href="/influencers?view=list{% if platform_filter %}&platform={{ platform_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+    <a href="/influencers?view=list{% if platform_filter %}&platform={{ platform_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if data_filter %}&data={{ data_filter }}{% endif %}"
       onclick="localStorage.setItem('inf_view','list')"
       class="p-1.5 rounded-md transition-colors {% if view == 'list' %}bg-white shadow-sm text-gray-900{% else %}text-gray-400 hover:text-gray-600{% endif %}">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -101,20 +101,43 @@
   <form method="get" class="flex gap-2 flex-1 min-w-0">
     <input type="hidden" name="view" value="{{ view }}">
     {% if platform_filter %}<input type="hidden" name="platform" value="{{ platform_filter }}">{% endif %}
+    {% if data_filter %}<input type="hidden" name="data" value="{{ data_filter }}">{% endif %}
     <input type="text" name="q" value="{{ q }}" placeholder="이름 또는 핸들 검색..."
       class="flex-1 sm:w-60 sm:flex-none px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
     <button type="submit" class="px-3 sm:px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors">검색</button>
-    {% if q or platform_filter %}<a href="/influencers?view={{ view }}" class="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap">초기화</a>{% endif %}
+    {% if q or platform_filter or data_filter %}<a href="/influencers?view={{ view }}" class="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap">초기화</a>{% endif %}
   </form>
   <div class="flex items-center gap-1.5 flex-wrap">
-    <a href="/influencers?view={{ view }}{% if q %}&q={{ q }}{% endif %}"
+    <a href="/influencers?view={{ view }}{% if q %}&q={{ q }}{% endif %}{% if data_filter %}&data={{ data_filter }}{% endif %}"
       class="text-xs px-3 py-1.5 rounded-full border transition-colors {% if not platform_filter %}border-gray-900 bg-gray-900 text-white{% else %}border-gray-200 text-gray-600 hover:border-gray-400{% endif %}">전체</a>
     {% for p in platforms %}
-    <a href="/influencers?view={{ view }}&platform={{ p }}{% if q %}&q={{ q }}{% endif %}"
+    <a href="/influencers?view={{ view }}&platform={{ p }}{% if q %}&q={{ q }}{% endif %}{% if data_filter %}&data={{ data_filter }}{% endif %}"
       class="text-xs px-3 py-1.5 rounded-full border capitalize transition-colors {% if platform_filter == p %}border-blue-600 bg-blue-600 text-white{% else %}border-gray-200 text-gray-600 hover:border-gray-400{% endif %}">{{ p }}</a>
     {% endfor %}
   </div>
 </div>
+
+<!-- 정보 상태 (팔로워·사진 자동 채우기) -->
+{% set P = ('&platform=' ~ platform_filter if platform_filter else '') ~ ('&q=' ~ q if q else '') %}
+<div class="flex items-center gap-1.5 flex-wrap mb-4">
+  <span class="text-xs text-gray-400 mr-1">정보 상태</span>
+  <a href="/influencers?view={{ view }}{{ P }}"
+    class="text-xs px-3 py-1.5 rounded-full border transition-colors {% if not data_filter %}border-gray-900 bg-gray-900 text-white{% else %}border-gray-200 text-gray-600 hover:border-gray-400{% endif %}">전체</a>
+  <a href="/influencers?view={{ view }}{{ P }}&data=failed"
+    class="text-xs px-3 py-1.5 rounded-full border transition-colors {% if data_filter == 'failed' %}border-amber-600 bg-amber-600 text-white{% else %}border-amber-200 text-amber-700 hover:border-amber-400{% endif %}">자동 조회 안 됨 {{ failed_count }}</a>
+  <a href="/influencers?view={{ view }}{{ P }}&data=empty"
+    class="text-xs px-3 py-1.5 rounded-full border transition-colors {% if data_filter == 'empty' %}border-blue-600 bg-blue-600 text-white{% else %}border-gray-200 text-gray-600 hover:border-gray-400{% endif %}">팔로워·사진 비어 있음 {{ empty_count }}</a>
+</div>
+{% if data_filter == 'failed' %}
+<div class="mb-4 px-4 py-3 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-800">
+  개인 계정이거나 아이디가 틀려서 Meta 자동 조회가 안 된 사람이에요. 인스타에서 팔로워를 보고 편집 화면에서 직접 넣거나,
+  인플루언서에게 <b>프로페셔널(크리에이터) 계정 전환</b>을 부탁하세요 — 전환하면 30일 뒤 자동으로 다시 조회되고, 바로 채우려면 편집 화면의 "주소로 가져오기"를 쓰면 돼요.
+</div>
+{% elif data_filter == 'empty' %}
+<div class="mb-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
+  아직 자동 조회 전인 사람이에요. 새벽 자동 작업이 매일 조금씩 채워요 — 직접 넣지 않아도 돼요.
+</div>
+{% endif %}
 
 {% if influencers %}
 {% if view == 'gallery' %}
