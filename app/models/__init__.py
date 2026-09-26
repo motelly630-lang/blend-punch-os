@@ -21,6 +21,7 @@ from app.models.partner import Partner, PartnerContact
 from app.models.feature_flag import Company, CompanyFeature
 from app.models.sheet_sync_log import SheetSyncLog
 from app.models.slack_notification_log import SlackNotificationLog
+from app.models.standup_snapshot import StandupSnapshot
 from app.models.cs import (
     CSTicket, CSActivity, CSAttachment, CSType, CSGuide, CSTemplate, CSNotification, CSDownloadLog,
 )

@@ -39,7 +39,11 @@ def _report(key):
 
 
 def _all_text(r) -> str:
-    return " ".join([r["summary"], *r["lines"], *[f"{k} {v}" for k, v in r["stats"]]])
+    return " ".join([r["summary"], *r["lines"], *[f"{k} {v}" for k, v, _ in r["stats"]]])
+
+
+def _stats(r) -> dict:
+    return {k: v for k, v, _ in r["stats"]}
 
 
 class BuildTest(unittest.TestCase):
@@ -50,7 +54,7 @@ class BuildTest(unittest.TestCase):
              Campaign(name=b, company_id=CID, start_date=t - timedelta(1), end_date=t + timedelta(2), status="active"),
              Campaign(name="취소" + uid(), company_id=CID, start_date=t, end_date=t, status="cancelled"))
         r = _report("groupbuy")
-        stats = dict(r["stats"])
+        stats = _stats(r)
         self.assertGreaterEqual(int(stats["오늘 마감"][:-1]), 1)
         text = _all_text(r)
         self.assertIn(a, text)
@@ -63,7 +67,7 @@ class BuildTest(unittest.TestCase):
                       status="active"),
              Settlement(company_id=CID, status="pending", final_payment=87909),
              Settlement(company_id=CID, status="confirmed", final_payment=100000, due_date=t - timedelta(1)))
-        stats = dict(_report("settlement")["stats"])
+        stats = _stats(_report("settlement"))
         self.assertNotEqual(stats["매출 미입력"], "0건")
         self.assertIn("87,909원", stats["작성중"])
         self.assertNotEqual(stats["예정일 지남"], "0건")
@@ -75,7 +79,8 @@ class BuildTest(unittest.TestCase):
         text = _all_text(r)
         self.assertNotIn("홍길동가상", text)
         self.assertNotIn("010-0000-1111", text)
-        self.assertNotEqual(dict(r["stats"])["기한 지남"], "0건")
+        self.assertNotEqual(_stats(r)["기한 지남"], "0건")
+        self.assertIn(("기한 지난 문의", "/cs?tab=overdue"), r["links"])
 
     def test_인플루언서_수집_0명이면_경고(self):
         _add(Influencer(name="대기" + uid(), platform="instagram", handle="gasang" + uid(), company_id=CID))
@@ -84,12 +89,38 @@ class BuildTest(unittest.TestCase):
         self.assertTrue(any("한 명도 못 채웠어요" in l for l in r["lines"]), r)
 
     def test_이름에_섞인_제어문자는_무력화(self):
-        text, blocks = su.render("공구 매니저", {"summary": "<!channel> 요약", "stats": [("<!here>", "1건")],
-                                                "lines": ["<https://evil|클릭>"], "path": "/campaigns"})
+        text, blocks = su.render("공구 매니저", {"summary": "<!channel> 요약", "stats": [("<!here>", "1건", 1)],
+                                                "lines": ["<https://evil|클릭>"], "links": [("목록", "/campaigns")]})
         blob = str(blocks)
         self.assertNotIn("<!channel>", blob)
         self.assertNotIn("<!here>", blob)
         self.assertNotIn("<https://evil", blob)
+
+    def test_어제보다_변화와_바로가기(self):
+        r = {"summary": "요약", "lines": ["할 일"], "links": [("매출 넣기", "/campaigns/revenue?tab=ended")],
+             "stats": [su._s("매출 미입력", 92), su._s("어젯밤 채움", 148, "명", delta=False)]}
+        _, blocks = su.render("정산 매니저", r, prev={"매출 미입력": 97, "어젯밤 채움": 1})
+        fields = [f["text"] for f in blocks[1]["fields"]]
+        self.assertIn("어제보다 -5", fields[0])
+        self.assertNotIn("어제보다", fields[1])                     # 비교 안 하는 칸
+        self.assertIn("/campaigns/revenue?tab=ended|매출 넣기>", blocks[-1]["elements"][0]["text"])
+
+    def test_할_일_없는_날은_한_줄(self):
+        _, blocks = su.render("고객 관리 매니저", {"summary": "없어요 ✅", "lines": [], "links": [("CS 목록", "/cs")],
+                                                  "stats": [su._s("처리 중", 0)]})
+        self.assertEqual([b["type"] for b in blocks], ["section", "context"])
+
+    def test_오늘_숫자는_하루_한_번만_저장하고_다음날_비교(self):
+        from app.models.standup_snapshot import StandupSnapshot
+        t, cid = today_kst(), 60 + int(uid()[:4], 16) % 9
+        db = SessionLocal()
+        try:
+            su.save_today(db, cid, t - timedelta(1), "settlement", {"stats": [su._s("매출 미입력", 10)]})
+            su.save_today(db, cid, t - timedelta(1), "settlement", {"stats": [su._s("매출 미입력", 99)]})
+            self.assertEqual(db.query(StandupSnapshot).filter_by(company_id=cid).count(), 1)
+            self.assertEqual(su.load_prev(db, cid, t), {"settlement": {"매출 미입력": 10}})
+        finally:
+            db.close()
 
 
 class SendTest(unittest.TestCase):

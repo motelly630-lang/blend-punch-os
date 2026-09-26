@@ -1,5 +1,7 @@
 """#출근보고 — AI 직원들이 각자 이름·아이콘으로 아침 보고를 올린다 (대표님 2026-09-26, 1단계).
 
+2026-09-26 고도화 A: 칸마다 '어제보다 ±N'(standup_snapshots), 목록 바로가기(필터 주소), 할 일 없는 날은 한 줄.
+
 | 직원 | 보고 내용 (전부 OS DB 에서 코드가 센다 — AI·비용 없음) | 자세히 |
 |---|---|---|
 | 🛒 공구 매니저 | 오늘 마감 · 3일 안 마감 · 오늘 시작 · 진행 중 · 종료일 지났는데 완료 안 된 것 | /campaigns |
@@ -43,13 +45,18 @@ def _won(v) -> str:
     return f"{int(round(v or 0)):,}원"
 
 
+def _s(label: str, n: int, unit: str = "건", extra: str = "", delta: bool = True) -> tuple:
+    """숫자 칸 하나 → (이름, 보이는 글자, 숫자 또는 None). 숫자가 있으면 다음 날 '어제보다' 비교에 쓴다."""
+    return (label, f"{n:,}{unit}" + (f" · {extra}" if extra else ""), n if delta else None)
+
+
 def _camp_label(c) -> str:
     prod = c.product.name if getattr(c, "product", None) else (c.product_name_manual or "")
     inf = c.influencer.name if getattr(c, "influencer", None) else ""
     return " · ".join(x for x in (prod or c.name, inf) if x)
 
 
-# ── 직원별 보고 만들기 — {"summary", "stats": [(이름, 값)], "lines": [...], "path"} 또는 None(보고 없음) ──
+# ── 직원별 보고 만들기 — {"summary", "stats": [_s(...)], "lines": [...], "links": [(이름, 주소)]} 또는 None ──
 
 def build_groupbuy(db, cid: int, today: date) -> dict:
     from sqlalchemy.orm import joinedload
@@ -74,9 +81,12 @@ def build_groupbuy(db, cid: int, today: date) -> dict:
         summary = f"오늘 마감 {len(ending_today)}건, 3일 안 마감 {len(ending_soon)}건, 오늘 시작 {len(starting)}건이에요."
     else:
         summary = f"오늘 마감·시작하는 공구는 없어요. 진행 중 {len(running)}건이에요."
-    return {"summary": summary, "path": "/campaigns", "lines": lines,
-            "stats": [("진행 중", f"{len(running)}건"), ("오늘 마감", f"{len(ending_today)}건"),
-                      ("3일 안 마감", f"{len(ending_soon)}건"), ("오늘 시작", f"{len(starting)}건")]}
+    links = [("캠페인 목록", "/campaigns")]
+    if overdue:
+        links.append(("매출 넣고 완료 처리", "/campaigns/revenue?tab=ended"))
+    return {"summary": summary, "links": links, "lines": lines,
+            "stats": [_s("진행 중", len(running)), _s("오늘 마감", len(ending_today)),
+                      _s("3일 안 마감", len(ending_soon)), _s("오늘 시작", len(starting))]}
 
 
 def build_settlement(db, cid: int, today: date) -> dict:
@@ -104,9 +114,16 @@ def build_settlement(db, cid: int, today: date) -> dict:
         lines.append(f"⏰ 지급 예정일이 지난 정산 {late_n}건")
     summary = (f"지급 대기 {wait_n}건({_won(wait_s)}), 작성중 {draft_n}건이에요."
                + (f" 매출 미입력 공구가 {missing}건 있어요." if missing else ""))
-    return {"summary": summary, "path": "/campaigns/revenue?tab=ended" if missing else "/settlements", "lines": lines,
-            "stats": [("매출 미입력", f"{missing}건"), ("작성중", f"{draft_n}건 · {_won(draft_s)}"),
-                      ("지급 대기", f"{wait_n}건 · {_won(wait_s)}"), ("예정일 지남", f"{late_n}건")]}
+    links = []
+    if missing:
+        links.append(("매출 넣기", "/campaigns/revenue?tab=ended"))
+    if draft_n:
+        links.append(("작성중 정산서", "/settlements?tab=pending"))
+    if wait_n:
+        links.append(("지급 대기", "/settlements?tab=confirmed"))
+    return {"summary": summary, "links": links or [("정산", "/settlements")], "lines": lines,
+            "stats": [_s("매출 미입력", missing), _s("작성중", draft_n, extra=_won(draft_s)),
+                      _s("지급 대기", wait_n, extra=_won(wait_s)), _s("예정일 지남", late_n)]}
 
 
 def build_cs(db, cid: int, today: date) -> dict:
@@ -126,10 +143,13 @@ def build_cs(db, cid: int, today: date) -> dict:
         lines.append(f"⏰ 처리 기한이 지난 문의 {late}건 — 먼저 봐 주세요")
     if urgent:
         lines.append(f"🚨 긴급 표시된 문의 {urgent}건")
-    summary = f"어제 새 문의 {new}건, 처리 중 {open_n}건이에요." + (f" 기한 지난 게 {late}건 있어요." if late else "")
-    return {"summary": summary, "path": "/cs", "lines": lines,
-            "stats": [("새 문의 (24시간)", f"{new}건"), ("처리 중", f"{open_n}건"),
-                      ("기한 지남", f"{late}건"), ("긴급", f"{urgent}건")]}
+    if not (new or open_n):
+        summary = "새 문의도, 처리 중인 문의도 없어요 ✅"
+    else:
+        summary = f"어제 새 문의 {new}건, 처리 중 {open_n}건이에요." + (f" 기한 지난 게 {late}건 있어요." if late else "")
+    links = ([("기한 지난 문의", "/cs?tab=overdue")] if late else []) + [("CS 목록", "/cs")]
+    return {"summary": summary, "links": links, "lines": lines,
+            "stats": [_s("새 문의 (24시간)", new), _s("처리 중", open_n), _s("기한 지남", late), _s("긴급", urgent)]}
 
 
 def build_influencer(db, cid: int, today: date) -> dict:
@@ -151,8 +171,14 @@ def build_influencer(db, cid: int, today: date) -> dict:
         summary = f"어젯밤 {filled}명 채웠고, 남은 대기는 {waiting:,}명이에요."
     else:
         summary = f"어젯밤 {filled}명 채웠어요. 대기 중인 인플루언서는 없어요."
-    return {"summary": summary, "path": "/influencers", "lines": lines,
-            "stats": [("어젯밤 채움", f"{filled}명"), ("조회 안 됨", f"{failed}명"), ("남은 대기", f"{waiting:,}명")]}
+    links = []
+    if failed:
+        links.append(("자동 조회 안 됨 목록", "/influencers?data=failed"))
+    if waiting:
+        links.append(("아직 조회 전", "/influencers?data=empty"))
+    return {"summary": summary, "links": links or [("인플루언서", "/influencers")], "lines": lines,
+            "stats": [_s("어젯밤 채움", filled, "명", delta=False), _s("조회 안 됨", failed, "명", delta=False),
+                      _s("남은 대기", waiting, "명")]}
 
 
 def build_trend(db, cid: int, today: date) -> dict | None:
@@ -174,7 +200,7 @@ def build_trend(db, cid: int, today: date) -> dict | None:
         prods = ", ".join(m["product_name"] for m in e["matched_products"][:3])
         lines.append(f"• {e['name']} ({when})" + (f" — {prods}" if prods else ""))
     return {"summary": f"지금 준비할 시즌 {len(cands)}개예요: " + ", ".join(e["name"] for e in cands) + ".",
-            "path": "/trends", "lines": lines, "stats": []}
+            "links": [("트렌드", "/trends")], "lines": lines, "stats": []}
 
 
 BUILDERS = {"groupbuy": build_groupbuy, "settlement": build_settlement, "cs": build_cs,
@@ -183,24 +209,66 @@ BUILDERS = {"groupbuy": build_groupbuy, "settlement": build_settlement, "cs": bu
 
 # ── 카드 모양 (Block Kit) ──────────────────────────────────────────────
 
-def render(name: str, r: dict, icon: str = "") -> tuple[str, list]:
+def render(name: str, r: dict, icon: str = "", prev: dict | None = None) -> tuple[str, list]:
     """→ (알림용 한 줄 text, blocks). DB 에서 온 글자는 전부 escape (전원 호출·링크 위장 방지).
 
-    첫 줄에 직원 이름·아이콘을 넣는다 — Slack 앱에 이름 바꾸기 권한이 없어 봇 이름으로 올라가도 누구 보고인지 보이게.
+    - 첫 줄에 직원 이름·아이콘 (앱 권한이 없어 봇 이름으로 올라가도 누구 보고인지 보이게)
+    - prev(어제 숫자)가 있으면 칸마다 '어제보다 ±N'
+    - 할 일(lines)이 없는 조용한 날은 요약 한 줄 + 바로가기만
+    - 바로가기는 우리 주소·고정 이름만 쓰므로 Slack 링크 문법 <주소|이름> 을 직접 만든다
     """
     e = sn.escape
     text = f"{name}: {r['summary']}"
     blocks = [{"type": "section", "text": {"type": "mrkdwn",
                                            "text": f"{icon} *{e(name)}*\n{e(r['summary'])}".strip()}}]
-    if r.get("stats"):
-        blocks.append({"type": "section", "fields": [
-            {"type": "mrkdwn", "text": f"*{e(k)}*\n{e(v)}"} for k, v in r["stats"][:10]]})
     if r.get("lines"):
+        if r.get("stats"):
+            fields = []
+            for label, shown, n in r["stats"][:10]:
+                d = (n - prev[label]) if (prev and n is not None and isinstance(prev.get(label), int)) else 0
+                fields.append({"type": "mrkdwn", "text": f"*{e(label)}*\n{e(shown)}" + (f"  _(어제보다 {d:+,})_" if d else "")})
+            blocks.append({"type": "section", "fields": fields})
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": e("\n".join(r["lines"][:12]))[:2900]}})
-    if r.get("path") and _base_url():
-        blocks.append({"type": "context", "elements": [
-            {"type": "mrkdwn", "text": f"자세히 → {e(_base_url() + r['path'])}"}]})
+    base = _base_url()
+    if r.get("links") and base:
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": "바로가기 → " + "  ·  ".join(
+            f"<{base}{path}|{e(label)}>" for label, path in r["links"][:5])}]})
     return text, blocks
+
+
+def _snapshot_numbers(r: dict) -> dict:
+    return {label: n for label, _, n in (r.get("stats") or []) if n is not None}
+
+
+def load_prev(db, cid: int, today: date) -> dict:
+    """어제 보고 숫자 {직원: {칸: 숫자}} — 어제 것이 없으면 비교하지 않는다(엉뚱한 날과 비교 방지)."""
+    from app.models.standup_snapshot import StandupSnapshot as S
+    try:
+        rows = db.query(S).filter(S.company_id == cid, S.report_date == today - timedelta(days=1)).all()
+        return {x.staff: x.numbers or {} for x in rows}
+    except Exception as ex:
+        logger.warning("출근보고 어제 숫자 읽기 실패: %s", ex)
+        db.rollback()
+        return {}
+
+
+def save_today(db, cid: int, today: date, staff: str, r: dict) -> None:
+    """오늘 숫자를 남긴다 — 하루·직원당 첫 번째 것만 (이미 있으면 그대로)."""
+    from sqlalchemy.exc import IntegrityError
+    from app.models.standup_snapshot import StandupSnapshot as S
+    nums = _snapshot_numbers(r)
+    if not nums:
+        return
+    try:
+        if db.query(S.id).filter(S.company_id == cid, S.report_date == today, S.staff == staff).first():
+            return
+        db.add(S(company_id=cid, report_date=today, staff=staff, numbers=nums))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+    except Exception as ex:
+        db.rollback()
+        logger.warning("출근보고 숫자 저장 실패 (%s): %s", staff, ex)
 
 
 def collect(db, cid: int, today: date | None = None) -> list[dict]:
@@ -215,7 +283,7 @@ def collect(db, cid: int, today: date | None = None) -> list[dict]:
             logger.warning("출근보고 %s 만들기 실패: %s", key, ex)
             db.rollback()
             r = {"summary": f"오늘 보고를 만들지 못했어요 ({type(ex).__name__}) — 서버 기록 확인이 필요해요",
-                 "stats": [], "lines": [], "path": ""}
+                 "stats": [], "lines": [], "links": []}
         if r is not None:
             out.append({"key": key, "name": name, "icon": icon, "report": r})
     return out
@@ -226,8 +294,10 @@ def send_all(db, company_id: int, force: bool = False, dedupe: bool = True) -> d
     from app.services.slack_reports import today_kst
     today = today_kst()
     results = {}
+    prev = load_prev(db, company_id, today)
     for s in collect(db, company_id, today):
-        text, blocks = render(s["name"], s["report"], s["icon"])
+        text, blocks = render(s["name"], s["report"], s["icon"], prev.get(s["key"]))
+        save_today(db, company_id, today, s["key"], s["report"])
         results[s["key"]] = sn.post(EVENT, CHANNEL, text, company_id=company_id, force=force,
                                     dedupe_key=f"standup:{s['key']}:{today}" if dedupe else None,
                                     blocks=blocks, username=s["name"], icon_emoji=s["icon"])
@@ -252,8 +322,10 @@ if __name__ == "__main__":
             r = send_all(db, a.company, force=True, dedupe=False)
             print(r["status"], "—", r["reason"])
         else:
+            from app.services.slack_reports import today_kst
+            prev = load_prev(db, a.company, today_kst())
             for s in collect(db, a.company):
-                text, blocks = render(s["name"], s["report"], s["icon"])
+                text, blocks = render(s["name"], s["report"], s["icon"], prev.get(s["key"]))
                 print(f"\n=== {s['icon']} {s['name']} ===\n{text}")
                 for b in blocks[1:]:
                     t = b.get("text", {}).get("text") or " | ".join(
