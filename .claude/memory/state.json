@@ -66,6 +66,14 @@
     {
       "title": "9/27 09:15 출근보고 자동 발송·'어제보다' 비교 표시 확인 → 다음 고도화 B(브랜드·제품 정리 담당, 경영 분석가) 여부 대표님 결정",
       "status": "todo"
+    },
+    {
+      "title": "[대표님 대기·우선] 네이버 API 키 고치기 (IS-007) — developers.naver.com/apps 캡처 → 키 확인·데이터랩 추가 → 서버 교체 → 트렌드 분석가에 검색량 붙이기",
+      "status": "todo"
+    },
+    {
+      "title": "트렌드 3단계: 젠스파크 주간 트렌드 조사 → OS 넣기 (TrendItem 마지막 수집 4/29)",
+      "status": "todo"
     }
   ],
   "last_checkpoint": {
