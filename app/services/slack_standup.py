@@ -183,11 +183,15 @@ BUILDERS = {"groupbuy": build_groupbuy, "settlement": build_settlement, "cs": bu
 
 # ── 카드 모양 (Block Kit) ──────────────────────────────────────────────
 
-def render(name: str, r: dict) -> tuple[str, list]:
-    """→ (알림용 한 줄 text, blocks). DB 에서 온 글자는 전부 escape (전원 호출·링크 위장 방지)."""
+def render(name: str, r: dict, icon: str = "") -> tuple[str, list]:
+    """→ (알림용 한 줄 text, blocks). DB 에서 온 글자는 전부 escape (전원 호출·링크 위장 방지).
+
+    첫 줄에 직원 이름·아이콘을 넣는다 — Slack 앱에 이름 바꾸기 권한이 없어 봇 이름으로 올라가도 누구 보고인지 보이게.
+    """
     e = sn.escape
     text = f"{name}: {r['summary']}"
-    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": e(r["summary"])}}]
+    blocks = [{"type": "section", "text": {"type": "mrkdwn",
+                                           "text": f"{icon} *{e(name)}*\n{e(r['summary'])}".strip()}}]
     if r.get("stats"):
         blocks.append({"type": "section", "fields": [
             {"type": "mrkdwn", "text": f"*{e(k)}*\n{e(v)}"} for k, v in r["stats"][:10]]})
@@ -223,7 +227,7 @@ def send_all(db, company_id: int, force: bool = False, dedupe: bool = True) -> d
     today = today_kst()
     results = {}
     for s in collect(db, company_id, today):
-        text, blocks = render(s["name"], s["report"])
+        text, blocks = render(s["name"], s["report"], s["icon"])
         results[s["key"]] = sn.post(EVENT, CHANNEL, text, company_id=company_id, force=force,
                                     dedupe_key=f"standup:{s['key']}:{today}" if dedupe else None,
                                     blocks=blocks, username=s["name"], icon_emoji=s["icon"])
@@ -249,7 +253,7 @@ if __name__ == "__main__":
             print(r["status"], "—", r["reason"])
         else:
             for s in collect(db, a.company):
-                text, blocks = render(s["name"], s["report"])
+                text, blocks = render(s["name"], s["report"], s["icon"])
                 print(f"\n=== {s['icon']} {s['name']} ===\n{text}")
                 for b in blocks[1:]:
                     t = b.get("text", {}).get("text") or " | ".join(

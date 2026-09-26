@@ -128,6 +128,8 @@ class SendTest(unittest.TestCase):
         self.assertIn("공구 매니저", names)
         self.assertIn("정산 매니저", names)
         self.assertTrue(all(p.get("icon_emoji") and p.get("blocks") for p in posts))
+        first_block = [p["blocks"][0]["text"]["text"] for p in posts if p["username"] == "정산 매니저"][0]
+        self.assertIn("*정산 매니저*", first_block)               # 권한 없어도 누구 보고인지 보이게
         self.assertEqual(second["status"], "skipped")               # 오늘 이미 보냄 → 전부 duplicate
         self.assertEqual(len(self._posts()), len(posts))
 
