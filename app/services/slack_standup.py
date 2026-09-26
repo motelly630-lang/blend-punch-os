@@ -242,8 +242,8 @@ def _snapshot_numbers(r: dict) -> dict:
 
 def load_prev(db, cid: int, today: date) -> dict:
     """어제 보고 숫자 {직원: {칸: 숫자}} — 어제 것이 없으면 비교하지 않는다(엉뚱한 날과 비교 방지)."""
-    from app.models.standup_snapshot import StandupSnapshot as S
     try:
+        from app.models.standup_snapshot import StandupSnapshot as S
         rows = db.query(S).filter(S.company_id == cid, S.report_date == today - timedelta(days=1)).all()
         return {x.staff: x.numbers or {} for x in rows}
     except Exception as ex:
