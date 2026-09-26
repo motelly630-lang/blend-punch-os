@@ -97,6 +97,9 @@ def _influencer_enrich_job():
               f"· 남은 대기 {rep['remaining']}")
         if rep.get("error"):
             print(f"[Scheduler] Influencer enrich NOT OK: {rep['error']}")
+            # 사용량 50% 정지는 정상(안전장치). 토큰 끊김·설정·통신 문제는 대표님 DM (2026-09-25 토큰 무효를 로그로만 알았다)
+            if "사용량" not in rep["error"]:
+                _admin_alert(f"인플루언서 자동 수집이 멈췄어요 — {rep['error']}"[:300], "influencer_enrich")
     except Exception as e:
         print(f"[Scheduler] Influencer enrich error: {e}")
     finally:
@@ -139,11 +142,12 @@ def _campaign_alert_job():
 
 
 def _slack_report_job(name: str):
-    """정기 Slack 리포트 (trend_digest · product_daily · weekly_summary). 실패는 대표님 DM (하루 1번)."""
+    """정기 Slack 리포트 (trend_digest · product_daily · weekly_summary · staff_standup). 실패는 대표님 DM (하루 1번)."""
     from app.database import SessionLocal
     from app.services import slack_reports as rep
+    from app.services import slack_standup
     fn = {"trend_digest": rep.send_trend_digest, "product_daily": rep.send_product_daily,
-          "weekly_summary": rep.send_weekly_summary}[name]
+          "weekly_summary": rep.send_weekly_summary, "staff_standup": slack_standup.send_all}[name]
     db = SessionLocal()
     try:
         r = fn(db, company_id=1)
@@ -264,7 +268,8 @@ def start_scheduler():
     if _cfg.slack_bot_token or _cfg.alert_mock:
         for name, trig in (("trend_digest", dict(hour=9, minute=10)),       # 트렌드 브리핑(09:00) 뒤
                            ("product_daily", dict(hour=9, minute=30)),
-                           ("weekly_summary", dict(day_of_week="mon", hour=9, minute=0))):
+                           ("weekly_summary", dict(day_of_week="mon", hour=9, minute=0)),
+                           ("staff_standup", dict(hour=9, minute=15))):          # #출근보고 (트렌드 09:00 뒤)
             if _sn.is_enabled(name):
                 _scheduler.add_job(_slack_report_job, trigger="cron", args=[name], id=f"slack_{name}",
                                    replace_existing=True, max_instances=1, **trig)

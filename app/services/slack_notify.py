@@ -32,6 +32,7 @@ CHANNELS = {
     "seller": "03-셀러-브랜드",
     "order": "04-주문-정산-CS",
     "marketing": "05-마케팅-메타",
+    "standup": "출근보고",
 }
 DM = "dm"
 
@@ -180,11 +181,15 @@ def _finish(log_id: str, status: str, reason: str) -> None:
 # ── 발송 ────────────────────────────────────────────────────────────────
 
 def post(event: str, channel: str, text: str, company_id: int,
-         dedupe_key: str | None = None, force: bool = False) -> dict:
+         dedupe_key: str | None = None, force: bool = False,
+         blocks: list | None = None, username: str | None = None, icon_emoji: str | None = None) -> dict:
     """채널 키(groupbuy 등) 또는 'dm' 으로 발송. 반환 {"sent", "status", "reason"}.
 
     company_id 는 필수다 (RG-002 — 빠뜨려도 조용히 회사 1로 기록되면 안 된다).
     force=True 는 이벤트 켜짐 여부를 무시한다 (수동 테스트용).
+    blocks: 카드 모양(Block Kit). text 는 알림·미리보기용으로 함께 보낸다. **안의 글자는 호출자가 escape 한다.**
+    username·icon_emoji: AI 직원 이름·아이콘으로 보이게 (Slack 앱에 chat:write.customize 권한이 있어야
+    반영되고, 없으면 Slack 이 무시하고 봇 이름으로 올린다).
     """
     from app.config import settings
     try:
@@ -225,8 +230,14 @@ def post(event: str, channel: str, text: str, company_id: int,
         if not target_id:
             return done("failed", reason)
 
-        res = _api("chat.postMessage", {"channel": target_id, "text": escape(text),
-                                        "unfurl_links": False, "unfurl_media": False})
+        payload = {"channel": target_id, "text": escape(text), "unfurl_links": False, "unfurl_media": False}
+        if blocks:
+            payload["blocks"] = blocks
+        if username:
+            payload["username"] = username
+        if icon_emoji:
+            payload["icon_emoji"] = icon_emoji
+        res = _api("chat.postMessage", payload)
         if res.get("ok"):
             return done("sent", "ok", sent=True)
         e = res.get("error") or "unknown"
