@@ -3,6 +3,7 @@
 .env
 *.env
 .env.bak.*
+.env.bak-*
 google_sa.json
 instagram_session.json
 
