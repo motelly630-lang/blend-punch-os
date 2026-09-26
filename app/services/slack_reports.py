@@ -152,13 +152,19 @@ def _trend_candidates(report: list[dict], allowed_ids: set[str] | None = None) -
     return cands[:10]
 
 
+def strong_products(e: dict, limit: int = 3) -> list[str]:
+    """보고에 '추천 제품' 으로 보여줄 것 — 이름에 시즌 키워드가 있는 제품만.
+    name_match 가 없는 예전 브리핑은 그대로 보여준다(2026-09-26 이전 저장분)."""
+    return [m["product_name"] for m in e.get("matched_products") or [] if m.get("name_match", True)][:limit]
+
+
 def _pick_trends_ai(cands: list[dict]) -> list[dict] | None:
     client = _ai()
     if client is None:
         return None
     facts = []
     for e in cands:
-        prods = ", ".join(m["product_name"] for m in e["matched_products"][:6])
+        prods = ", ".join(strong_products(e, 6)) or "딱 맞는 제품 없음"
         facts.append(f"- key={e['key']} | {e['name']} | 준비까지 {e.get('prep_delta')}일 · 피크까지 "
                      f"{e.get('peak_delta')}일 | 설명: {e.get('description', '')[:80]} | 후보 제품: {prods}")
     try:
@@ -175,7 +181,7 @@ def _pick_trends_ai(cands: list[dict]) -> list[dict] | None:
             if not e or e["key"] in seen:
                 continue   # 없는 이벤트를 지어냈거나 중복 — 버린다
             seen.add(e["key"])
-            allowed = {m["product_name"] for m in e["matched_products"]}
+            allowed = set(strong_products(e, 99))
             prods = [p for p in (it.get("products") or []) if isinstance(p, str) and p in allowed][:3]
             picked.append({"event": e, "why": str(it.get("why") or "")[:80], "products": prods})
             if len(picked) == 3:
@@ -189,7 +195,7 @@ def _pick_trends_ai(cands: list[dict]) -> list[dict] | None:
         if len(picked) >= 3:
             break
         if e["key"] not in {p["event"]["key"] for p in picked}:
-            picked.append({"event": e, "why": "", "products": [m["product_name"] for m in e["matched_products"][:3]]})
+            picked.append({"event": e, "why": "", "products": strong_products(e)})
     return picked
 
 
@@ -209,7 +215,7 @@ def send_trend_digest(db, company_id: int) -> dict:
     picked = _pick_trends_ai(cands) if sn.is_enabled(EV_TREND) else None
     by_ai = picked is not None
     if not picked:   # AI 없거나 실패 — 규칙으로 상위 3개
-        picked = [{"event": e, "why": "", "products": [m["product_name"] for m in e["matched_products"][:3]]}
+        picked = [{"event": e, "why": "", "products": strong_products(e)}
                   for e in cands[:3]]
     lines = [f"[레퍼런스] *[BP OS] 트렌드 — 지금 준비할 시즌 {len(picked)}개*"
              + ("  _(AI 선택)_" if by_ai else "")]
@@ -222,6 +228,8 @@ def send_trend_digest(db, company_id: int) -> dict:
             lines.append(f"   {p['why']}")
         if p["products"]:
             lines.append(f"   추천 제품: {', '.join(p['products'])}")
+        else:
+            lines.append("   딱 맞는 우리 제품 없음 → 소싱 후보")
     return sn.post(EV_TREND, "marketing", "\n".join(lines), company_id=company_id,
                    dedupe_key=f"trend_digest:{today}")
 

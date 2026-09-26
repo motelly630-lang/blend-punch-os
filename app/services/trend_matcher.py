@@ -79,39 +79,71 @@ def _to_str(val) -> str:
     return str(val)
 
 
+# 시즌표의 큰 분류 → OS 제품 카테고리 (PRODUCT_CATEGORIES + 운영에 실제로 쓰는 값)
+CATEGORY_GROUPS = {
+    "뷰티": {"스킨케어", "뷰티/메이크업", "헤어케어", "바디케어"},
+    "리빙": {"생활용품", "주방용품", "욕실용품", "홈/인테리어", "가전제품"},
+    "가전": {"가전제품"},
+    "주방": {"주방용품"},
+    "식품": {"식품/음료", "건강기능식품"},
+    "건강": {"건강기능식품", "바디케어"},
+    "다이어트": {"다이어트/슬리밍", "건강기능식품", "식품/음료"},
+    "육아": {"유아/육아용품", "유아/육아"},
+    "패션": {"패션잡화"},
+}
+for _en, _ko in (("beauty", "뷰티"), ("living", "리빙"), ("home", "리빙"), ("lifestyle", "리빙"), ("food", "식품"),
+                 ("health", "건강"), ("diet", "다이어트"), ("kids", "육아"), ("fashion", "패션")):
+    CATEGORY_GROUPS[_en] = CATEGORY_GROUPS[_ko]
+
+
+def category_fits(product_category: str, event: dict) -> bool:
+    """제품 카테고리가 시즌의 분류에 들어가는가 (분류 이름이 그대로 들어 있어도 인정 — 예전 규칙)."""
+    cat = (product_category or "").strip()
+    if not cat:
+        return False
+    for c in event.get("product_categories") or []:
+        if cat in CATEGORY_GROUPS.get(c, set()) or c.lower() in cat.lower():
+            return True
+    return False
+
+
 def match_score(product, event: dict) -> tuple[float, list[str]]:
     """
     Compute keyword match score between a product and a seasonal event.
     Returns (score 0.0–1.0, list_of_matched_keywords).
+
+    2026-09-26 개선 (운영 사례: '환절기 보습' 에 냉감 패드·욕실화·콜드브루가 설명의 '건조' 한 단어로 붙었다):
+    - 제품 **이름**에 키워드가 있으면 강한 매칭 (분류가 다르면 0.6배)
+    - **태그·설명**에만 있으면 분류가 맞을 때만, 절반 무게로
+    - 키워드 없이 분류만 맞는 약한 매칭(0.15)은 예전 규칙 그대로 (분류 이름이 제품 분류에 그대로 들어 있을 때)
     """
-    # Build product text corpus
-    text = " ".join([
-        _to_str(getattr(product, "name", "")),
-        _to_str(getattr(product, "description", "")),
-        _to_str(getattr(product, "category", "")),
+    # 태그는 운영 데이터에 엉뚱한 단어가 많아(냉감 패드 태그에 '건조'·'수분') 설명과 같은 약한 무게로 본다
+    title = _to_str(getattr(product, "name", "")).lower()
+    body = " ".join([
         _to_str(getattr(product, "tags", "")),
+        _to_str(getattr(product, "description", "")),
         _to_str(getattr(product, "unique_selling_point", "")),
         _to_str(getattr(product, "key_benefits", "")),
     ]).lower()
+    kws = [kw for kw in event["keywords"]]
+    name_hits = [kw for kw in kws if kw.lower() in title]
+    desc_hits = [kw for kw in kws if kw not in name_hits and kw.lower() in body]
+    fits = category_fits(getattr(product, "category", "") or "", event)
+    threshold = max(len(kws) * 0.3, 1)
 
-    matched = [kw for kw in event["keywords"] if kw.lower() in text]
+    if name_hits:
+        score = min((len(name_hits) + 0.5 * len(desc_hits)) / threshold, 1.0)
+        if not fits:
+            score *= 0.6
+        return round(score, 3), name_hits + desc_hits
+    if desc_hits and fits:
+        return round(min(0.5 * len(desc_hits) / threshold, 1.0), 3), desc_hits
 
-    # Also check product category against event product_categories
-    cat_match = any(
-        c.lower() in (product.category or "").lower()
-        for c in event["product_categories"]
-    )
-    if cat_match and not matched:
-        # Weak category match only — score 0.15
-        return 0.15, []
-
-    if not matched:
-        return 0.0, []
-
-    # Score: matched / threshold (threshold = 30% of keywords, min 1)
-    threshold = max(len(event["keywords"]) * 0.3, 1)
-    score = min(len(matched) / threshold, 1.0)
-    return round(score, 3), matched
+    old_cat_match = any(c.lower() in (getattr(product, "category", "") or "").lower()
+                        for c in event["product_categories"])
+    if old_cat_match:
+        return 0.15, []   # Weak category match only — score 0.15
+    return 0.0, []
 
 
 def match_products_to_event(db: "Session", event: dict, min_score: float = 0.15) -> list[dict]:
@@ -136,6 +168,8 @@ def match_products_to_event(db: "Session", event: dict, min_score: float = 0.15)
                 "category": p.category or "",
                 "score": score,
                 "matched_keywords": kws,
+                # 이름에 시즌 키워드가 있는 '딱 맞는' 제품인가 — 보고에는 이것만 추천으로 보여준다
+                "name_match": any(k.lower() in (p.name or "").lower() for k in event["keywords"]),
                 "consumer_price": p.consumer_price or p.price or 0,
             })
     results.sort(key=lambda x: -x["score"])

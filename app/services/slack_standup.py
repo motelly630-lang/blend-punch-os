@@ -188,7 +188,7 @@ def build_influencer(db, cid: int, today: date) -> dict:
 def build_trend(db, cid: int, today: date) -> dict | None:
     from app.models.product import Product
     from app.models.trend_engine import TrendBriefing
-    from app.services.slack_reports import _trend_candidates
+    from app.services.slack_reports import _trend_candidates, strong_products
     b = (db.query(TrendBriefing).filter(TrendBriefing.company_id == cid, TrendBriefing.report_date == today.isoformat())
          .order_by(TrendBriefing.created_at.desc()).first())
     if not b or not b.report_data:
@@ -201,8 +201,8 @@ def build_trend(db, cid: int, today: date) -> dict | None:
     for e in cands:
         prep = e.get("prep_delta")
         when = f"준비 D-{prep}" if prep and prep > 0 else "지금 준비 시기"
-        prods = ", ".join(m["product_name"] for m in e["matched_products"][:3])
-        lines.append(f"• {e['name']} ({when})" + (f" — {prods}" if prods else ""))
+        prods = ", ".join(strong_products(e))
+        lines.append(f"• {e['name']} ({when}) — " + (prods or "딱 맞는 우리 제품 없음 → 소싱 후보"))
     return {"summary": f"지금 준비할 시즌 {len(cands)}개예요: " + ", ".join(e["name"] for e in cands) + ".",
             "links": [("트렌드", "/trends")], "lines": lines, "stats": []}
 
