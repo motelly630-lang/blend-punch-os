@@ -10,7 +10,7 @@
 | 📸 인플루언서 매니저 | 밤새 채운 인원 · 조회 안 됨 · 남은 대기 · 수집 0명이면 경고 | /influencers |
 | 📦 브랜드·제품 정리 담당 | 정보 필요 브랜드(설명·로고 없음) · 미완성 제품 · 어제 새로 생긴 미완성 | /brands?need=1 · /products?completeness=incomplete |
 | 📊 경영 분석가 | 이번 달·지난달 공구 매출(종료일 기준, 입력된 것만) · 매출 입력률 · 이번 달 지급한 정산 | /campaigns/revenue |
-| 📈 트렌드 분석가 | 오늘 준비할 시즌 3개 (오늘 트렌드 브리핑이 있을 때만) | /trends |
+| 📈 트렌드 분석가 | 준비할 시즌(✅우리 강점 분류) · 우리한테 먹히는 분류(최근 6개월 매출) · 앵콜 후보 · 최근 30일 수집 트렌드 | /trends |
 
 이벤트 키 `staff_standup`, 채널 키 `standup` (`SLACK_CHANNELS` 에 standup=<채널 ID>). 매일 09:15 (트렌드 브리핑 09:00 뒤).
 직원마다 따로 올리고 하루 한 번만 (`standup:<직원>:<날짜>`). 한 직원이 실패해도 나머지는 올린다.
@@ -185,26 +185,134 @@ def build_influencer(db, cid: int, today: date) -> dict:
                       _s("남은 대기", waiting, "명")]}
 
 
+def _man(v) -> str:
+    """1,234,567원 → '123만원' (보고용 짧은 금액)."""
+    v = int(round(v or 0))
+    if v >= 100_000_000:
+        eok, man = divmod(v // 10000, 10000)
+        return f"{eok}억" + (f" {man:,}만원" if man else "원")
+    return f"{v // 10000:,}만원" if v >= 10000 else f"{v:,}원"
+
+
+def sales_strength(db, cid: int, today: date, days: int = 180) -> list[dict]:
+    """최근 N일(종료일 기준) 매출이 입력된 공구를 제품 분류별로 — [{category, revenue, count, top}] 매출 순."""
+    from collections import defaultdict
+    from sqlalchemy.orm import joinedload
+    from app.models.campaign import Campaign
+    rows = (db.query(Campaign).options(joinedload(Campaign.product))
+            .filter(Campaign.company_id == cid, (Campaign.status != "cancelled") | (Campaign.status.is_(None)),
+                    Campaign.actual_revenue > 0, Campaign.end_date >= today - timedelta(days=days),
+                    Campaign.end_date < today).all())
+    agg = defaultdict(lambda: {"revenue": 0.0, "count": 0, "products": defaultdict(float)})
+    for c in rows:
+        cat = (c.product.category if c.product else None) or "미분류"
+        name = (c.product.name if c.product else None) or c.product_name_manual or c.name
+        a = agg[cat]
+        a["revenue"] += c.actual_revenue or 0
+        a["count"] += 1
+        a["products"][name] += c.actual_revenue or 0
+    out = [{"category": k, "revenue": v["revenue"], "count": v["count"],
+            "top": max(v["products"], key=v["products"].get)} for k, v in agg.items()]
+    return sorted(out, key=lambda x: -x["revenue"])
+
+
+def encore_candidates(db, cid: int, today: date, limit: int = 3) -> list[dict]:
+    """예전에 잘 팔렸는데(매출 입력된 공구) 지금 진행·예정 공구가 없고, 마지막 공구가 30일 넘게 지난 제품."""
+    from collections import defaultdict
+    from app.models.campaign import Campaign
+    from app.models.product import Product
+    rows = (db.query(Campaign.product_id, Campaign.actual_revenue, Campaign.end_date, Campaign.start_date, Campaign.status)
+            .filter(Campaign.company_id == cid, Campaign.product_id.isnot(None),
+                    (Campaign.status != "cancelled") | (Campaign.status.is_(None))).all())
+    rev, cnt, last, busy = defaultdict(float), defaultdict(int), {}, set()
+    for pid, r, end, start, status in rows:
+        if (end and end >= today) or (start and start > today) or (not end and status in ("planning", "active")):
+            busy.add(pid)
+        if r:
+            rev[pid] += r
+            cnt[pid] += 1
+            if end and (pid not in last or end > last[pid]):
+                last[pid] = end
+    picks = [pid for pid in sorted(rev, key=rev.get, reverse=True)
+             if pid not in busy and pid in last and (today - last[pid]).days > 30][:limit]
+    names = {p.id: p.name for p in db.query(Product.id, Product.name).filter(Product.company_id == cid,
+                                                                             Product.id.in_(picks or [""]))}
+    return [{"name": names.get(pid, "?"), "revenue": rev[pid], "count": cnt[pid], "last": last[pid]} for pid in picks]
+
+
+def recent_trends(db, cid: int, days: int = 30, limit: int = 3) -> tuple[list, datetime | None]:
+    """최근 N일 안에 모은 트렌드(젠스파크·인스타·뉴스 등) 점수 순 + 마지막 수집 시각. 오래된 건 보고에 쓰지 않는다
+    (3~4월에 모은 여름 선풍기 트렌드가 9월 보고에 나오면 안 된다)."""
+    from sqlalchemy import func
+    from app.models.trend import TrendItem as T
+    base = db.query(T).filter(T.company_id == cid)
+    last = base.with_entities(func.max(T.created_at)).scalar()
+    items = (base.filter(T.created_at >= datetime.utcnow() - timedelta(days=days))
+             .order_by(T.final_score.desc().nullslast(), T.trend_score.desc().nullslast()).limit(limit).all())
+    return items, last
+
+
 def build_trend(db, cid: int, today: date) -> dict | None:
+    """재료 4가지: 시즌 달력(언제) · 우리 판매 실적(무엇이 우리한테 먹히나) · 앵콜 후보 · 최근 수집 트렌드(무엇이 뜨나).
+    네이버 데이터랩(얼마나 뜨나)은 키 연결 뒤에 붙인다."""
     from app.models.product import Product
     from app.models.trend_engine import TrendBriefing
     from app.services.slack_reports import _trend_candidates, strong_products
+    from app.services.season_matrix import SEASON_MATRIX
+    from app.services.trend_matcher import CATEGORY_GROUPS
+    season_cats = {x["key"]: x.get("product_categories") or [] for x in SEASON_MATRIX}
     b = (db.query(TrendBriefing).filter(TrendBriefing.company_id == cid, TrendBriefing.report_date == today.isoformat())
          .order_by(TrendBriefing.created_at.desc()).first())
-    if not b or not b.report_data:
+    cands = []
+    if b and b.report_data:
+        allowed = {pid for (pid,) in db.query(Product.id).filter(Product.company_id == cid).all()}
+        cands = _trend_candidates(b.report_data, allowed)[:3]
+    strength = sales_strength(db, cid, today)
+    strong_cats = {s["category"] for s in strength[:3]}
+    encore = encore_candidates(db, cid, today)
+    fresh, last_collected = recent_trends(db, cid)
+    if not (cands or strength or encore or fresh):
         return None
-    allowed = {pid for (pid,) in db.query(Product.id).filter(Product.company_id == cid).all()}
-    cands = _trend_candidates(b.report_data, allowed)[:3]
-    if not cands:
-        return None
+
     lines = []
-    for e in cands:
-        prep = e.get("prep_delta")
-        when = f"준비 D-{prep}" if prep and prep > 0 else "지금 준비 시기"
-        prods = ", ".join(strong_products(e))
-        lines.append(f"• {e['name']} ({when}) — " + (prods or "딱 맞는 우리 제품 없음 → 소싱 후보"))
-    return {"summary": f"지금 준비할 시즌 {len(cands)}개예요: " + ", ".join(e["name"] for e in cands) + ".",
-            "links": [("트렌드", "/trends")], "lines": lines, "stats": []}
+    if cands:
+        lines.append("📅 준비할 시즌")
+        for e in cands:
+            prep = e.get("prep_delta")
+            when = f"준비 D-{prep}" if prep and prep > 0 else "지금 준비 시기"
+            # 저장된 브리핑엔 분류가 없어서 시즌표에서 찾는다
+            cats = e.get("product_categories") or season_cats.get(e.get("key"), [])
+            groups = set().union(*(CATEGORY_GROUPS.get(c, set()) for c in cats))
+            mark = " ✅우리 강점 분류" if groups & strong_cats else ""
+            prods = ", ".join(strong_products(e))
+            lines.append(f"• {e['name']} ({when}){mark} — " + (prods or "딱 맞는 우리 제품 없음 → 소싱 후보"))
+    if strength:
+        lines.append("💪 우리한테 먹히는 분류 (최근 6개월, 매출 입력된 공구)")
+        for s in strength[:3]:
+            lines.append(f"• {s['category']} {_man(s['revenue'])} · {s['count']}건 · 대표 {s['top']}")
+    if encore:
+        lines.append("🔁 앵콜 후보 (예전에 잘 팔렸고 지금 공구 없음)")
+        for x in encore:
+            lines.append(f"• {x['name']} — {x['count']}번 {_man(x['revenue'])}, 마지막 {x['last'].month}/{x['last'].day}")
+    if fresh:
+        lines.append("🔥 최근 30일 모은 트렌드")
+        for i in fresh:
+            lines.append(f"• {i.title}" + (f" ({i.category})" if i.category else ""))
+    else:
+        when = f"{last_collected.month}/{last_collected.day}" if last_collected else "기록 없음"
+        lines.append(f"🔥 최근 30일 새로 모은 트렌드 없음 (마지막 수집 {when}) — 젠스파크 주간 조사 연결이 필요해요")
+
+    head = []
+    if cands:
+        head.append(f"준비할 시즌 {len(cands)}개")
+    if strength:
+        head.append(f"우리 강점은 {strength[0]['category']}")
+    if encore:
+        head.append(f"앵콜 후보 {len(encore)}개")
+    return {"summary": ", ".join(head) + "예요." if head else "오늘 트렌드 보고예요.",
+            "links": [("트렌드", "/trends"), ("시즌 브리핑", "/trends/briefings")], "lines": lines,
+            "stats": [_s("준비할 시즌", len(cands), "개", delta=False), _s("앵콜 후보", len(encore), "개", delta=False),
+                      _s("최근 30일 트렌드", len(fresh), "개", delta=False)]}
 
 
 def build_catalog(db, cid: int, today: date) -> dict:

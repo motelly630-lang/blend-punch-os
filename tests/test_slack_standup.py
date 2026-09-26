@@ -12,6 +12,7 @@ from tests._env import SessionLocal, uid
 import unittest
 from datetime import datetime, timedelta
 from unittest import mock
+from uuid import uuid4
 
 from app.config import settings
 from app.models.campaign import Campaign
@@ -127,6 +128,42 @@ class BuildTest(unittest.TestCase):
         self.assertEqual((s["이번 달 매출"], s["지난달 매출"], s["이번 달 매출 입력"], s["이번 달 지급한 정산"]),
                          ("100,000원", "50,000원", "1/2건", "30,000원"))
         self.assertTrue(any("2건 중 매출이 입력된 건 1건" in l for l in r["lines"]))
+
+    def test_트렌드_분석가_강점_분류·앵콜·오래된_트렌드는_빼기(self):
+        from app.models.product import Product
+        from app.models.trend import TrendItem
+        from app.models.trend_engine import TrendBriefing
+        t, cid = today_kst(), 85 + int(uid()[:4], 16) % 5
+        from types import SimpleNamespace
+        food = SimpleNamespace(id=str(uuid4()), name="가상 단호박" + uid())
+        pan = SimpleNamespace(id=str(uuid4()), name="가상 프라이팬" + uid())
+        _add(Product(id=food.id, name=food.name, brand="가상", category="식품/음료", company_id=cid),
+             Product(id=pan.id, name=pan.name, brand="가상", category="주방용품", company_id=cid))
+        _add(Campaign(name="단호박1", company_id=cid, product_id=food.id, start_date=t - timedelta(90),
+                      end_date=t - timedelta(80), actual_revenue=90_000_000),
+             Campaign(name="단호박 지금", company_id=cid, product_id=food.id, start_date=t - timedelta(1),
+                      end_date=t + timedelta(2)),                                   # 진행 중 → 앵콜 아님
+             Campaign(name="팬1", company_id=cid, product_id=pan.id, start_date=t - timedelta(70),
+                      end_date=t - timedelta(60), actual_revenue=20_000_000),
+             TrendItem(company_id=cid, category="가전제품", title="여름 선풍기 붐", trend_score=9,
+                       created_at=datetime.utcnow() - timedelta(days=150)),         # 오래됨 → 안 씀
+             TrendBriefing(company_id=cid, report_date=t.isoformat(), event_count=1, product_match_count=1,
+                           report_data=[{"key": "fall_camping", "name": "가을 캠핑", "prep_delta": 0, "peak_delta": 20,
+                                         "trend_score": 8, "matched_products": [
+                                             {"product_id": pan.id, "product_name": pan.name, "name_match": True}]}]))
+        db = SessionLocal()
+        try:
+            r = su.build_trend(db, cid, t)
+        finally:
+            db.close()
+        text = "\n".join(r["lines"])
+        self.assertIn("식품/음료 9,000만원", text)
+        self.assertIn(pan.name + " — 1번 2,000만원", text)                   # 앵콜: 팬만 (단호박은 진행 중)
+        self.assertNotIn(food.name + " — ", text)
+        self.assertNotIn("여름 선풍기", text)
+        self.assertIn("최근 30일 새로 모은 트렌드 없음", text)
+        self.assertIn("가을 캠핑 (지금 준비 시기) ✅우리 강점 분류", text)          # 캠핑(리빙·식품) ↔ 우리 강점
+        self.assertEqual(su._man(130_080_000), "1억 3,008만원")
 
     def test_이름에_섞인_제어문자는_무력화(self):
         text, blocks = su.render("공구 매니저", {"summary": "<!channel> 요약", "stats": [("<!here>", "1건", 1)],
