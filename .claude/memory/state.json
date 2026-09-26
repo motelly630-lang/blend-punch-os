@@ -58,6 +58,14 @@
       "id": "T11",
       "title": "대표님 대기: 통합 시트 중복 줄 33개 삭제 · 서버 merge-backup-20260924-042631.json 일주일 뒤 삭제 · Claw 데스크톱 설치·소싱 채널 결정 · 엑셀 샘플",
       "status": "todo"
+    },
+    {
+      "title": "Slack #00-출근보고 AI 직원 5명 + 고도화 A(어제 비교·바로가기·한 줄) — 운영 배포, 대표님 화면 확인 완료 (2026-09-26)",
+      "status": "done"
+    },
+    {
+      "title": "9/27 09:15 출근보고 자동 발송·'어제보다' 비교 표시 확인 → 다음 고도화 B(브랜드·제품 정리 담당, 경영 분석가) 여부 대표님 결정",
+      "status": "todo"
     }
   ],
   "last_checkpoint": {
@@ -72,24 +80,8 @@
     "updated": "2026-09-24"
   },
   "session": {
-    "id": "a4d542f4-9c77-4061-b558-4cde64f31b6f",
-    "started": "2026-09-24T08:05:10+0900",
-    "last_seen": "2026-09-24T17:13:50+0900",
-    "last_event": "PreCompact",
-    "touched_files": 39,
-    "recent_files": [
-      "tests/test_influencer_merge.py",
-      "/Users/hyeok/Documents/Obsidian Vault/08_Slack/Slack_07_Sourcing.md",
-      "app/services/settlement_calc.py",
-      "app/templates/settlements/detail.html",
-      "tests/test_settlements.py",
-      "app/templates/campaigns/gallery.html",
-      "app/services/quick_campaign.py",
-      "app/templates/campaigns/quick.html",
-      "tests/test_quick_campaign.py",
-      "app/templates/campaigns/revenue.html",
-      "app/templates/campaigns/revenue_paste.html",
-      "tests/test_campaign_revenue.py"
-    ]
+    "id": "ee56de94-d929-4745-8765-196949337ad0",
+    "started": "2026-09-26T11:04:29+0900",
+    "last_seen": "2026-09-26T11:04:29+0900"
   }
 }
