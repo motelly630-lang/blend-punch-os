@@ -88,6 +88,46 @@ class BuildTest(unittest.TestCase):
             r = _report("influencer")
         self.assertTrue(any("한 명도 못 채웠어요" in l for l in r["lines"]), r)
 
+    def test_브랜드·제품_정리는_목록_화면과_같은_기준(self):
+        from app.models.brand import Brand
+        from app.models.product import Product
+        cid = 70 + int(uid()[:4], 16) % 5
+        _add(Brand(name="빈브랜드" + uid(), company_id=cid),
+             Brand(name="로고브랜드" + uid(), company_id=cid, logo="/static/x.png"),
+             Brand(name="보관브랜드" + uid(), company_id=cid, is_archived=True),
+             Product(name="미완성" + uid(), brand="가상", category="식품", company_id=cid, is_complete=False),
+             Product(name="완성" + uid(), brand="가상", category="식품", company_id=cid, is_complete=True),
+             Product(name="보관" + uid(), brand="가상", category="식품", company_id=cid, is_complete=False, is_archived=True))
+        db = SessionLocal()
+        try:
+            r = su.build_catalog(db, cid, today_kst())
+        finally:
+            db.close()
+        s = _stats(r)
+        self.assertEqual((s["정보 필요 브랜드"], s["미완성 제품"], s["어제 새 미완성"]), ("1곳", "1개", "1개"))
+        self.assertIn(("정보 필요 브랜드", "/brands?need=1"), r["links"])
+
+    def test_경영_분석가는_종료일_기준_이번달_지난달_매출(self):
+        t = today_kst()
+        if t.day == 1:
+            self.skipTest("매달 1일은 '이번 달 끝난 공구' 가 아직 없다")
+        cid = 80 + int(uid()[:4], 16) % 5
+        last = t.replace(day=1) - timedelta(days=3)
+        _add(Campaign(name="이번달" + uid(), company_id=cid, end_date=t - timedelta(1), actual_revenue=100000),
+             Campaign(name="이번달미입력" + uid(), company_id=cid, end_date=t - timedelta(1)),
+             Campaign(name="취소" + uid(), company_id=cid, end_date=t - timedelta(1), status="cancelled", actual_revenue=999),
+             Campaign(name="지난달" + uid(), company_id=cid, end_date=last, actual_revenue=50000),
+             Settlement(company_id=cid, status="paid", final_payment=30000, paid_at=datetime.utcnow()))
+        db = SessionLocal()
+        try:
+            r = su.build_biz(db, cid, t)
+        finally:
+            db.close()
+        s = _stats(r)
+        self.assertEqual((s["이번 달 매출"], s["지난달 매출"], s["이번 달 매출 입력"], s["이번 달 지급한 정산"]),
+                         ("100,000원", "50,000원", "1/2건", "30,000원"))
+        self.assertTrue(any("2건 중 매출이 입력된 건 1건" in l for l in r["lines"]))
+
     def test_이름에_섞인_제어문자는_무력화(self):
         text, blocks = su.render("공구 매니저", {"summary": "<!channel> 요약", "stats": [("<!here>", "1건", 1)],
                                                 "lines": ["<https://evil|클릭>"], "links": [("목록", "/campaigns")]})

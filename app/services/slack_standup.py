@@ -8,6 +8,8 @@
 | 💰 정산 매니저 | 매출 미입력 끝난 공구 · 작성중 정산서 · 지급 대기 · 지급 예정일 지남 | /campaigns/revenue |
 | 💬 고객 관리 매니저 | 어제 새 문의 · 처리 중 · 처리 기한 지남 · 긴급 (**고객 이름·연락처는 넣지 않는다**) | /cs |
 | 📸 인플루언서 매니저 | 밤새 채운 인원 · 조회 안 됨 · 남은 대기 · 수집 0명이면 경고 | /influencers |
+| 📦 브랜드·제품 정리 담당 | 정보 필요 브랜드(설명·로고 없음) · 미완성 제품 · 어제 새로 생긴 미완성 | /brands?need=1 · /products?completeness=incomplete |
+| 📊 경영 분석가 | 이번 달·지난달 공구 매출(종료일 기준, 입력된 것만) · 매출 입력률 · 이번 달 지급한 정산 | /campaigns/revenue |
 | 📈 트렌드 분석가 | 오늘 준비할 시즌 3개 (오늘 트렌드 브리핑이 있을 때만) | /trends |
 
 이벤트 키 `staff_standup`, 채널 키 `standup` (`SLACK_CHANNELS` 에 standup=<채널 ID>). 매일 09:15 (트렌드 브리핑 09:00 뒤).
@@ -32,6 +34,8 @@ STAFF = [
     ("settlement", "정산 매니저", ":moneybag:"),
     ("cs", "고객 관리 매니저", ":speech_balloon:"),
     ("influencer", "인플루언서 매니저", ":camera_with_flash:"),
+    ("catalog", "브랜드·제품 정리 담당", ":package:"),
+    ("biz", "경영 분석가", ":bar_chart:"),
     ("trend", "트렌드 분석가", ":chart_with_upwards_trend:"),
 ]
 
@@ -203,8 +207,77 @@ def build_trend(db, cid: int, today: date) -> dict | None:
             "links": [("트렌드", "/trends")], "lines": lines, "stats": []}
 
 
+def build_catalog(db, cid: int, today: date) -> dict:
+    """브랜드 목록 '정보 입력 필요'(설명·로고 둘 다 없음), 제품 목록 '미완성'(is_complete=False) 과 같은 기준."""
+    from sqlalchemy import func
+    from app.models.brand import Brand
+    from app.models.product import Product
+    need_brands = db.query(func.count(Brand.id)).filter(
+        Brand.company_id == cid, (Brand.is_archived == False) | (Brand.is_archived.is_(None)),  # noqa: E712
+        (Brand.description.is_(None)) | (func.trim(Brand.description) == ""),
+        (Brand.logo.is_(None)) | (func.trim(Brand.logo) == "")).scalar() or 0
+    prod = db.query(func.count(Product.id)).filter(
+        Product.company_id == cid, (Product.is_archived == False) | (Product.is_archived.is_(None)),  # noqa: E712
+        Product.is_complete == False)  # noqa: E712
+    incomplete = prod.scalar() or 0
+    new_incomplete = prod.filter(Product.created_at >= datetime.utcnow() - timedelta(hours=24)).scalar() or 0
+    lines = []
+    if new_incomplete:
+        lines.append(f"🆕 어제 새로 생긴 미완성 제품 {new_incomplete}개 — 공구 한 번에 등록 등으로 만들어진 것, 정보를 채워 주세요")
+    if need_brands:
+        lines.append(f"🏷️ 설명·로고가 없는 브랜드 {need_brands}곳")
+    if incomplete:
+        lines.append(f"📦 정보가 덜 채워진 제품 {incomplete}개")
+    summary = (f"정보가 필요한 브랜드 {need_brands}곳, 미완성 제품 {incomplete}개예요."
+               if (need_brands or incomplete) else "브랜드·제품 정보가 모두 채워져 있어요 ✅")
+    links = ([("정보 필요 브랜드", "/brands?need=1")] if need_brands else []) + \
+            ([("미완성 제품", "/products?completeness=incomplete")] if incomplete else [])
+    return {"summary": summary, "links": links or [("제품", "/products")], "lines": lines,
+            "stats": [_s("정보 필요 브랜드", need_brands, "곳"), _s("미완성 제품", incomplete, "개"),
+                      _s("어제 새 미완성", new_incomplete, "개", delta=False)]}
+
+
+def _month_start(d: date) -> date:
+    return d.replace(day=1)
+
+
+def build_biz(db, cid: int, today: date) -> dict:
+    """공구 매출은 **종료일이 속한 달** 기준, OS 에 입력된 매출만 센다 (미입력은 빠진다 — 그래서 입력률을 같이 보여준다).
+    광고비는 Meta 광고 연결(D) 뒤에 붙인다."""
+    from sqlalchemy import func
+    from app.models.campaign import Campaign
+    from app.models.settlement import Settlement
+    this_m = _month_start(today)
+    last_m = _month_start(this_m - timedelta(days=1))
+
+    def month(start: date, end: date):
+        q = db.query(Campaign).filter(
+            Campaign.company_id == cid, (Campaign.status != "cancelled") | (Campaign.status.is_(None)),
+            Campaign.end_date >= start, Campaign.end_date < end)
+        rows = q.with_entities(Campaign.actual_revenue).all()
+        rev = sum(r[0] or 0 for r in rows)
+        return int(round(rev)), len(rows), sum(1 for r in rows if r[0])
+    rev, ended, entered = month(this_m, today)                 # 이번 달 1일 ~ 어제 끝난 공구
+    last_rev, last_ended, last_entered = month(last_m, this_m)
+    # 지급 완료 시각은 UTC 로 저장 — KST 이번 달 1일 0시 = UTC 전날 15시
+    paid_since = datetime.combine(this_m, datetime.min.time()) - timedelta(hours=9)
+    paid = db.query(func.coalesce(func.sum(Settlement.final_payment), 0)).filter(
+        Settlement.company_id == cid, Settlement.status == "paid", Settlement.paid_at >= paid_since).scalar() or 0
+    lines = []
+    if ended and entered < ended:
+        lines.append(f"📝 이번 달 끝난 공구 {ended}건 중 매출이 입력된 건 {entered}건 — 나머지를 넣으면 매출이 더 커져요")
+    if last_ended and last_entered < last_ended:
+        lines.append(f"📝 지난달도 {last_ended - last_entered}건 매출이 비어 있어요")
+    lines.append("📣 광고비·광고 대비 매출은 Meta 광고 연결 뒤에 보여드릴게요")
+    summary = f"이번 달 공구 매출은 {_won(rev)}이에요 (끝난 공구 {ended}건 중 매출 입력 {entered}건 기준)."
+    return {"summary": summary, "links": [("매출 넣기", "/campaigns/revenue?tab=ended"), ("정산", "/settlements")],
+            "lines": lines,
+            "stats": [_s("이번 달 매출", rev, "원"), _s("지난달 매출", last_rev, "원", delta=False),
+                      ("이번 달 매출 입력", f"{entered}/{ended}건", None), _s("이번 달 지급한 정산", int(round(paid)), "원")]}
+
+
 BUILDERS = {"groupbuy": build_groupbuy, "settlement": build_settlement, "cs": build_cs,
-            "influencer": build_influencer, "trend": build_trend}
+            "influencer": build_influencer, "catalog": build_catalog, "biz": build_biz, "trend": build_trend}
 
 
 # ── 카드 모양 (Block Kit) ──────────────────────────────────────────────
