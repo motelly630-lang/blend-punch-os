@@ -72,51 +72,82 @@ def _ensure_brand(db: Session, cid: int, brand_name: str) -> None:
         db.add(BrandModel(company_id=cid, name=name))
 
 
+# 빈칸(채워야 할 정보) 필터 — key: (표시 이름, 조건)
+def _missing_filters():
+    from sqlalchemy import func, or_
+    return {
+        "image": ("사진 없음", func.coalesce(Product.product_image, "") == ""),
+        "price": ("공구가 없음", or_(Product.groupbuy_price.is_(None), Product.groupbuy_price == 0)),
+        "commission": ("커미션 없음", or_(Product.seller_commission_rate.is_(None), Product.seller_commission_rate == 0)),
+        "usp": ("한 줄 소개 없음", func.coalesce(Product.unique_selling_point, "") == ""),
+        "category": ("카테고리 없음", func.coalesce(Product.category, "") == ""),
+    }
+
+
+PRODUCT_PAGE_SIZE = 60
+
+
 @router.get("")
 def product_list(request: Request, db: Session = Depends(get_db),
                  q: str = "", category: str = "", completeness: str = "",
+                 missing: str = "", tab: str = "products", view: str = "gallery", page: int = 1,
                  current_user: User = Depends(get_current_user)):
     cid = get_company_id(current_user)
     from sqlalchemy import func
+    live = (Product.company_id == cid, Product.is_archived.isnot(True))
     brand_rows = (
         db.query(Product.brand, func.count(Product.id).label("cnt"))
-        .filter(Product.company_id == cid, Product.brand.isnot(None), Product.brand != "",
-                Product.is_archived.isnot(True))
+        .filter(*live, Product.brand.isnot(None), Product.brand != "")
         .group_by(Product.brand)
         .order_by(Product.brand)
         .all()
     )
     brand_logos = {b.name: b.logo for b in db.query(BrandModel).filter(BrandModel.company_id == cid, BrandModel.logo.isnot(None)).all()}
-    from sqlalchemy import func as _func2
-    first_imgs = {r.brand: r.img for r in db.query(Product.brand, _func2.min(Product.product_image).label("img"))
-                  .filter(Product.company_id == cid, Product.product_image.isnot(None), Product.product_image != "")
+    first_imgs = {r.brand: r.img for r in db.query(Product.brand, func.min(Product.product_image).label("img"))
+                  .filter(*live, Product.product_image.isnot(None), Product.product_image != "")
                   .group_by(Product.brand).all()}
     brand_list = [{"name": r.brand, "count": r.cnt, "logo": brand_logos.get(r.brand), "first_image": first_imgs.get(r.brand)} for r in brand_rows]
 
-    products = []
-    if q or category or completeness:
-        query = db.query(Product).filter(
-            Product.company_id == cid,
-            (Product.is_archived == False) | (Product.is_archived == None),
-        )
+    # 빈칸 요약 — 회사 범위·보관 제외 안에서만 센다
+    mf = _missing_filters()
+    total_all = db.query(func.count(Product.id)).filter(*live).scalar() or 0
+    missing_counts = {k: db.query(func.count(Product.id)).filter(*live, cond).scalar() or 0
+                      for k, (_label, cond) in mf.items()}
+    missing_labels = {k: label for k, (label, _c) in mf.items()}
+    if missing not in mf:
+        missing = ""
+    if tab not in ("products", "brands"):
+        tab = "products"
+    if view not in ("gallery", "list"):
+        view = "gallery"
+
+    products, total, total_pages = [], 0, 1
+    if tab == "products":
+        query = db.query(Product).filter(*live)
         if q:
-            query = query.filter(
-                Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%")
-            )
+            query = query.filter(Product.name.ilike(f"%{q}%") | Product.brand.ilike(f"%{q}%"))
         if category:
             query = query.filter(Product.category == category)
         if completeness == "complete":
             query = query.filter(Product.is_complete == True)
         elif completeness == "incomplete":
             query = query.filter(Product.is_complete == False)
-        products = query.order_by(Product.created_at.desc()).limit(300).all()
+        if missing:
+            query = query.filter(mf[missing][1])
+        total = query.count()
+        total_pages = max(1, (total + PRODUCT_PAGE_SIZE - 1) // PRODUCT_PAGE_SIZE)
+        page = max(1, min(page, total_pages))
+        products = (query.order_by(Product.created_at.desc())
+                    .offset((page - 1) * PRODUCT_PAGE_SIZE).limit(PRODUCT_PAGE_SIZE).all())
 
     return templates.TemplateResponse(
         "products/list.html",
         {"request": request, "active_page": "products", "current_user": current_user,
          "brand_list": brand_list, "products": products,
          "q": q, "category_filter": category, "completeness": completeness,
-         "filter_categories": CATEGORIES},
+         "missing": missing, "missing_counts": missing_counts, "missing_labels": missing_labels,
+         "tab": tab, "view": view, "page": page, "total_pages": total_pages, "total": total,
+         "total_all": total_all, "filter_categories": CATEGORIES},
     )
 
 
