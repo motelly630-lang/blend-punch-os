@@ -70,5 +70,40 @@ class ProductListTests(unittest.TestCase):
             self.assertEqual(self.c1.get(url).status_code, 200, url)
 
 
+
+class QuickFillTests(unittest.TestCase):
+    """빠르게 채우기 화면 + 칸 저장(PATCH /products/{id}/field)의 회사 범위."""
+
+    def setUp(self):
+        self.db = SessionLocal()
+        self.c1 = client_for(make_user("admin", company_id=1))
+
+    def tearDown(self):
+        self.db.close()
+
+    def test_fill_view_renders_inputs_for_own_missing_products(self):
+        tag = uid()
+        mine = _product(self.db, name=f"채우기 {tag}", product_image=None)
+        other = _product(self.db, name=f"타사채우기 {tag}", product_image=None, company_id=2)
+        r = self.c1.get(f"/products?view=fill&missing=image&q={tag}")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(f'data-pid="{mine.id}"', r.text)
+        self.assertNotIn(other.id, r.text)
+        self.assertIn('data-field="groupbuy_price"', r.text)
+
+    def test_field_patch_saves_and_is_company_scoped(self):
+        p = _product(self.db, groupbuy_price=0, seller_commission_rate=0)
+        r = self.c1.patch(f"/products/{p.id}/field", json={"field": "groupbuy_price", "value": "15000"})
+        self.assertTrue(r.json()["ok"])
+        r = self.c1.patch(f"/products/{p.id}/field", json={"field": "seller_commission_rate", "value": "12.5"})
+        self.assertTrue(r.json()["ok"])
+        c2 = client_for(make_user("admin", company_id=2))
+        r = c2.patch(f"/products/{p.id}/field", json={"field": "groupbuy_price", "value": "1"})
+        self.assertEqual(r.status_code, 404, "다른 회사 제품은 고칠 수 없어야")
+        self.db.expire_all()
+        got = self.db.get(Product, p.id)
+        self.assertEqual((got.groupbuy_price, got.seller_commission_rate), (15000.0, 0.125))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -118,7 +118,7 @@ def product_list(request: Request, db: Session = Depends(get_db),
         missing = ""
     if tab not in ("products", "brands"):
         tab = "products"
-    if view not in ("gallery", "list"):
+    if view not in ("gallery", "list", "fill"):
         view = "gallery"
 
     products, total, total_pages = [], 0, 1

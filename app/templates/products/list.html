@@ -75,7 +75,12 @@
       <div class="text-2xl font-black text-gray-900">{{ "{:,}".format(total_all) }}<span class="text-sm font-bold ml-0.5">개</span>
         <span class="text-sm font-medium text-gray-400 ml-2">브랜드 {{ brand_list | length }}곳</span></div>
     </div>
-    <div class="text-xs text-gray-400">채워야 할 정보 — 누르면 해당 제품만 모아 봅니다</div>
+    <div class="flex items-center gap-3">
+      <div class="text-xs text-gray-400 hidden sm:block">채워야 할 정보 — 누르면 해당 제품만 모아 봅니다</div>
+      <a href="/products?{% for part in qs %}{{ part }}&{% endfor %}{% if not missing %}missing=image&{% endif %}view=fill&tab=products"
+        class="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl {% if view == 'fill' %}bg-gray-900 text-white{% else %}bg-amber-400 text-gray-900 hover:bg-amber-300{% endif %}">
+        ✏️ 빠르게 채우기</a>
+    </div>
   </div>
   <div class="flex flex-wrap gap-2">
     {% for key, label in missing_labels.items() %}
@@ -160,7 +165,65 @@
 {%- endmacro %}
 
 {% if products %}
-{% if view == 'list' %}
+{% if view == 'fill' %}
+<!-- 빠르게 채우기: 칸에 입력하고 다른 칸으로 넘어가면 바로 저장 -->
+<div class="mb-3 text-xs text-gray-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+  칸에 입력하고 <b>Tab</b> 이나 다른 곳을 누르면 바로 저장됩니다. 사진은 <b>이미지 주소를 붙여넣거나</b> <b>파일을 끌어다 놓으세요</b>.
+  채운 제품은 새로고침하면 이 목록에서 빠집니다.
+</div>
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
+  <table class="w-full text-sm" id="fill-table">
+    <thead class="bg-gray-50 text-xs text-gray-500">
+      <tr>
+        <th class="px-3 py-2 text-left w-64">사진</th>
+        <th class="px-3 py-2 text-left">제품</th>
+        <th class="px-3 py-2 text-left w-36">카테고리</th>
+        <th class="px-3 py-2 text-left w-28">공구가(원)</th>
+        <th class="px-3 py-2 text-left w-24">커미션(%)</th>
+        <th class="px-3 py-2 text-left">한 줄 소개</th>
+        <th class="px-3 py-2 text-left w-16"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for p in products %}
+      <tr data-pid="{{ p.id }}" class="align-top">
+        <td class="px-3 py-2">
+          <div class="flex gap-2 items-start fill-drop">
+            <div class="w-14 h-14 rounded-lg bg-gray-50 overflow-hidden flex-shrink-0 border border-dashed border-gray-200 flex items-center justify-center">
+              <img src="{{ p.product_image or '' }}" alt="" class="fill-thumb w-full h-full object-cover {% if not p.product_image %}hidden{% endif %}">
+              <span class="fill-thumb-empty text-[11px] text-gray-300 {% if p.product_image %}hidden{% endif %}">없음</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <input type="url" data-field="product_image" value="{{ p.product_image or '' }}" placeholder="이미지 주소 붙여넣기"
+                class="fill-input w-full border border-gray-200 rounded-md px-2 py-1 text-xs">
+              <label class="mt-1 inline-block text-[11px] text-blue-600 cursor-pointer hover:underline">파일 선택
+                <input type="file" accept="image/*" class="fill-file hidden"></label>
+            </div>
+          </div>
+        </td>
+        <td class="px-3 py-2">
+          <a href="/products/{{ p.id }}" class="font-medium text-gray-900 hover:text-blue-600">{{ p.name }}</a>
+          <div class="text-xs text-gray-400">{{ p.brand }}</div>
+        </td>
+        <td class="px-3 py-2">
+          <select data-field="category" class="fill-input w-full border border-gray-200 rounded-md px-1 py-1 text-xs">
+            <option value="" disabled {% if not p.category %}selected{% endif %}>선택</option>
+            {% for cat in filter_categories %}<option value="{{ cat }}" {% if p.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+          </select>
+        </td>
+        <td class="px-3 py-2"><input type="number" min="0" step="10" data-field="groupbuy_price"
+          value="{{ p.groupbuy_price | int if p.groupbuy_price else '' }}" class="fill-input w-full border border-gray-200 rounded-md px-2 py-1 text-xs"></td>
+        <td class="px-3 py-2"><input type="number" min="0" max="100" step="0.5" data-field="seller_commission_rate"
+          value="{{ ((p.seller_commission_rate * 100) | round(1)) if p.seller_commission_rate else '' }}" class="fill-input w-full border border-gray-200 rounded-md px-2 py-1 text-xs"></td>
+        <td class="px-3 py-2"><input type="text" data-field="unique_selling_point" value="{{ p.unique_selling_point or '' }}"
+          placeholder="셀러에게 보여줄 한 줄" class="fill-input w-full border border-gray-200 rounded-md px-2 py-1 text-xs"></td>
+        <td class="px-3 py-2 text-xs"><span class="fill-status text-gray-300">—</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif view == 'list' %}
 <!-- 표 보기 -->
 <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
   <table class="w-full text-sm">
@@ -356,6 +419,65 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+// ── 빠르게 채우기: 칸 단위 자동 저장 (기존 PATCH /products/{id}/field, 사진 파일은 /upload-image) ──
+(function () {
+  var table = document.getElementById('fill-table');
+  if (!table) return;
+  function status(row, text, cls) {
+    var el = row.querySelector('.fill-status');
+    el.textContent = text; el.className = 'fill-status ' + cls;
+  }
+  function showThumb(row, url) {
+    var img = row.querySelector('.fill-thumb'), empty = row.querySelector('.fill-thumb-empty');
+    if (url) { img.src = url; img.classList.remove('hidden'); empty.classList.add('hidden'); }
+    else { img.classList.add('hidden'); empty.classList.remove('hidden'); }
+  }
+  function saveField(input) {
+    var row = input.closest('tr'), pid = row.dataset.pid, field = input.dataset.field, value = input.value;
+    if (input.dataset.saved === value) return;
+    status(row, '저장 중', 'text-gray-400');
+    fetch('/products/' + pid + '/field', {
+      method: 'PATCH', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({field: field, value: value})
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d.ok) {
+        input.dataset.saved = value;
+        status(row, '저장됨 ✓', 'text-green-600 font-semibold');
+        if (field === 'product_image') showThumb(row, value);
+      } else { status(row, '실패', 'text-red-500 font-semibold'); }
+    }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); });
+  }
+  function uploadFile(row, file) {
+    if (!file || !file.type || file.type.indexOf('image/') !== 0) { status(row, '이미지 아님', 'text-red-500'); return; }
+    var fd = new FormData(); fd.append('product_image', file);
+    status(row, '올리는 중', 'text-gray-400');
+    fetch('/products/' + row.dataset.pid + '/upload-image', {method: 'POST', body: fd})
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (d.ok) {
+          var inp = row.querySelector('[data-field="product_image"]');
+          inp.value = d.image_url; inp.dataset.saved = d.image_url;
+          showThumb(row, d.image_url); status(row, '저장됨 ✓', 'text-green-600 font-semibold');
+        } else { status(row, '실패', 'text-red-500 font-semibold'); }
+      }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); });
+  }
+  table.querySelectorAll('.fill-input').forEach(function (inp) {
+    inp.dataset.saved = inp.value;
+    inp.addEventListener('change', function () { saveField(inp); });
+  });
+  table.querySelectorAll('.fill-file').forEach(function (f) {
+    f.addEventListener('change', function () { uploadFile(f.closest('tr'), f.files[0]); });
+  });
+  table.querySelectorAll('.fill-drop').forEach(function (zone) {
+    zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('bg-blue-50'); });
+    zone.addEventListener('dragleave', function () { zone.classList.remove('bg-blue-50'); });
+    zone.addEventListener('drop', function (e) {
+      e.preventDefault(); zone.classList.remove('bg-blue-50');
+      uploadFile(zone.closest('tr'), e.dataTransfer.files[0]);
+    });
+  });
+})();
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   var modal     = document.getElementById('import-modal');
