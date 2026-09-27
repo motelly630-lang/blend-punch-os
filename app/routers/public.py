@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func
+from datetime import datetime, timedelta
+
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Product
@@ -75,6 +77,36 @@ def _brand_list(db: Session) -> list[dict]:
     ]
 
 
+def _no_image_last():
+    """사진 없는 제품을 뒤로 (정렬 첫 기준)."""
+    return case((func.coalesce(Product.product_image, "") == "", 1), else_=0)
+
+
+def _category_counts(db: Session) -> list[tuple[str, int]]:
+    """공개 제품이 있는 카테고리와 제품 수 (많은 순)."""
+    rows = (
+        _public_filter(db.query(Product.category, func.count(Product.id)))
+        .filter(Product.category.isnot(None), Product.category != "")
+        .group_by(Product.category)
+        .order_by(func.count(Product.id).desc(), Product.category)
+        .all()
+    )
+    return [(c, n) for c, n in rows]
+
+
+def _catalog_stats(db: Session, brand_count: int) -> dict:
+    """첫 화면 숫자 — 모두 공개 조건(_public_filter) 안에서만 센다."""
+    month_ago = datetime.utcnow() - timedelta(days=30)
+    return {
+        "products": _public_filter(db.query(func.count(Product.id))).scalar() or 0,
+        "brands": brand_count,
+        "new_month": _public_filter(db.query(func.count(Product.id)))
+        .filter(Product.created_at >= month_ago).scalar() or 0,
+        "sample": _public_filter(db.query(func.count(Product.id)))
+        .filter(Product.sample_type == "무상").scalar() or 0,
+    }
+
+
 FILTER_CATEGORIES = [
     "건강기능식품", "스킨케어", "뷰티/메이크업", "헤어케어", "바디케어",
     "다이어트/슬리밍", "식품/음료", "생활용품", "주방용품", "가전제품",
@@ -110,8 +142,8 @@ def public_product_list(request: Request, db: Session = Depends(get_db),
         base = base.order_by(_eff_price().asc().nullslast(), Product.created_at.desc())
     elif sort == "price_desc":
         base = base.order_by(_eff_price().desc().nullslast(), Product.created_at.desc())
-    else:  # newest
-        base = base.order_by(Product.created_at.desc())
+    else:  # newest — 사진 있는 제품을 먼저
+        base = base.order_by(_no_image_last(), Product.created_at.desc())
 
     total = base.count()
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
@@ -120,12 +152,30 @@ def public_product_list(request: Request, db: Session = Depends(get_db),
     products = [PublicProduct.from_orm(p) for p in rows]
 
     # 추천 섹션 (필터 없는 첫 페이지에서만)
-    newest, popular = [], []
+    newest, popular, top_commission, with_sample, category_rows = [], [], [], [], []
+    stats, category_counts = {}, []
     if not has_filter and page == 1:
         newest = [
             PublicProduct.from_orm(p) for p in
-            _public_filter(db.query(Product)).order_by(Product.created_at.desc()).limit(8).all()
+            _public_filter(db.query(Product)).order_by(_no_image_last(), Product.created_at.desc()).limit(10).all()
         ]
+        top_commission = [
+            PublicProduct.from_orm(p) for p in
+            _public_filter(db.query(Product)).filter(Product.seller_commission_rate > 0)
+            .order_by(Product.seller_commission_rate.desc(), _no_image_last(), Product.created_at.desc())
+            .limit(10).all()
+        ]
+        with_sample = [
+            PublicProduct.from_orm(p) for p in
+            _public_filter(db.query(Product)).filter(Product.sample_type == "무상")
+            .order_by(_no_image_last(), Product.created_at.desc()).limit(10).all()
+        ]
+        category_counts = _category_counts(db)
+        for cat, _cnt in category_counts[:4]:
+            items = (_public_filter(db.query(Product)).filter(Product.category == cat)
+                     .order_by(_no_image_last(), Product.created_at.desc()).limit(10).all())
+            category_rows.append({"name": cat, "count": _cnt, "items": [PublicProduct.from_orm(p) for p in items]})
+        stats = _catalog_stats(db, len(brands))
         top_ids = (
             db.query(Campaign.product_id, func.sum(Campaign.actual_revenue).label("rev"))
             .filter(Campaign.product_id.isnot(None))
@@ -149,6 +199,8 @@ def public_product_list(request: Request, db: Session = Depends(get_db),
          "sort": sort, "sample_filter": sample,
          "filter_categories": FILTER_CATEGORIES, "sort_options": SORT_OPTIONS,
          "has_filter": has_filter, "newest": newest, "popular": popular,
+         "top_commission": top_commission, "with_sample": with_sample,
+         "category_rows": category_rows, "category_counts": category_counts, "stats": stats,
          "page": page, "total_pages": total_pages, "total": total},
     )
 

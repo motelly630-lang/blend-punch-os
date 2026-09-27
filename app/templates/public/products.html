@@ -10,57 +10,169 @@
 {% if sort and sort != 'newest' %}{% set _ = base_qs.append('sort=' + sort) %}{% endif %}
 {% set filter_qs = base_qs | join('&') %}
 
+{% set CAT_ICON = {'건강기능식품':'💊','스킨케어':'🧴','뷰티/메이크업':'💄','헤어케어':'💇','바디케어':'🛁','다이어트/슬리밍':'🥗',
+  '식품/음료':'🍱','생활용품':'🧺','주방용품':'🍳','가전제품':'🔌','패션/의류':'👕','패션잡화':'👜','홈/인테리어':'🛋️',
+  '유아/육아':'🍼','반려동물':'🐾','스포츠/레저':'⛺','전자기기':'🎧','욕실용품':'🚿','기타':'📦'} %}
+
 {# ── 제품 카드 매크로 ── #}
 {% macro product_card(p, fixed=false) %}
 <a href="/public/products/product/{{ p.id }}"
-  class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all hover:-translate-y-0.5 group flex flex-col {% if fixed %}w-40 sm:w-44 flex-shrink-0{% endif %}">
-  <div class="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+  class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-lg transition-all hover:-translate-y-1 group flex flex-col {% if fixed %}w-44 sm:w-52 flex-shrink-0{% endif %}">
+  <div class="relative aspect-square bg-gray-50 overflow-hidden">
     {% if p.product_image %}
-    <img src="{{ p.product_image }}" alt="{{ p.name }}" loading="lazy" onerror="this.style.display='none'" class="w-full h-full object-contain p-2">
+    <img src="{{ p.product_image }}" alt="{{ p.name }}" loading="lazy" onerror="this.style.display='none'"
+      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
     {% else %}
-    <svg class="w-10 h-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-    </svg>
+    <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50 to-blue-100 p-3 text-center">
+      <span class="text-3xl font-black text-indigo-300">{{ (p.brand or p.name)[:1] }}</span>
+      <span class="mt-1 text-xs font-medium text-indigo-400 line-clamp-1">{{ p.brand }}</span>
+    </div>
+    {% endif %}
+    {% if p.discount_rate and p.discount_rate > 0 %}
+    <span class="absolute top-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full bg-rose-500 text-white shadow-sm">{{ (p.discount_rate * 100) | round | int }}%</span>
+    {% endif %}
+    {% if p.sample_type == '무상' %}
+    <span class="absolute top-2 right-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-400 text-white shadow-sm">무상 샘플</span>
     {% endif %}
   </div>
   <div class="p-3.5 flex-1 flex flex-col">
-    <div class="text-xs text-gray-400 mb-0.5">{{ p.brand }}</div>
-    <div class="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 mb-1">{{ p.name }}</div>
-    {% if p.unique_selling_point %}
-    <div class="text-xs text-gray-500 line-clamp-2 mb-2">{{ p.unique_selling_point }}</div>
+    <div class="text-xs text-gray-400 mb-0.5 truncate">{{ p.brand }}</div>
+    <div class="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 mb-1.5">{{ p.name }}</div>
+    {% if p.groupbuy_price %}
+    <div class="flex items-baseline gap-1.5 mb-2">
+      <span class="text-base font-bold text-gray-900">{{ "{:,}".format(p.groupbuy_price | int) }}원</span>
+      {% if p.consumer_price and p.consumer_price > p.groupbuy_price %}
+      <span class="text-xs text-gray-400 line-through">{{ "{:,}".format(p.consumer_price | int) }}</span>
+      {% endif %}
+    </div>
     {% endif %}
     <div class="flex flex-wrap gap-1 mt-auto">
-      {% if p.groupbuy_price %}
-      <span class="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-full font-medium">{{ "{:,}".format(p.groupbuy_price | int) }}원</span>
-      {% endif %}
       {% if p.seller_commission_rate %}
-      <span class="text-xs px-1.5 py-0.5 bg-green-50 text-green-600 rounded-full font-medium">커미션 {{ (p.seller_commission_rate * 100) | round | int }}%</span>
+      <span class="text-xs px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-semibold">커미션 {{ (p.seller_commission_rate * 100) | round | int }}%</span>
       {% endif %}
-      {% if p.sample_type and p.sample_type != '없음' %}
-      <span class="text-xs px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-full">샘플 {{ p.sample_type }}</span>
+      {% if p.sample_type == '유상' %}
+      <span class="text-xs px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full">샘플 유상</span>
       {% endif %}
     </div>
   </div>
 </a>
 {% endmacro %}
 
+{# ── 가로 진열 줄 ── #}
+{% macro shelf(title, items, more_href=none, sub=none) %}
+{% if items %}
+<section class="mb-10">
+  <div class="flex items-end justify-between mb-3">
+    <div>
+      <h2 class="text-lg font-bold text-gray-900">{{ title }}</h2>
+      {% if sub %}<p class="text-xs text-gray-400 mt-0.5">{{ sub }}</p>{% endif %}
+    </div>
+    {% if more_href %}<a href="{{ more_href }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">전체 보기 →</a>{% endif %}
+  </div>
+  <div class="flex gap-4 overflow-x-auto pb-3 -mx-1 px-1" style="scrollbar-width:thin">
+    {% for p in items %}{{ product_card(p, fixed=true) }}{% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endmacro %}
+
 {% block content %}
 
-<!-- 저작권 안내 배너 -->
-<div class="mb-6 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-  <p class="text-xs text-amber-700 leading-relaxed">
-    본 페이지는 블랜드펀치 공동구매 파트너를 위한 제품 카탈로그입니다.
-    제품 콘텐츠 및 이미지의 무단 복제 또는 재배포를 금지합니다.
-  </p>
-</div>
+{% if not has_filter %}
+<!-- ══ 첫 화면 배너 ══ -->
+<section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-blue-700 to-sky-600 text-white px-6 py-10 sm:px-10 sm:py-12 mb-8 shadow-lg">
+  <div class="relative z-10 max-w-2xl">
+    <p class="text-sm font-semibold text-blue-100 mb-2">BLEND PUNCH 셀러 카탈로그</p>
+    <h1 class="text-2xl sm:text-4xl font-black leading-tight mb-3">공구하기 좋은 제품,<br>여기 다 모여 있어요</h1>
+    <p class="text-sm sm:text-base text-blue-100 mb-6">커미션·샘플·공구가를 한눈에 보고 바로 협업을 신청하세요.</p>
+    <form method="get" class="flex gap-2 max-w-xl">
+      <div class="relative flex-1">
+        <input type="text" name="q" value="{{ q }}" placeholder="제품명 또는 브랜드 검색"
+          class="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-4 focus:ring-blue-300">
+        <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </div>
+      <button type="submit" class="px-5 py-3 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition-colors">검색</button>
+    </form>
+  </div>
+  <div class="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8">
+    {% for label, value, unit in [('공구 가능 제품', stats.products, '개'), ('입점 브랜드', stats.brands, '곳'),
+                                   ('최근 30일 신규', stats.new_month, '개'), ('무상 샘플 제공', stats.sample, '개')] %}
+    <div class="bg-white/15 backdrop-blur rounded-2xl px-4 py-3">
+      <div class="text-2xl sm:text-3xl font-black">{{ "{:,}".format(value or 0) }}<span class="text-base font-bold ml-0.5">{{ unit }}</span></div>
+      <div class="text-xs text-blue-100 mt-0.5">{{ label }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="absolute -right-16 -top-16 w-72 h-72 rounded-full bg-white/10"></div>
+  <div class="absolute right-24 -bottom-24 w-56 h-56 rounded-full bg-white/10"></div>
+</section>
 
-<!-- 헤더 -->
+<!-- ══ 카테고리 바로가기 ══ -->
+{% if category_counts %}
+<section class="mb-10">
+  <h2 class="text-lg font-bold text-gray-900 mb-3">카테고리별로 보기</h2>
+  <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+    {% for cat, cnt in category_counts %}
+    <a href="/public/products?category={{ cat | urlencode }}"
+      class="bg-white rounded-2xl border border-gray-100 shadow-sm px-3 py-4 text-center hover:border-indigo-300 hover:shadow-md transition-all">
+      <div class="text-2xl mb-1">{{ CAT_ICON.get(cat, '📦') }}</div>
+      <div class="text-xs sm:text-sm font-semibold text-gray-800 truncate">{{ cat }}</div>
+      <div class="text-xs text-indigo-600 font-medium mt-0.5">{{ cnt }}개</div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{{ shelf('🆕 새로 들어온 제품', newest, '#all', '가장 최근에 등록된 제품') }}
+{{ shelf('🔥 인기 공구 제품', popular, none, '공구 실적이 좋은 제품') }}
+{{ shelf('💰 커미션 높은 제품', top_commission, '/public/products?sort=commission', '셀러 커미션이 높은 순') }}
+{{ shelf('🎁 무상 샘플 제공', with_sample, '/public/products?sample=1', '먼저 써보고 결정하세요') }}
+{% for row in category_rows %}
+{{ shelf(CAT_ICON.get(row.name, '📦') ~ ' ' ~ row.name, row['items'], '/public/products?category=' ~ (row.name | urlencode), row.count ~ '개 제품') }}
+{% endfor %}
+
+<!-- ══ 브랜드관 ══ -->
+{% if brands %}
+<section class="mb-10">
+  <div class="flex items-end justify-between mb-3">
+    <div>
+      <h2 class="text-lg font-bold text-gray-900">🏷️ 브랜드관</h2>
+      <p class="text-xs text-gray-400 mt-0.5">{{ brands | length }}개 브랜드</p>
+    </div>
+  </div>
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+    {% for b in brands %}
+    <a href="/public/products/brand/{{ b.name | urlencode }}"
+      class="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-3 hover:border-indigo-300 hover:shadow-md transition-all">
+      <div class="w-14 h-14 rounded-xl overflow-hidden bg-gradient-to-br from-indigo-50 to-blue-100 flex items-center justify-center flex-shrink-0">
+        {% if b.logo or b.first_image %}
+        <img src="{{ b.logo or b.first_image }}" alt="{{ b.name }}" loading="lazy" class="w-full h-full object-cover" onerror="this.style.display='none'">
+        {% else %}
+        <span class="text-xl font-black text-indigo-300">{{ b.name[:1] }}</span>
+        {% endif %}
+      </div>
+      <div class="min-w-0">
+        <div class="text-sm font-semibold text-gray-900 truncate">{{ b.name }}</div>
+        <div class="text-xs text-gray-400">제품 {{ b.count }}개</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% else %}
+<!-- ══ 검색·필터 화면 헤더 ══ -->
 <div class="mb-5">
-  <h1 class="text-2xl font-bold text-gray-900 mb-1">제품 카탈로그</h1>
-  <p class="text-sm text-gray-500">공동구매 협업 가능한 제품 목록입니다</p>
+  <a href="/public/products" class="text-xs text-gray-400 hover:text-gray-600">← 카탈로그 처음으로</a>
+  <h1 class="text-2xl font-bold text-gray-900 mt-1">
+    {% if category_filter %}{{ CAT_ICON.get(category_filter, '📦') }} {{ category_filter }}{% elif brand_filter %}{{ brand_filter }}{% elif q %}'{{ q }}' 검색 결과{% else %}전체 제품{% endif %}
+  </h1>
 </div>
 
-<!-- 검색창 -->
 <form method="get" class="mb-4 flex gap-2">
   <div class="relative flex-1 max-w-md">
     <input type="text" name="q" value="{{ q }}" placeholder="제품명 또는 브랜드 검색..."
@@ -74,14 +186,12 @@
   {% if sample_filter %}<input type="hidden" name="sample" value="{{ sample_filter }}">{% endif %}
   {% if sort and sort != 'newest' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
   <button type="submit" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-xl hover:bg-gray-700 transition-colors">검색</button>
-  {% if has_filter %}
   <a href="/public/products" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 flex items-center">초기화</a>
-  {% endif %}
 </form>
 
 <!-- 브랜드 가로 스크롤 필터 -->
 {% if brands %}
-<div class="mb-4">
+<div class="mb-3">
   <div class="flex items-center gap-2 overflow-x-auto pb-2 -mx-1 px-1" style="scrollbar-width:thin">
     {% set brand_clear_qs = [] %}
     {% for part in base_qs %}{% if not part.startswith('brand=') %}{% set _ = brand_clear_qs.append(part) %}{% endif %}{% endfor %}
@@ -104,70 +214,46 @@
 {% endif %}
 
 <!-- 카테고리 탭 -->
-<div class="flex flex-wrap gap-2 mb-4">
+<div class="flex gap-2 mb-4 overflow-x-auto pb-2 -mx-1 px-1" style="scrollbar-width:thin">
   <a href="/public/products"
-    class="text-xs px-3 py-1.5 rounded-full border font-medium transition-colors
+    class="flex-shrink-0 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors
       {% if not category_filter %}bg-gray-900 text-white border-gray-900{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-400{% endif %}">
     전체
   </a>
   {% for cat in filter_categories %}
   <a href="/public/products?category={{ cat | urlencode }}"
-    class="text-xs px-3 py-1.5 rounded-full border font-medium transition-colors
+    class="flex-shrink-0 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors
       {% if category_filter == cat %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600{% endif %}">
-    {{ cat }}
+    {{ CAT_ICON.get(cat, '📦') }} {{ cat }}
   </a>
   {% endfor %}
 </div>
-
-<!-- 정렬 / 샘플 필터 바 -->
-<div class="flex flex-wrap items-center gap-2 mb-6">
-  {% for key, label in sort_options %}
-  <a href="/public/products?sort={{ key }}{% for part in base_qs %}{% if not part.startswith('sort=') %}&{{ part }}{% endif %}{% endfor %}"
-    class="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors
-      {% if sort == key %}bg-indigo-600 text-white border-indigo-600{% else %}bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600{% endif %}">
-    {{ label }}
-  </a>
-  {% endfor %}
-  <span class="w-px h-5 bg-gray-200 mx-1"></span>
-  <a href="/public/products?sample={% if sample_filter == '1' %}{% else %}1{% endif %}{% for part in base_qs %}{% if not part.startswith('sample=') %}&{{ part }}{% endif %}{% endfor %}"
-    class="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors flex items-center gap-1.5
-      {% if sample_filter == '1' %}bg-amber-500 text-white border-amber-500{% else %}bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-600{% endif %}">
-    🎁 샘플 제공만
-  </a>
-</div>
-
-{% if not has_filter %}
-<!-- ══ 신상품 ══ -->
-{% if newest %}
-<section class="mb-8">
-  <h2 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-1.5">🆕 신상품</h2>
-  <div class="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1" style="scrollbar-width:thin">
-    {% for p in newest %}{{ product_card(p, fixed=true) }}{% endfor %}
-  </div>
-</section>
-{% endif %}
-
-<!-- ══ 인기상품 ══ -->
-{% if popular %}
-<section class="mb-8">
-  <h2 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-1.5">🔥 인기 공구 상품</h2>
-  <div class="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1" style="scrollbar-width:thin">
-    {% for p in popular %}{{ product_card(p, fixed=true) }}{% endfor %}
-  </div>
-</section>
-{% endif %}
 {% endif %}
 
 <!-- ══ 전체 제품 / 검색결과 ══ -->
-<div class="mb-3 flex items-center justify-between">
-  <h2 class="text-sm font-bold text-gray-800">
+<div id="all" class="mb-4 flex flex-wrap items-center justify-between gap-3">
+  <h2 class="text-lg font-bold text-gray-900">
     {% if has_filter %}검색 결과{% else %}전체 제품{% endif %}
+    <span class="text-sm font-medium text-indigo-600 ml-1">{{ "{:,}".format(total) }}개</span>
   </h2>
-  <span class="text-xs text-gray-400">{{ total }}개</span>
+  <div class="flex flex-wrap items-center gap-2">
+    {% for key, label in sort_options %}
+    <a href="/public/products?sort={{ key }}{% for part in base_qs %}{% if not part.startswith('sort=') %}&{{ part }}{% endif %}{% endfor %}"
+      class="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors
+        {% if sort == key %}bg-indigo-600 text-white border-indigo-600{% else %}bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600{% endif %}">
+      {{ label }}
+    </a>
+    {% endfor %}
+    <a href="/public/products?sample={% if sample_filter == '1' %}{% else %}1{% endif %}{% for part in base_qs %}{% if not part.startswith('sample=') %}&{{ part }}{% endif %}{% endfor %}"
+      class="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors
+        {% if sample_filter == '1' %}bg-amber-500 text-white border-amber-500{% else %}bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-600{% endif %}">
+      🎁 샘플 제공만
+    </a>
+  </div>
 </div>
 
 {% if products %}
-<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
   {% for p in products %}{{ product_card(p) }}{% endfor %}
 </div>
 
@@ -195,10 +281,15 @@
 {% endif %}
 
 {% else %}
-<div class="bg-white rounded-xl border border-gray-100 p-16 text-center">
+<div class="bg-white rounded-2xl border border-gray-100 p-16 text-center">
   <div class="text-gray-400 text-sm">{% if has_filter %}조건에 맞는 제품이 없습니다{% else %}등록된 제품이 없습니다{% endif %}</div>
   {% if has_filter %}<a href="/public/products" class="mt-2 inline-block text-xs text-blue-500 hover:text-blue-700">전체 보기</a>{% endif %}
 </div>
 {% endif %}
+
+<!-- 저작권 안내 -->
+<p class="mt-10 text-xs text-gray-400 text-center leading-relaxed">
+  본 페이지는 블랜드펀치 공동구매 파트너를 위한 제품 카탈로그입니다. 제품 콘텐츠 및 이미지의 무단 복제 또는 재배포를 금지합니다.
+</p>
 
 {% endblock %}
