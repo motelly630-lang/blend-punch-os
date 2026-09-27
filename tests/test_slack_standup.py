@@ -164,6 +164,8 @@ class BuildTest(unittest.TestCase):
         self.assertIn("최근 30일 새로 모은 트렌드 없음", text)
         self.assertIn("가을 캠핑 (지금 준비 시기) ✅우리 강점 분류", text)          # 캠핑(리빙·식품) ↔ 우리 강점
         self.assertEqual(su._man(130_080_000), "1억 3,008만원")
+        _, blocks = su.render("트렌드 분석가", r)
+        self.assertIn("최근 30일 새로 모은 트렌드 없음", blocks[-2]["text"]["text"])   # 줄 상한에 잘리지 않음 (2026-09-27 버그)
 
     def test_이름에_섞인_제어문자는_무력화(self):
         text, blocks = su.render("공구 매니저", {"summary": "<!channel> 요약", "stats": [("<!here>", "1건", 1)],
@@ -181,6 +183,11 @@ class BuildTest(unittest.TestCase):
         self.assertIn("어제보다 -5", fields[0])
         self.assertNotIn("어제보다", fields[1])                     # 비교 안 하는 칸
         self.assertIn("/campaigns/revenue?tab=ended|매출 넣기>", blocks[-1]["elements"][0]["text"])
+
+    def test_긴_보고도_마지막_줄까지_나온다(self):
+        lines = [f"줄{i}" for i in range(16)] + ["🔥 마지막 줄"]
+        _, blocks = su.render("트렌드 분석가", {"summary": "요약", "lines": lines, "links": [], "stats": []})
+        self.assertIn("🔥 마지막 줄", blocks[-1]["text"]["text"])
 
     def test_할_일_없는_날은_한_줄(self):
         _, blocks = su.render("고객 관리 매니저", {"summary": "없어요 ✅", "lines": [], "links": [("CS 목록", "/cs")],

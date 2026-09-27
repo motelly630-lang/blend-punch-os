@@ -286,14 +286,6 @@ def build_trend(db, cid: int, today: date) -> dict | None:
             mark = " ✅우리 강점 분류" if groups & strong_cats else ""
             prods = ", ".join(strong_products(e))
             lines.append(f"• {e['name']} ({when}){mark} — " + (prods or "딱 맞는 우리 제품 없음 → 소싱 후보"))
-    if strength:
-        lines.append("💪 우리한테 먹히는 분류 (최근 6개월, 매출 입력된 공구)")
-        for s in strength[:3]:
-            lines.append(f"• {s['category']} {_man(s['revenue'])} · {s['count']}건 · 대표 {s['top']}")
-    if encore:
-        lines.append("🔁 앵콜 후보 (예전에 잘 팔렸고 지금 공구 없음)")
-        for x in encore:
-            lines.append(f"• {x['name']} — {x['count']}번 {_man(x['revenue'])}, 마지막 {x['last'].month}/{x['last'].day}")
     if fresh:
         lines.append("🔥 최근 30일 모은 트렌드")
         for i in fresh:
@@ -302,6 +294,14 @@ def build_trend(db, cid: int, today: date) -> dict | None:
         when = f"{last_collected.month}/{last_collected.day}" if last_collected else "기록 없음"
         lines.append(f"🔥 최근 30일 새로 모은 트렌드 없음 (마지막 수집 {when}) — 젠스파크 주간 조사 연결이 필요해요")
 
+    if strength:
+        lines.append("💪 우리한테 먹히는 분류 (최근 6개월, 매출 입력된 공구)")
+        for s in strength[:3]:
+            lines.append(f"• {s['category']} {_man(s['revenue'])} · {s['count']}건 · 대표 {s['top']}")
+    if encore:
+        lines.append("🔁 앵콜 후보 (예전에 잘 팔렸고 지금 공구 없음)")
+        for x in encore:
+            lines.append(f"• {x['name']} — {x['count']}번 {_man(x['revenue'])}, 마지막 {x['last'].month}/{x['last'].day}")
     head = []
     if cands:
         head.append(f"준비할 시즌 {len(cands)}개")
@@ -409,7 +409,7 @@ def render(name: str, r: dict, icon: str = "", prev: dict | None = None) -> tupl
                 d = (n - prev[label]) if (prev and n is not None and isinstance(prev.get(label), int)) else 0
                 fields.append({"type": "mrkdwn", "text": f"*{e(label)}*\n{e(shown)}" + (f"  _(어제보다 {d:+,})_" if d else "")})
             blocks.append({"type": "section", "fields": fields})
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": e("\n".join(r["lines"][:12]))[:2900]}})
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": e("\n".join(r["lines"][:24]))[:2900]}})
     base = _base_url()
     if r.get("links") and base:
         blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": "바로가기 → " + "  ·  ".join(
