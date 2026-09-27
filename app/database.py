@@ -64,5 +64,6 @@ def init_db():
     import app.models.sourcing_batch  # noqa
     import app.models.cs  # noqa
     import app.models.influencer_merge_log  # noqa
+    import app.models.product_field_log  # noqa
     import app.models.standup_snapshot  # noqa
     Base.metadata.create_all(bind=engine)

@@ -105,5 +105,58 @@ class QuickFillTests(unittest.TestCase):
         self.assertEqual((got.groupbuy_price, got.seller_commission_rate), (15000.0, 0.125))
 
 
+class ProductFieldLogTests(unittest.TestCase):
+    """사람이 칸을 바꾼 기록 (자동 채우기 학습 재료)."""
+
+    def setUp(self):
+        self.db = SessionLocal()
+        self.u = make_user("admin", company_id=1)
+        self.c1 = client_for(self.u)
+
+    def tearDown(self):
+        self.db.close()
+
+    def logs(self, pid):
+        from app.models import ProductFieldLog
+        self.db.expire_all()
+        return (self.db.query(ProductFieldLog).filter(ProductFieldLog.product_id == pid)
+                .order_by(ProductFieldLog.created_at).all())
+
+    def test_change_is_logged_with_source_and_via(self):
+        p = _product(self.db, groupbuy_price=0)
+        self.c1.patch(f"/products/{p.id}/field", json={"field": "groupbuy_price", "value": "15000",
+                                                       "via": "fill", "source_url": "https://shop.example/p/1"})
+        (lg,) = self.logs(p.id)
+        self.assertEqual((lg.company_id, lg.field, lg.old_value, lg.new_value, lg.via, lg.source_url, lg.username),
+                         (1, "groupbuy_price", "0.0", "15000.0", "fill", "https://shop.example/p/1", self.u.username))
+
+    def test_unchanged_value_is_not_logged_and_default_via_detail(self):
+        p = _product(self.db, unique_selling_point="같은 값")
+        self.c1.patch(f"/products/{p.id}/field", json={"field": "unique_selling_point", "value": "같은 값"})
+        self.assertEqual(self.logs(p.id), [])
+        self.c1.patch(f"/products/{p.id}/field", json={"field": "unique_selling_point", "value": "새 값"})
+        (lg,) = self.logs(p.id)
+        self.assertEqual((lg.via, lg.source_url), ("detail", None))
+
+    def test_unsafe_source_url_not_stored(self):
+        p = _product(self.db, groupbuy_price=0)
+        self.c1.patch(f"/products/{p.id}/field", json={"field": "groupbuy_price", "value": "1000", "via": "fill",
+                                                       "source_url": "javascript:alert(1)"})
+        (lg,) = self.logs(p.id)
+        self.assertIsNone(lg.source_url)
+
+    def test_other_company_cannot_create_log_and_fill_view_shows_only_own(self):
+        p = _product(self.db, name=f"기록회사1 {uid()}", groupbuy_price=0)
+        c2 = client_for(make_user("admin", company_id=2))
+        c2.patch(f"/products/{p.id}/field", json={"field": "groupbuy_price", "value": "1"})
+        self.assertEqual(self.logs(p.id), [])
+        secret = f"회사1기록내용{uid()}"
+        self.c1.patch(f"/products/{p.id}/field", json={"field": "unique_selling_point", "value": secret, "via": "fill"})
+        self.assertIn(secret, self.c1.get("/products?view=fill&missing=image").text, "최근 기록에 보여야")
+        c2_page = c2.get("/products?view=fill&missing=image").text
+        self.assertNotIn(secret, c2_page, "다른 회사 기록 내용이 보이면 안 됨")
+        self.assertNotIn(p.name, c2_page)
+
+
 if __name__ == "__main__":
     unittest.main()

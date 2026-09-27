@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Product, Influencer
+from app.models import Product, Influencer, ProductFieldLog
 from app.models.brand import Brand as BrandModel
 from app.models.user import User
 from app.auth.dependencies import get_current_user, require_admin
@@ -70,6 +70,27 @@ def _ensure_brand(db: Session, cid: int, brand_name: str) -> None:
     exists = db.query(BrandModel).filter(BrandModel.name == name).first()
     if not exists:
         db.add(BrandModel(company_id=cid, name=name))
+
+
+def _log_value(v):
+    """기록용 문자열 — 목록은 줄바꿈으로, 비어 있으면 None."""
+    if v is None or v == "":
+        return None
+    if isinstance(v, list):
+        return "\n".join(str(x) for x in v) or None
+    return str(v)
+
+
+def _log_change(db, cid, product_id, field, before, after, user, *, via=None, source_url=None):
+    """사람이 제품 칸을 바꾼 기록 (값이 실제로 바뀐 경우만). 자동 채우기 학습 재료."""
+    old, new = _log_value(before), _log_value(after)
+    if old == new:
+        return
+    src = (source_url or "").strip()[:1000]
+    src = src if src.lower().startswith(("http://", "https://")) else None   # 링크로 보여주므로 http(s)만
+    db.add(ProductFieldLog(company_id=cid, product_id=product_id, field=field, old_value=old, new_value=new,
+                           source_url=src, via=(via or "")[:20] or None,
+                           user_id=getattr(user, "id", None), username=getattr(user, "username", None)))
 
 
 # 빈칸(채워야 할 정보) 필터 — key: (표시 이름, 조건)
@@ -140,6 +161,14 @@ def product_list(request: Request, db: Session = Depends(get_db),
         products = (query.order_by(Product.created_at.desc())
                     .offset((page - 1) * PRODUCT_PAGE_SIZE).limit(PRODUCT_PAGE_SIZE).all())
 
+    recent_logs = []
+    if tab == "products" and view == "fill":
+        rows = (db.query(ProductFieldLog, Product.name)
+                .outerjoin(Product, (Product.id == ProductFieldLog.product_id) & (Product.company_id == cid))
+                .filter(ProductFieldLog.company_id == cid)
+                .order_by(ProductFieldLog.created_at.desc()).limit(20).all())
+        recent_logs = [{"log": lg, "name": nm} for lg, nm in rows]
+
     return templates.TemplateResponse(
         "products/list.html",
         {"request": request, "active_page": "products", "current_user": current_user,
@@ -147,7 +176,7 @@ def product_list(request: Request, db: Session = Depends(get_db),
          "q": q, "category_filter": category, "completeness": completeness,
          "missing": missing, "missing_counts": missing_counts, "missing_labels": missing_labels,
          "tab": tab, "view": view, "page": page, "total_pages": total_pages, "total": total,
-         "total_all": total_all, "filter_categories": CATEGORIES},
+         "total_all": total_all, "filter_categories": CATEGORIES, "recent_logs": recent_logs},
     )
 
 
@@ -516,7 +545,11 @@ async def product_upload_image(
     new_image = _save_image(product_image)
     if not new_image:
         return JSONResponse({"ok": False, "error": "no valid image"})
+    before = product.product_image
     product.product_image = new_image
+    form = await request.form()
+    _log_change(db, cid, product.id, "product_image", before, new_image, current_user,
+                via=form.get("via") or "upload", source_url=form.get("source_url"))
     completeness = validate_product_completeness(product)
     product.is_complete = completeness["is_complete"]
     product.missing_fields = completeness["missing_fields"] or None
@@ -591,6 +624,8 @@ async def product_patch_field(
         "recommended_commission_rate",
     }
 
+    log_field = "key_benefits" if field == "key_benefits_raw" else field
+    before = _log_value(getattr(product, log_field, None)) if hasattr(product, log_field) else None
     try:
         if field == "key_benefits_raw":
             kbs = [b.strip() for b in value.splitlines() if b.strip()]
@@ -609,6 +644,8 @@ async def product_patch_field(
     completeness = validate_product_completeness(product)
     product.is_complete = completeness["is_complete"]
     product.missing_fields = completeness["missing_fields"] or None
+    _log_change(db, cid, product.id, log_field, before, getattr(product, log_field, None), current_user,
+                via=body.get("via") or "detail", source_url=body.get("source_url"))
     db.commit()
     return JSONResponse({"ok": True, "is_complete": product.is_complete})
 
