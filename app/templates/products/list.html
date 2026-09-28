@@ -493,7 +493,11 @@
       }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); });
   }
   // ── 자동 채우기 1단계: 판매 페이지에서 후보 가져오기 → '적용'을 눌러야 저장 (기록 via=autofill) ──
-  function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
+  // 글자·속성 안전 변환 — 따옴표까지 바꿔야 속성값(data-value, src) 밖으로 빠져나가지 못한다
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
   function applyTo(row, field, value) {
     var inp = row.querySelector('[data-field="' + field + '"]');
     if (inp) { inp.value = value; saveField(inp, 'autofill'); return; }

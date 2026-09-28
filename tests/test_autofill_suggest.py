@@ -95,5 +95,19 @@ class SuggestEndpointTests(unittest.TestCase):
         self.assertEqual((lg.field, lg.via, lg.source_url), ("consumer_price", "autofill", "https://shop.example/p/1"))
 
 
+
+class SuggestBoxEscapingTests(unittest.TestCase):
+    def test_js_escaper_handles_quotes(self):
+        """제안 상자는 외부 페이지 글자를 HTML 속성에 넣는다 — 따옴표까지 바꾸는 esc 여야 한다
+        (2026-09-28 자동 보안 검사 지적, 브라우저로 실행 재현 후 수정)."""
+        from pathlib import Path
+        html = Path("app/templates/products/list.html").read_text(encoding="utf-8")
+        i = html.index("function esc(t)")
+        body = html[i:i + 400]
+        self.assertIn("&quot;", body)
+        self.assertIn("&#39;", body)
+        self.assertNotIn("textContent", body, "textContent→innerHTML 방식은 따옴표를 바꾸지 않는다")
+
+
 if __name__ == "__main__":
     unittest.main()
