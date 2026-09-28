@@ -591,6 +591,43 @@ async def product_patch_json(
     return JSONResponse({"ok": True, "is_complete": product.is_complete})
 
 
+@router.post("/{product_id}/suggest")
+async def product_suggest(
+    product_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """자동 채우기 1단계: '찾은 곳 링크'의 판매 페이지에서 대표 사진·가격·소개 후보를 뽑아 돌려준다.
+    저장하지 않는다 — 사람이 '적용'을 누르면 기존 칸 저장(PATCH /field, via=autofill)으로 저장·기록된다."""
+    import asyncio
+    import httpx
+    from app.services.safe_fetch import UnsafeURL, safe_get
+    from app.services.page_suggest import extract
+
+    body = await request.json()
+    url = (body.get("source_url") or "").strip()
+    cid = get_company_id(current_user)
+    if not db.query(Product.id).filter(Product.company_id == cid, Product.id == product_id).first():
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+    if not url.lower().startswith(("http://", "https://")):
+        return JSONResponse({"ok": False, "error": "찾은 곳 링크(http/https)를 먼저 넣어주세요"})
+    try:
+        r = await asyncio.to_thread(safe_get, url, timeout=15.0, max_bytes=2_000_000)
+    except UnsafeURL as e:
+        return JSONResponse({"ok": False, "error": f"열 수 없는 주소입니다 ({e})"})
+    except httpx.HTTPError:
+        return JSONResponse({"ok": False, "error": "페이지에 연결하지 못했습니다 (시간 초과·연결 실패)"})
+    if r.status_code in (401, 403, 429):
+        return JSONResponse({"ok": False, "error": f"이 사이트가 자동 조회를 막았습니다 (HTTP {r.status_code}) — 직접 채워주세요"})
+    if r.status_code >= 400:
+        return JSONResponse({"ok": False, "error": f"페이지를 열지 못했습니다 (HTTP {r.status_code})"})
+    found = extract(r.text, url)   # 상대 경로 이미지는 원래 링크 기준으로 푼다 (요청은 IP 고정 주소라 쓰지 않음)
+    if not any(found.get(k) for k in ("image", "price", "description", "name")):
+        return JSONResponse({"ok": False, "error": "페이지에서 사진·가격 정보를 찾지 못했습니다 (화면을 스크립트로 그리는 사이트일 수 있음)"})
+    return JSONResponse({"ok": True, "suggestions": found})
+
+
 @router.patch("/{product_id}/field")
 async def product_patch_field(
     product_id: str,

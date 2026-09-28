@@ -205,8 +205,13 @@
         <td class="px-3 py-2">
           <a href="/products/{{ p.id }}" class="font-medium text-gray-900 hover:text-blue-600">{{ p.name }}</a>
           <div class="text-xs text-gray-400">{{ p.brand }}</div>
-          <input type="url" class="fill-source mt-1 w-full border border-gray-100 bg-gray-50 rounded-md px-2 py-1 text-[11px]"
-            placeholder="찾은 곳 링크 (선택 — 기록에 남아요)">
+          <div class="mt-1 flex gap-1">
+            <input type="url" class="fill-source flex-1 min-w-0 border border-gray-100 bg-gray-50 rounded-md px-2 py-1 text-[11px]"
+              placeholder="찾은 곳 링크 (판매 페이지)">
+            <button type="button" class="fill-suggest flex-shrink-0 text-[11px] font-semibold px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+              title="이 링크의 판매 페이지에서 사진·가격·소개 후보를 가져옵니다 (저장은 '적용'을 눌러야)">🔍 제안</button>
+          </div>
+          <div class="fill-suggestions mt-1 hidden"></div>
         </td>
         <td class="px-3 py-2">
           <select data-field="category" class="fill-input w-full border border-gray-200 rounded-md px-1 py-1 text-xs">
@@ -338,8 +343,8 @@
         <td class="py-1 text-gray-400 whitespace-nowrap">{{ lg.created_at.strftime('%m-%d %H:%M') if lg.created_at else '' }}</td>
         <td class="text-gray-600">{{ lg.username or '-' }}</td>
         <td class="text-gray-800">{{ r.name or '(삭제된 제품)' }}</td>
-        <td class="text-gray-600">{{ {'product_image':'사진','category':'카테고리','groupbuy_price':'공구가','seller_commission_rate':'커미션','unique_selling_point':'한 줄 소개'}.get(lg.field, lg.field) }}</td>
-        {% macro fv(v) -%}{% if v and lg.field == 'seller_commission_rate' %}{{ ((v | float) * 100) | round(1) }}%{% elif v and lg.field == 'groupbuy_price' %}{{ "{:,}".format(v | float | int) }}원{% else %}{{ v or '없음' }}{% endif %}{%- endmacro %}
+        <td class="text-gray-600">{{ {'product_image':'사진','category':'카테고리','groupbuy_price':'공구가','consumer_price':'소비자가','seller_commission_rate':'커미션','unique_selling_point':'한 줄 소개'}.get(lg.field, lg.field) }}{% if lg.via == 'autofill' %} <span class="text-[10px] px-1 rounded bg-indigo-50 text-indigo-600">자동 제안</span>{% endif %}</td>
+        {% macro fv(v) -%}{% if v and lg.field == 'seller_commission_rate' %}{{ ((v | float) * 100) | round(1) }}%{% elif v and lg.field in ('groupbuy_price', 'consumer_price') %}{{ "{:,}".format(v | float | int) }}원{% else %}{{ v or '없음' }}{% endif %}{%- endmacro %}
         <td class="text-gray-600 max-w-xs truncate"><span class="text-gray-300">{{ fv(lg.old_value) }}</span> → {{ fv(lg.new_value) }}</td>
         <td class="max-w-[12rem] truncate">{% if lg.source_url %}<a href="{{ lg.source_url }}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">{{ lg.source_url }}</a>{% else %}<span class="text-gray-300">-</span>{% endif %}</td>
       </tr>
@@ -457,14 +462,14 @@
     if (url) { img.src = url; img.classList.remove('hidden'); empty.classList.add('hidden'); }
     else { img.classList.add('hidden'); empty.classList.remove('hidden'); }
   }
-  function saveField(input) {
+  function saveField(input, via) {
     var row = input.closest('tr'), pid = row.dataset.pid, field = input.dataset.field, value = input.value;
     if (input.dataset.saved === value) return;
     status(row, '저장 중', 'text-gray-400');
     var src = row.querySelector('.fill-source');
     fetch('/products/' + pid + '/field', {
       method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({field: field, value: value, via: 'fill', source_url: src ? src.value : ''})
+      body: JSON.stringify({field: field, value: value, via: via || 'fill', source_url: src ? src.value : ''})
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (d.ok) {
         input.dataset.saved = value;
@@ -487,6 +492,59 @@
         } else { status(row, '실패', 'text-red-500 font-semibold'); }
       }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); });
   }
+  // ── 자동 채우기 1단계: 판매 페이지에서 후보 가져오기 → '적용'을 눌러야 저장 (기록 via=autofill) ──
+  function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
+  function applyTo(row, field, value) {
+    var inp = row.querySelector('[data-field="' + field + '"]');
+    if (inp) { inp.value = value; saveField(inp, 'autofill'); return; }
+    // 표에 없는 칸(소비자가)은 바로 저장
+    var src = row.querySelector('.fill-source');
+    status(row, '저장 중', 'text-gray-400');
+    fetch('/products/' + row.dataset.pid + '/field', {method: 'PATCH', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({field: field, value: String(value), via: 'autofill', source_url: src ? src.value : ''})})
+      .then(function (r) { return r.json(); })
+      .then(function (d) { status(row, d.ok ? '저장됨 ✓' : '실패', d.ok ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'); })
+      .catch(function () { status(row, '실패', 'text-red-500 font-semibold'); });
+  }
+  function renderSuggestions(row, sg) {
+    var box = row.querySelector('.fill-suggestions'), html = '<div class="rounded-lg border border-indigo-100 bg-indigo-50/60 p-2 space-y-1.5 text-[11px]">';
+    var src = sg.sources || {};
+    if (sg.image) html += '<div class="flex items-center gap-2"><img src="' + esc(sg.image) + '" class="w-10 h-10 rounded object-cover bg-white" onerror="this.style.display=\'none\'">'
+      + '<span class="flex-1 text-gray-500">사진 <span class="text-gray-400">· ' + esc(src.image) + '</span></span>'
+      + '<button type="button" class="sg-apply px-2 py-0.5 rounded bg-indigo-600 text-white" data-field="product_image" data-value="' + esc(sg.image) + '">적용</button></div>';
+    if (sg.price) html += '<div class="flex items-center gap-1.5 flex-wrap"><span class="flex-1 text-gray-600">판매 페이지 가격 <b>' + Number(sg.price).toLocaleString() + '원</b> <span class="text-gray-400">· ' + esc(src.price) + '</span></span>'
+      + '<button type="button" class="sg-apply px-2 py-0.5 rounded bg-white border border-indigo-200 text-indigo-700" data-field="consumer_price" data-value="' + sg.price + '">소비자가로</button>'
+      + '<button type="button" class="sg-apply px-2 py-0.5 rounded bg-white border border-indigo-200 text-indigo-700" data-field="groupbuy_price" data-value="' + sg.price + '">공구가로</button></div>';
+    if (sg.description) html += '<div class="flex items-start gap-1.5"><span class="flex-1 text-gray-600">' + esc(sg.description) + ' <span class="text-gray-400">· ' + esc(src.description) + '</span></span>'
+      + '<button type="button" class="sg-apply flex-shrink-0 px-2 py-0.5 rounded bg-white border border-indigo-200 text-indigo-700" data-field="unique_selling_point" data-value="' + esc(sg.description) + '">소개로</button></div>';
+    if (sg.name) html += '<div class="text-gray-400">페이지의 제품명: ' + esc(sg.name) + ' — 같은 제품인지 확인하고 적용하세요</div>';
+    html += '</div>';
+    box.innerHTML = html; box.classList.remove('hidden');
+    box.querySelectorAll('.sg-apply').forEach(function (b) {
+      b.addEventListener('click', function () {
+        applyTo(row, b.dataset.field, b.dataset.value);
+        if (b.dataset.field === 'product_image') showThumb(row, b.dataset.value);
+        b.textContent = '적용됨'; b.disabled = true; b.classList.add('opacity-60');
+      });
+    });
+  }
+  table.querySelectorAll('.fill-suggest').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var row = btn.closest('tr'), src = row.querySelector('.fill-source'), box = row.querySelector('.fill-suggestions');
+      if (!src.value) { src.focus(); status(row, '링크 먼저', 'text-amber-600'); return; }
+      btn.disabled = true; btn.textContent = '가져오는 중…';
+      fetch('/products/' + row.dataset.pid + '/suggest', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({source_url: src.value})})
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.ok) renderSuggestions(row, d.suggestions);
+          else { box.innerHTML = '<div class="text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1">' + esc(d.error || '가져오지 못했습니다') + '</div>'; box.classList.remove('hidden'); }
+        })
+        .catch(function () { box.innerHTML = '<div class="text-[11px] text-red-600">가져오지 못했습니다</div>'; box.classList.remove('hidden'); })
+        .finally(function () { btn.disabled = false; btn.textContent = '🔍 제안'; });
+    });
+  });
+
   table.querySelectorAll('.fill-input').forEach(function (inp) {
     inp.dataset.saved = inp.value;
     inp.addEventListener('change', function () { saveField(inp); });
