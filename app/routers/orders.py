@@ -31,7 +31,11 @@ templates = Jinja2Templates(directory="app/templates")
 
 @router.post("/api/create", dependencies=[Depends(require_internal_request)])
 async def order_create_api(request: Request, db: Session = Depends(get_db)):
-    """결제 완료 후 blend-pick에서 호출하는 주문 생성 API — 같은 서버 안에서 부른 요청만 (보안 점검 2026-09-28)"""
+    """주문 생성 API (결제 확인 없음) — 같은 서버 안에서 부른 요청만 (보안 점검 2026-09-28).
+
+    2026-09-28 운영 서버 확인: 블랜드픽 코드(app·lib·src)는 이 주소를 부르지 않는다 (1:1 문의만 localhost 호출).
+    판매량을 OS 로 가져오는 방식이 정해지면(DE-009) 이 주소를 쓸지·지울지 결정한다.
+    """
     import random, string
     try:
         body = await request.json()

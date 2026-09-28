@@ -19,7 +19,14 @@ updated: 2026-09-28
 (`require_internal_request`): `/inquiries/api/*`(블랜드픽 1:1 문의, 확인됨 [[PR-003]]), `/orders/api/create`
 (코드 설명엔 "blend-pick 호출"인데 [[PR-003]] 은 "블랜드픽은 OS 주문 안 부름" — **불일치, 배포 전 EC2 블랜드픽 코드로 확인**).
 
-**배포 전 확인 (EC2 읽기, 승인 필요):**
+**배포 전 확인 — 완료 (2026-09-28, 대표님 승인 후 EC2 읽기만):**
+- nginx(os.blendpunch.com → :8000) 가 `X-Real-IP`·`X-Forwarded-For` 를 붙인다 → 내부 전용 검사가 바깥 요청을 거른다.
+- 블랜드픽 `app/api/inquiry/route.ts` 가 `OS_API_URL`(호스트 localhost)로 `/inquiries/api/submit`·`/user/{id}` 호출 → 계속 동작.
+- 블랜드픽은 `/orders/api/create`·`/api/v1` 을 **부르지 않는다** (코드 grep, nginx 기록 `/api/v1` 0건) → PR-003 이 맞고 코드 설명이 낡았음.
+- EC2 메타데이터: 토큰 없는 요청 401 = **IMDSv2 필수** → SSRF 로 IAM 키를 바로 읽는 경로는 막혀 있음.
+- 운영 코드 위치 `59b8a11` = master 의 조상 (차이는 메모리 파일뿐).
+
+**(참고) 처음 적은 확인 항목:**
 1. nginx 가 OS 로 넘길 때 `X-Forwarded-For`/`X-Real-IP` 를 붙이는지 — 안 붙이면 내부 전용 검사가 바깥 요청을 못 거른다.
 2. 블랜드픽이 `/orders/api/create`·`/inquiries/api/*` 를 **localhost:8000** 으로 부르는지 (공개 주소로 부르면 막혀서 깨진다):
    `grep -rn "orders/api\|inquiries/api\|OS_API_URL" /home/ubuntu/blend-pick/app /home/ubuntu/blend-pick/lib` (env 는 키 이름만).

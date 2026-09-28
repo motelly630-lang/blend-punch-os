@@ -10,14 +10,13 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.product import Product
-from app.models.influencer import Influencer
 from app.models.sales_page import SalesPage
 from app.models.order import Order
 from app.models.campaign import Campaign
@@ -27,6 +26,9 @@ from app.models.group_buy_application import GroupBuyApplication
 from app.auth.service import verify_password, create_access_token, decode_token
 
 router = APIRouter(prefix="/api/v1", tags=["Public API v1"])
+
+# 외부 공개는 블랜드펀치(1번 회사) 자료만 — 공개 카탈로그(/public)와 같은 원칙 (보안 점검 2026-09-28 B4)
+PUBLIC_COMPANY_ID = 1
 
 
 # ── 공통 헬퍼 ──────────────────────────────────────────────────────────────────
@@ -41,7 +43,7 @@ def _get_current_user(authorization: Optional[str]) -> Optional[dict]:
     if not authorization or not authorization.startswith("Bearer "):
         return None
     token = authorization[7:]
-    return decode_token(token)
+    return decode_token(token, allow_api=True)
 
 
 # ── Pydantic 스키마 ────────────────────────────────────────────────────────────
@@ -55,7 +57,7 @@ class OrderCreateRequest(BaseModel):
     sales_page_id: str
     seller_code: Optional[str] = None
     option_name: Optional[str] = None
-    quantity: int = 1
+    quantity: int = Field(1, ge=1, le=99)   # 음수·0 수량 거부 (보안 점검 B6)
     customer_name: str
     customer_phone: str
     customer_email: Optional[str] = None
@@ -81,16 +83,30 @@ class ApplicationCreateRequest(BaseModel):
 
 # ── 인증 ──────────────────────────────────────────────────────────────────────
 
+_LOGIN_FAILS: dict[str, list[float]] = {}
+_LOGIN_WINDOW, _LOGIN_MAX_FAILS = 600.0, 10   # 10분에 10번 실패하면 잠시 막음
+
+
 @router.post("/auth/login")
-def shop_login(body: LoginRequest, db: Session = Depends(get_db)):
-    """Shop 소비자/인플루언서 로그인 → Bearer 토큰 반환."""
+def shop_login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    """Shop 소비자/인플루언서 로그인 → 외부 API 전용 Bearer 토큰 (OS 화면 로그인에는 못 씀)."""
+    import time
+    ip = request.client.host if request.client else "?"
+    now = time.monotonic()
+    fails = [t for t in _LOGIN_FAILS.get(ip, []) if now - t < _LOGIN_WINDOW]
+    if len(fails) >= _LOGIN_MAX_FAILS:
+        raise HTTPException(status_code=429, detail="로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.")
     user = db.query(User).filter(User.username == body.username).first()
     if not user or not verify_password(body.password, user.hashed_password):
+        _LOGIN_FAILS[ip] = fails + [now]
         raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="비활성화된 계정입니다.")
+    if user.email and not user.email_verified:   # OS 로그인과 같은 규칙
+        raise HTTPException(status_code=403, detail="이메일 인증이 필요합니다.")
+    _LOGIN_FAILS.pop(ip, None)
 
-    token = create_access_token(user.username, user.role)
+    token = create_access_token(user.username, user.role, scope="api")
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -115,6 +131,7 @@ def list_products(
 ):
     """SHOP 노출 제품 목록 (is_published=True)."""
     qs = db.query(Product).filter(
+        Product.company_id == PUBLIC_COMPANY_ID,
         Product.is_published == True,
         Product.is_archived == False,
     )
@@ -138,6 +155,7 @@ def list_products(
 def get_product(product_id: str, db: Session = Depends(get_db)):
     """제품 상세."""
     p = db.query(Product).filter(
+        Product.company_id == PUBLIC_COMPANY_ID,
         Product.id == product_id,
         Product.is_published == True,
         Product.is_archived == False,
@@ -187,7 +205,7 @@ def list_sales_pages(
     db: Session = Depends(get_db),
 ):
     """활성 판매 페이지(공구) 목록."""
-    qs = db.query(SalesPage).filter(SalesPage.is_published == True)
+    qs = db.query(SalesPage).filter(SalesPage.company_id == PUBLIC_COMPANY_ID, SalesPage.is_published == True)
     if product_id:
         qs = qs.filter(SalesPage.product_id == product_id)
     if status:
@@ -210,6 +228,7 @@ def list_sales_pages(
 def get_sales_page(page_id: str, db: Session = Depends(get_db)):
     """판매 페이지 상세."""
     sp = db.query(SalesPage).filter(
+        SalesPage.company_id == PUBLIC_COMPANY_ID,
         SalesPage.id == page_id,
         SalesPage.is_published == True,
     ).first()
@@ -248,57 +267,8 @@ def _serialize_sales_page(sp: SalesPage, detail: bool = False) -> dict:
 
 
 # ── 인플루언서 ────────────────────────────────────────────────────────────────
-
-@router.get("/influencers")
-def list_influencers(
-    platform: Optional[str] = Query(None),
-    q: Optional[str] = Query(None),
-    featured: Optional[bool] = Query(None),
-    limit: int = Query(20, le=100),
-    offset: int = Query(0),
-    db: Session = Depends(get_db),
-):
-    """인플루언서 목록."""
-    qs = db.query(Influencer).filter(Influencer.status == "active")
-    if platform:
-        qs = qs.filter(Influencer.platform == platform)
-    if q:
-        qs = qs.filter(Influencer.name.ilike(f"%{q}%"))
-
-    total = qs.count()
-    items = qs.order_by(Influencer.followers.desc()).offset(offset).limit(limit).all()
-
-    return {
-        "total": total,
-        "offset": offset,
-        "limit": limit,
-        "items": [_serialize_influencer(inf) for inf in items],
-    }
-
-
-@router.get("/influencers/{influencer_id}")
-def get_influencer(influencer_id: str, db: Session = Depends(get_db)):
-    inf = db.query(Influencer).filter(
-        Influencer.id == influencer_id,
-        Influencer.status == "active",
-    ).first()
-    if not inf:
-        raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
-    return _serialize_influencer(inf)
-
-
-def _serialize_influencer(inf: Influencer) -> dict:
-    return {
-        "id": inf.id,
-        "name": inf.name,
-        "platform": inf.platform,
-        "handle": inf.handle,
-        "followers": inf.followers,
-        "categories": inf.categories,
-        "profile_image": inf.profile_image,
-        "profile_url": inf.profile_url,
-        "audience_age_range": inf.audience_age_range,
-    }
+# 목록·상세 공개 API 는 제거 (보안 점검 2026-09-28 B3) — 로그인 없이 모든 회사의 인플루언서 명단이 나갔고,
+# 블랜드픽도 쓰지 않는다(운영 서버 코드·접속 기록 확인). 다시 필요하면 '공개 대상' 표시 + 회사 범위부터.
 
 
 # ── 트렌드 ────────────────────────────────────────────────────────────────────
@@ -323,7 +293,7 @@ def list_trends(
 
     items = (
         db.query(TrendItem)
-        .filter(TrendItem.is_actionable == True)
+        .filter(TrendItem.company_id == PUBLIC_COMPANY_ID, TrendItem.is_actionable == True)
         .order_by(TrendItem.trend_score.desc())
         .limit(limit)
         .all()
@@ -368,6 +338,7 @@ def create_order(
 ):
     """Shop 주문 생성 (결제 전 pending 상태)."""
     sp = db.query(SalesPage).filter(
+        SalesPage.company_id == PUBLIC_COMPANY_ID,
         SalesPage.id == body.sales_page_id,
         SalesPage.is_published == True,
         SalesPage.status == "active",
