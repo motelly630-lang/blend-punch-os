@@ -464,49 +464,73 @@
     if (url) { img.src = url; img.classList.remove('hidden'); empty.classList.add('hidden'); }
     else { img.classList.add('hidden'); empty.classList.remove('hidden'); }
   }
-  // 칸마다 저장을 줄 세워 처리한다 — 저장 중에 다시 고쳐도 마지막 값까지 저장하고,
-  // 화면 값 = 서버가 받은 값일 때만 '저장됨' (코덱스 검토 2026-09-28 #2). 결과는 성공 여부(true/false)로 돌려준다.
-  function saveField(input, via, sourceUrl) {
-    var opt = {via: via || 'fill', source: sourceUrl};
-    input._chain = (input._chain || Promise.resolve(true)).then(function () { return doSave(input, opt); });
-    return input._chain;
+  // 저장 줄: '제품·칸' 하나에 줄 하나. 작업마다 그 순간의 값·출처를 따로 보관해 순서대로 처리한다
+  // (수동 입력·사진 업로드·제안 적용이 같은 줄을 쓴다 — 코덱스 검토 2026-09-28 #2, 재검토 A·B)
+  var queues = {};
+  function fieldInput(row, field) { return row.querySelector('.fill-input[data-field="' + field + '"]'); }
+  function queueOf(row, field) {
+    var k = row.dataset.pid + '|' + field;
+    if (!queues[k]) { var inp = fieldInput(row, field); queues[k] = {chain: Promise.resolve(true), pending: 0, saved: inp ? inp.dataset.saved : null}; }
+    return queues[k];
   }
-  function doSave(input, opt) {
-    var row = input.closest('tr'), pid = row.dataset.pid, field = input.dataset.field, value = input.value;
-    if (input.dataset.saved === value) { status(row, '저장됨 ✓', 'text-green-600 font-semibold'); return Promise.resolve(true); }
-    if (!input.checkValidity()) {   // 음수·범위 밖 값은 보내지 않는다 (서버도 거부)
-      input.reportValidity(); status(row, '값 확인', 'text-amber-600 font-semibold'); return Promise.resolve(false);
-    }
+  function settle(row, field, q) {   // 줄이 비었고 화면 값 = 저장값일 때만 '저장됨'
+    var inp = fieldInput(row, field);
+    if (q.pending > 0) status(row, '저장 중', 'text-gray-400');
+    else if (inp && inp.value !== q.saved) status(row, '입력 중', 'text-gray-400');
+    else status(row, '저장됨 ✓', 'text-green-600 font-semibold');
+  }
+  function enqueue(row, field, job) {
+    var q = queueOf(row, field);
+    q.pending++;
     status(row, '저장 중', 'text-gray-400');
-    var srcEl = row.querySelector('.fill-source');
-    var source = opt.source != null ? opt.source : (srcEl ? srcEl.value : '');
-    return fetch('/products/' + pid + '/field', {
+    var step = function () { return (job.kind === 'upload' ? runUpload : runValue)(row, field, q, job); };
+    q.chain = q.chain.then(step, step).then(function (ok) { q.pending--; if (ok) settle(row, field, q); return ok; },
+                                             function () { q.pending--; status(row, '실패', 'text-red-500 font-semibold'); return false; });
+    return q.chain;
+  }
+  function runValue(row, field, q, job) {
+    if (q.saved === job.value) return Promise.resolve(true);
+    return fetch('/products/' + row.dataset.pid + '/field', {
       method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({field: field, value: value, via: opt.via, source_url: source})
+      body: JSON.stringify({field: field, value: job.value, via: job.via, source_url: job.source || ''})
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (!d.ok) { status(row, d.error === 'out of range' ? '범위 밖 값' : '실패', 'text-red-500 font-semibold'); return false; }
-      input.dataset.saved = value;
-      if (field === 'product_image') showThumb(row, value);
-      if (input.value === value) status(row, '저장됨 ✓', 'text-green-600 font-semibold');
-      else status(row, '입력 중', 'text-gray-400');   // 저장하는 사이 또 고침 → 칸을 벗어나면 이어서 저장
+      q.saved = job.value;
+      var inp = fieldInput(row, field);
+      if (inp) inp.dataset.saved = job.value;
+      if (field === 'product_image' && inp && inp.value === job.value) showThumb(row, job.value);
       return true;
     }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); return false; });
   }
+  function runUpload(row, field, q, job) {
+    var fd = new FormData(); fd.append('product_image', job.file); fd.append('via', job.via);
+    if (job.source) fd.append('source_url', job.source);
+    return fetch('/products/' + row.dataset.pid + '/upload-image', {method: 'POST', body: fd})
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) { status(row, '실패', 'text-red-500 font-semibold'); return false; }
+        q.saved = d.image_url;
+        var inp = fieldInput(row, field);
+        if (inp) {
+          inp.dataset.saved = d.image_url;
+          // 업로드하는 사이 사람이 다른 주소를 넣었으면 덮지 않는다 — 그 주소는 뒤 작업이 저장한다
+          if (q.pending === 1 && inp.value === job.before) { inp.value = d.image_url; showThumb(row, d.image_url); }
+        }
+        return true;
+      }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); return false; });
+  }
+  function sourceOf(row) { var s = row.querySelector('.fill-source'); return s ? s.value : ''; }
+  function saveField(input, via, sourceUrl) {
+    var row = input.closest('tr');
+    if (!input.checkValidity()) {   // 음수·범위 밖 값은 보내지 않는다 (서버도 거부)
+      input.reportValidity(); status(row, '값 확인', 'text-amber-600 font-semibold'); return Promise.resolve(false);
+    }
+    return enqueue(row, input.dataset.field, {kind: 'value', value: input.value, via: via || 'fill',
+                                              source: sourceUrl != null ? sourceUrl : sourceOf(row)});
+  }
   function uploadFile(row, file) {
     if (!file || !file.type || file.type.indexOf('image/') !== 0) { status(row, '이미지 아님', 'text-red-500'); return; }
-    var inp = row.querySelector('[data-field="product_image"]');
-    inp._chain = (inp._chain || Promise.resolve(true)).then(function () {   // 같은 사진 칸의 주소 저장과 같은 줄
-      var fd = new FormData(); fd.append('product_image', file); fd.append('via', 'fill');
-      var src = row.querySelector('.fill-source'); if (src && src.value) fd.append('source_url', src.value);
-      status(row, '올리는 중', 'text-gray-400');
-      return fetch('/products/' + row.dataset.pid + '/upload-image', {method: 'POST', body: fd})
-        .then(function (r) { return r.json(); }).then(function (d) {
-          if (!d.ok) { status(row, '실패', 'text-red-500 font-semibold'); return false; }
-          inp.value = d.image_url; inp.dataset.saved = d.image_url;
-          showThumb(row, d.image_url); status(row, '저장됨 ✓', 'text-green-600 font-semibold');
-          return true;
-        }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); return false; });
-    });
+    var inp = fieldInput(row, 'product_image');
+    enqueue(row, 'product_image', {kind: 'upload', file: file, via: 'fill', source: sourceOf(row), before: inp ? inp.value : ''});
   }
   // ── 자동 채우기 1단계: 판매 페이지에서 후보 가져오기 → '적용'을 눌러야 저장 (기록 via=autofill) ──
   // 글자·속성 안전 변환 — 따옴표까지 바꿔야 속성값(data-value, src) 밖으로 빠져나가지 못한다
@@ -517,15 +541,13 @@
   // 제안을 적용 — 기록의 '찾은 곳'은 그 제안을 만든 주소(sourceUrl)로 남긴다 (#4). 성공 여부를 돌려준다 (#5)
   function applyTo(row, field, value, via, sourceUrl) {
     via = via || 'autofill';
-    var inp = row.querySelector('[data-field="' + field + '"]');
-    if (inp) { inp.value = value; return saveField(inp, via, sourceUrl); }
-    // 표에 없는 칸(소비자가)은 바로 저장
-    status(row, '저장 중', 'text-gray-400');
-    return fetch('/products/' + row.dataset.pid + '/field', {method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({field: field, value: String(value), via: via, source_url: sourceUrl || ''})})
-      .then(function (r) { return r.json(); })
-      .then(function (d) { status(row, d.ok ? '저장됨 ✓' : '실패', d.ok ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'); return !!d.ok; })
-      .catch(function () { status(row, '실패', 'text-red-500 font-semibold'); return false; });
+    var inp = fieldInput(row, field);   // 실제 입력칸만 (같은 이름표의 제안 버튼 제외 — 재검토 B)
+    if (inp) {
+      inp.value = String(value);   // 사진 미리보기는 저장에 성공한 뒤에만 (runValue)
+      return saveField(inp, via, sourceUrl);
+    }
+    // 표에 없는 칸(소비자가)도 같은 '제품·칸' 줄로
+    return enqueue(row, field, {kind: 'value', value: String(value), via: via, source: sourceUrl || ''});
   }
   function renderSuggestions(row, sg, via, sourceUrl, note) {
     var box = row.querySelector('.fill-suggestions'), html = '<div class="rounded-lg border border-indigo-100 bg-indigo-50/60 p-2 space-y-1.5 text-[11px]">';
