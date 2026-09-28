@@ -833,19 +833,19 @@ def campaign_detail(campaign_id: str, request: Request, db: Session = Depends(ge
 
     # ── 캠페인 단위 손익 집계 ──────────────────────────────────────────────────
     txn_rev = db.query(func.sum(Transaction.amount)).filter(
-        Transaction.campaign_id == campaign_id, Transaction.type == "revenue"
+        func.coalesce(Transaction.company_id, 1) == cid, Transaction.campaign_id == campaign_id, Transaction.type == "revenue"
     ).scalar() or 0
     txn_cost = db.query(func.sum(Transaction.amount)).filter(
-        Transaction.campaign_id == campaign_id, Transaction.type == "cost"
+        func.coalesce(Transaction.company_id, 1) == cid, Transaction.campaign_id == campaign_id, Transaction.type == "cost"
     ).scalar() or 0
     settle_amt = db.query(func.sum(Settlement.final_payment)).filter(
-        Settlement.campaign_id == campaign_id,
+        func.coalesce(Settlement.company_id, 1) == cid, Settlement.campaign_id == campaign_id,
         Settlement.status.in_(["paid", "confirmed"]),
     ).scalar() or 0
     camp_net = txn_rev - txn_cost - settle_amt
 
     camp_transactions = db.query(Transaction).filter(
-        Transaction.campaign_id == campaign_id
+        func.coalesce(Transaction.company_id, 1) == cid, Transaction.campaign_id == campaign_id
     ).order_by(Transaction.transaction_date.desc()).all()
 
     sales_pages = db.query(SalesPage).filter(

@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.auth.dependencies import get_current_user, require_super_admin
+from app.auth.dependencies import get_current_user, require_super_admin, require_platform_admin
 from app.models.user import User
 from app.services.feature_flags import (
     ALL_FEATURES, PLAN_FEATURES,
@@ -25,7 +25,7 @@ templates = Jinja2Templates(directory="app/templates")
 def features_index(
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_platform_admin),
 ):
     company = get_or_create_default_company(db)
     enabled = get_enabled_features(db, company.id)

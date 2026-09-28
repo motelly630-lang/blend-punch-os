@@ -70,6 +70,18 @@ def _get_job(target_id: str) -> dict:
         db.close()
 
 
+def _owned(db: Session, current_user: User, target_type: str, target_id: str):
+    """우리 회사의 제품/브랜드만 돌려준다 (다른 회사 id 면 None) — RG-002."""
+    from app.auth.tenant import get_company_id
+    from app.models.product import Product
+    from app.models.brand import Brand
+    model = Product if target_type == "product" else Brand if target_type == "brand" else None
+    if model is None:
+        return None
+    return (db.query(model)
+            .filter(model.id == target_id, model.company_id == get_company_id(current_user)).first())
+
+
 def _get_company_id(current_user: User, db: Session) -> int:
     from app.services.feature_flags import get_user_company
     company_id, _ = get_user_company(db, current_user.username)
@@ -132,7 +144,7 @@ def pipeline_product_viewer(
     current_user: User = Depends(get_current_user),
 ):
     from app.models.product import Product
-    product = db.query(Product).filter(Product.id == product_id).first()
+    product = _owned(db, current_user, "product", product_id)
     if not product:
         raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
     return templates.TemplateResponse("pipeline/viewer.html", {
@@ -155,7 +167,7 @@ def pipeline_brand_viewer(
     current_user: User = Depends(get_current_user),
 ):
     from app.models.brand import Brand
-    brand = db.query(Brand).filter(Brand.id == brand_id).first()
+    brand = _owned(db, current_user, "brand", brand_id)
     if not brand:
         raise HTTPException(status_code=404, detail="브랜드를 찾을 수 없습니다.")
     return templates.TemplateResponse("pipeline/viewer.html", {
@@ -265,7 +277,7 @@ def start_product_pipeline(
     image_file: Optional[UploadFile] = File(None),
 ):
     from app.models.product import Product
-    product = db.query(Product).filter(Product.id == product_id).first()
+    product = _owned(db, current_user, "product", product_id)
     if not product:
         raise HTTPException(status_code=404)
 
@@ -314,7 +326,7 @@ def start_brand_pipeline(
     image_file: Optional[UploadFile] = File(None),
 ):
     from app.models.brand import Brand
-    brand = db.query(Brand).filter(Brand.id == brand_id).first()
+    brand = _owned(db, current_user, "brand", brand_id)
     if not brand:
         raise HTTPException(status_code=404)
 
@@ -348,6 +360,8 @@ def poll_pipeline(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if not _owned(db, current_user, target_type, target_id):
+        raise HTTPException(status_code=404)
     job = _get_job(target_id)
     job_status = job.get("status", "idle")
 
@@ -372,12 +386,7 @@ def poll_pipeline(
         "created_at": l.created_at.isoformat() if l.created_at else None,
     } for l in logs]
 
-    if target_type == "product":
-        from app.models.product import Product
-        obj = db.query(Product).filter(Product.id == target_id).first()
-    else:
-        from app.models.brand import Brand
-        obj = db.query(Brand).filter(Brand.id == target_id).first()
+    obj = _owned(db, current_user, target_type, target_id)
 
     review_status = (getattr(obj, "review_status", "draft") or "draft") if obj else "draft"
     priority_score = getattr(obj, "priority_score", None) if obj else None
@@ -525,6 +534,8 @@ def get_pipeline_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if not _owned(db, current_user, target_type, target_id):
+        raise HTTPException(status_code=404)
     logs = (
         db.query(AgentLog)
         .filter(AgentLog.target_type == target_type, AgentLog.target_id == target_id)
@@ -547,12 +558,7 @@ def get_pipeline_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if target_type == "product":
-        from app.models.product import Product
-        obj = db.query(Product).filter(Product.id == target_id).first()
-    else:
-        from app.models.brand import Brand
-        obj = db.query(Brand).filter(Brand.id == target_id).first()
+    obj = _owned(db, current_user, target_type, target_id)
     if not obj:
         raise HTTPException(status_code=404)
     review_status = getattr(obj, "review_status", "draft") or "draft"

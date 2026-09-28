@@ -13,6 +13,8 @@ from app.models.influencer import Influencer
 from app.models.automation import AutomationNote, CampaignRecommendation
 from app.models.campaign import Campaign
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
+from html import escape as _e
 from app.models.user import User
 from app.ai.client import ClaudeClient
 
@@ -88,12 +90,16 @@ def recommend_sellers(
     category: str = Form(""),
     usp: str = Form(""),
 ):
+    cid = get_company_id(current_user)
     influencers = (
         db.query(Influencer)
-        .filter(Influencer.status == "active")
+        .filter(Influencer.company_id == cid, Influencer.status == "active")
         .limit(500)
         .all()
     )
+    my_campaigns = (db.query(Campaign)
+                    .filter(Campaign.company_id == cid, Campaign.status != "cancelled")
+                    .order_by(Campaign.created_at.desc()).limit(30).all())
     if not influencers:
         return HTMLResponse('<div class="text-sm text-gray-400 p-4">등록된 인플루언서가 없습니다.</div>')
 
@@ -123,8 +129,8 @@ def recommend_sellers(
 <div class="flex items-start gap-4 p-4 border border-gray-100 rounded-xl hover:border-indigo-200 transition-colors">
   <div class="flex-1 min-w-0">
     <div class="flex items-center gap-2 mb-1">
-      <a href="/influencers/{inf.id}" class="font-semibold text-gray-900 hover:text-indigo-600 text-sm">{inf.name}</a>
-      {"<span class='text-xs text-gray-400'>@" + inf.handle + "</span>" if inf.handle else ""}
+      <a href="/influencers/{_e(str(inf.id))}" class="font-semibold text-gray-900 hover:text-indigo-600 text-sm">{_e(inf.name or "")}</a>
+      {"<span class='text-xs text-gray-400'>@" + _e(inf.handle) + "</span>" if inf.handle else ""}
       <span class="text-xs px-2 py-0.5 rounded-full font-bold {score_cls}">{score}점</span>
     </div>
     <div class="flex items-center gap-3 text-xs text-gray-500 mb-2">
@@ -133,21 +139,21 @@ def recommend_sellers(
       {"<span>참여율 " + str(round(inf.engagement_rate or 0, 1)) + "%</span>" if inf.engagement_rate else ""}
       {"<span class='text-green-600 font-medium'>캠페인 경력 있음</span>" if inf.has_campaign_history == 'true' else ""}
     </div>
-    <div class="text-xs text-gray-400 mb-2">{cats}</div>
-    <div class="text-sm text-gray-700 leading-relaxed">{reason}</div>
+    <div class="text-xs text-gray-400 mb-2">{_e(cats)}</div>
+    <div class="text-sm text-gray-700 leading-relaxed">{_e(reason)}</div>
   </div>
   <div class="flex flex-col gap-1.5 flex-shrink-0">
-    <button onclick="navigator.clipboard.writeText(`{reason.replace('`', "'")}`).then(()=>alert('복사됨'))"
+    <button type="button" data-copy="{_e(reason)}" onclick="navigator.clipboard.writeText(this.dataset.copy).then(()=>alert('복사됨'))"
       class="text-xs px-2.5 py-1 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 whitespace-nowrap">복사</button>
     <form method="post" action="/api/automation/add-to-campaign" class="inline">
-      <input type="hidden" name="influencer_id" value="{inf.id}">
+      <input type="hidden" name="influencer_id" value="{_e(str(inf.id))}">
       <input type="hidden" name="score" value="{score}">
-      <input type="hidden" name="reason" value="{reason[:500]}">
-      <input type="hidden" name="product_id" value="{product_id}">
+      <input type="hidden" name="reason" value="{_e(reason[:500])}">
+      <input type="hidden" name="product_id" value="{_e(product_id)}">
       <select name="campaign_id" onchange="if(this.value)this.form.submit()"
         class="text-xs border border-indigo-200 rounded-lg px-2 py-1 bg-white cursor-pointer text-indigo-600">
         <option value="">캠페인 추가</option>
-        {"".join(f'<option value="{c.id}">{c.name[:20]}</option>' for c in db.query(Campaign).filter(Campaign.status != "cancelled").order_by(Campaign.created_at.desc()).limit(30).all())}
+        {"".join(f'<option value="{_e(str(c.id))}">{_e((c.name or "")[:20])}</option>' for c in my_campaigns)}
       </select>
     </form>
   </div>
@@ -161,7 +167,7 @@ def recommend_sellers(
     return HTMLResponse(f"""
 <div id="output-panel" class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
   <div class="flex items-center justify-between mb-2">
-    <h3 class="text-sm font-semibold text-gray-700">셀러 추천 결과 — {category or '전체'} / {product_name or '제품'}</h3>
+    <h3 class="text-sm font-semibold text-gray-700">셀러 추천 결과 — {_e(category or '전체')} / {_e(product_name or '제품')}</h3>
     <div class="flex gap-2">
       <button onclick="navigator.clipboard.writeText(document.getElementById('recommend-text').innerText).then(()=>this.textContent='복사됨 ✓')"
         class="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50">전체 복사</button>
@@ -183,12 +189,12 @@ def recommend_sellers(
     </div>
     <form method="post" action="/api/automation/save-note" class="space-y-3">
       <input type="hidden" name="module" value="seller_recommend">
-      <input type="hidden" name="product_id" value="{product_id}">
-      <input type="hidden" name="product_name" value="{product_name}">
-      <input type="hidden" name="content" value="{save_content.replace(chr(34), '&quot;')}">
+      <input type="hidden" name="product_id" value="{_e(product_id)}">
+      <input type="hidden" name="product_name" value="{_e(product_name)}">
+      <input type="hidden" name="content" value="{_e(save_content)}">
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">제목</label>
-        <input type="text" name="title" value="셀러 추천 — {product_name or category}"
+        <input type="text" name="title" value="셀러 추천 — {_e(product_name or category)}"
           class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
       </div>
       <div class="flex justify-end gap-3">
@@ -241,6 +247,10 @@ def add_to_campaign(
     from fastapi.responses import RedirectResponse
     if not campaign_id:
         return RedirectResponse("/automation", status_code=302)
+    cid = get_company_id(current_user)   # 우리 회사 캠페인·인플루언서끼리만 연결
+    if not (db.query(Campaign.id).filter(Campaign.company_id == cid, Campaign.id == campaign_id).first()
+            and db.query(Influencer.id).filter(Influencer.company_id == cid, Influencer.id == influencer_id).first()):
+        return RedirectResponse("/automation?err=대상을+찾을+수+없습니다", status_code=302)
     rec = CampaignRecommendation(
         campaign_id=campaign_id,
         influencer_id=influencer_id,

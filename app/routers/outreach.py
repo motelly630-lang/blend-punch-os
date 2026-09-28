@@ -29,6 +29,9 @@ from app.models.crm import CrmPipeline
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
 
+from urllib.parse import quote
+from app.services.campaign_service import foreign_ref_error
+
 router = APIRouter(prefix="/outreach")
 templates = Jinja2Templates(directory="app/templates")
 
@@ -45,14 +48,16 @@ _REPLIED_STATUSES = {"replied", "deal", "샘플요청", "샘플발송"}
 _DEAL_STATUSES    = {"deal", "샘플발송"}
 
 
-def _get_or_create_influencer(db: Session, handle: str) -> str | None:
+def _get_or_create_influencer(db: Session, handle: str, cid: int) -> str | None:
+    """같은 회사 안에서만 찾고, 없으면 그 회사 소속으로 만든다 (RG-002 자동 생성 경로)."""
     if not handle:
         return None
     clean = handle.lstrip("@").strip()
-    inf = db.query(Influencer).filter(Influencer.handle == clean).first()
+    inf = db.query(Influencer).filter(Influencer.company_id == cid, Influencer.handle == clean).first()
     if inf:
         return inf.id
     new_inf = Influencer(
+        company_id=cid,
         name=clean, handle=clean, platform="instagram",
         followers=0, status="active", has_campaign_history="false",
     )
@@ -270,7 +275,10 @@ def outreach_create(
     notes: str = Form(""),
 ):
     cid = get_company_id(current_user)
-    influencer_id = _get_or_create_influencer(db, influencer_handle)
+    _ref_err = foreign_ref_error(db, cid, product_id=product_id, campaign_id=campaign_id)
+    if _ref_err:   # 다른 회사 제품·셀러·캠페인 id 거부
+        return RedirectResponse("/outreach?err=" + quote(_ref_err), status_code=302)
+    influencer_id = _get_or_create_influencer(db, influencer_handle, cid)
 
     def _parse_dt(val: str):
         if not val:
@@ -364,6 +372,9 @@ def outreach_update(
     notes: str = Form(""),
 ):
     cid = get_company_id(current_user)
+    _ref_err = foreign_ref_error(db, cid, product_id=product_id, campaign_id=campaign_id)
+    if _ref_err:   # 다른 회사 제품·셀러·캠페인 id 거부
+        return RedirectResponse("/outreach?err=" + quote(_ref_err), status_code=302)
     log = db.query(OutreachLog).filter(OutreachLog.company_id == cid, OutreachLog.id == log_id).first()
     if not log:
         return RedirectResponse("/outreach", status_code=302)
@@ -385,7 +396,7 @@ def outreach_update(
 
     log.operator          = operator.strip()
     log.influencer_handle = influencer_handle.lstrip("@").strip()
-    log.influencer_id     = _get_or_create_influencer(db, influencer_handle)
+    log.influencer_id     = _get_or_create_influencer(db, influencer_handle, cid)
     log.product_id        = product_id or None
     log.campaign_id       = campaign_id or None
     log.outreach_date     = outreach_date

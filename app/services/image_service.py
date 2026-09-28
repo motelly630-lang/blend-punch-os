@@ -12,6 +12,8 @@ from io import BytesIO
 from pathlib import Path
 
 import httpx
+
+from app.services.safe_fetch import safe_get_image
 from fastapi import UploadFile
 from PIL import Image
 
@@ -256,10 +258,10 @@ def save_url_image(url: str, dest_dir: Path, remove_bg: bool = False,
         return None
     try:
         headers = _INSTAGRAM_HEADERS if _is_instagram_url(url) else {}
-        resp = httpx.get(url, headers=headers, timeout=20, follow_redirects=True)
-        if resp.status_code != 200:
+        got = safe_get_image(url, headers=headers, timeout=20)   # 내부 주소 거부 + 진짜 이미지만
+        if not got:
             return None
-        img = Image.open(BytesIO(resp.content))
+        img = Image.open(BytesIO(got[0]))
         img = _process_image(img, remove_bg=remove_bg)
         use_alpha = img.mode == "RGBA"
         img_bytes, ext = _pil_to_bytes(img, use_alpha=use_alpha)
@@ -302,11 +304,11 @@ def cache_external_image(url: str) -> str | None:
 
     try:
         headers = _INSTAGRAM_HEADERS if _is_instagram_url(url) else {}
-        resp = httpx.get(url, headers=headers, timeout=10, follow_redirects=True)
-        if resp.status_code != 200:
+        got = safe_get_image(url, headers=headers, timeout=10)   # 내부 주소 거부 + 진짜 이미지만
+        if not got:
             return None
 
-        img = Image.open(BytesIO(resp.content))
+        img = Image.open(BytesIO(got[0]))
         img = _process_image(img)
         use_alpha = img.mode == "RGBA"
         ext = "png" if use_alpha else "webp"

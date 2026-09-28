@@ -7,6 +7,7 @@ from app.models import Product
 from app.models.playbook import Playbook
 from app.ai.playbook_generator import generate_playbook, playbook_to_text
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.models.user import User
 
 router = APIRouter(prefix="/api/ai")
@@ -30,7 +31,7 @@ def ai_playbook(
     # DB lookup if product_id provided
     product = None
     if product_id:
-        product = db.query(Product).filter(Product.id == product_id).first()
+        product = db.query(Product).filter(Product.company_id == get_company_id(current_user), Product.id == product_id).first()
 
     if product:
         p_name = product.name
@@ -74,7 +75,8 @@ def ai_playbook(
 
     if save == "true":
         pb = Playbook(
-            product_id=product_id or None,
+            company_id=get_company_id(current_user),
+            product_id=(product.id if product else None) if product_id else None,
             product_name=p_name,
             product_brand=p_brand,
             product_usp=p_usp,

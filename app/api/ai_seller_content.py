@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models.proposal import Proposal
 from app.ai.proposal_generator import generate_proposal
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.models.user import User
 
 router = APIRouter(prefix="/api/ai")
@@ -68,8 +69,12 @@ def ai_seller_content(
     label = _CONTENT_LABELS.get(content_type, content_type)
 
     if save == "true":
+        from app.models.product import Product as _P
+        cid = get_company_id(current_user)
+        owned = db.query(_P.id).filter(_P.company_id == cid, _P.id == product_id).first() if product_id else None
         proposal = Proposal(
-            product_id=product_id or None,
+            company_id=cid,
+            product_id=owned[0] if owned else None,   # 다른 회사 제품 id 는 연결하지 않음
             proposal_type=content_type,
             title=title or None,
             body=body,

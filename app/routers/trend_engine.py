@@ -11,7 +11,7 @@ from app.config import settings
 from app.models.trend_engine import TrendBriefing
 from app.models.trend import TrendItem
 from app.models.user import User
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_platform_admin
 from app.auth.tenant import get_company_id
 from app.services.season_matrix import SEASON_MATRIX, SEASON_LABELS
 from app.services.trend_matcher import (
@@ -163,7 +163,7 @@ def engine_dashboard(
 @router.post("/engine/run")
 def engine_run_briefing(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_platform_admin),
 ):
     """Manually trigger the daily briefing job."""
     briefing = run_briefing(db)

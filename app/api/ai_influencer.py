@@ -4,6 +4,8 @@ import re
 import uuid
 import json as _json
 import httpx
+
+from app.services.safe_fetch import safe_get, safe_get_image
 from pathlib import Path
 from fastapi import APIRouter, Form, UploadFile, File, Depends
 from fastapi.responses import HTMLResponse
@@ -201,13 +203,7 @@ def _download_image(url: str) -> tuple[bytes, str] | None:
         referer = _referer_for(url)
         if referer:
             headers["Referer"] = referer
-        with httpx.Client(follow_redirects=True, timeout=15, headers=headers) as c:
-            r = c.get(url)
-            if r.status_code != 200 or not r.content:
-                return None
-            ct = r.headers.get("content-type", "image/jpeg").lower()
-            ext = "png" if "png" in ct else "webp" if "webp" in ct else "jpg"
-            return r.content, ext
+        return safe_get_image(url, headers=headers)   # 내부 주소 거부 + 진짜 이미지만
     except Exception:
         return None
 
@@ -313,10 +309,9 @@ async def _fill_html_fallback(url: str, platform: str, handle: str) -> tuple[dic
     """og 메타 + Claude로 비-Instagram 플랫폼 처리."""
     html = ""
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=15, headers=_HEADERS) as client:
-            r = await client.get(url)
-            if r.status_code == 200:
-                html = r.text
+        r = await asyncio.to_thread(safe_get, url, headers=_HEADERS)   # 내부 주소 거부
+        if r.status_code == 200:
+            html = r.text
     except Exception:
         pass
 
@@ -407,11 +402,10 @@ async def process_influencer_url(url: str) -> dict:
     html = ""
     fetch_ok = False
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=15, headers=_HEADERS) as client:
-            r = await client.get(url)
-            if r.status_code == 200:
-                html = r.text
-                fetch_ok = True
+        r = await asyncio.to_thread(safe_get, url, headers=_HEADERS)   # 내부 주소 거부
+        if r.status_code == 200:
+            html = r.text
+            fetch_ok = True
     except Exception:
         pass
 

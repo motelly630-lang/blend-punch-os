@@ -65,6 +65,22 @@ def resolve_product_id(db: Session, company_id: int, product_id) -> str | None:
     return pid
 
 
+def foreign_ref_error(db: Session, company_id: int, *, product_id=None, influencer_id=None,
+                      campaign_id=None) -> str | None:
+    """폼으로 받은 제품·셀러·캠페인 id 가 모두 우리 회사 것인지. 아니면 안내 문구 (RG-002)."""
+    try:
+        resolve_product_id(db, company_id, product_id)
+        resolve_influencer_id(db, company_id, influencer_id)
+    except CampaignValidationError as e:
+        return str(e)
+    cid_ = (campaign_id or "").strip() if isinstance(campaign_id, str) else campaign_id
+    if cid_:
+        from app.models.campaign import Campaign
+        if not db.query(Campaign.id).filter(Campaign.id == cid_, Campaign.company_id == company_id).first():
+            return "선택한 캠페인을 찾을 수 없습니다 (다른 회사 캠페인이거나 삭제됨)"
+    return None
+
+
 def resolve_influencer_id(db: Session, company_id: int, influencer_id) -> str | None:
     """업무상 '셀러'는 Influencer 다 (Seller 추적코드 아님). 같은 회사 소속이어야 한다."""
     iid = (influencer_id or "").strip() if isinstance(influencer_id, str) else influencer_id

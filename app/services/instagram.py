@@ -59,16 +59,14 @@ def _download_and_save(url: str) -> str:
     if not url:
         return ""
     try:
-        import httpx
-        with httpx.Client(follow_redirects=True, timeout=15) as c:
-            r = c.get(url)
-            if r.status_code != 200 or not r.content:
-                return ""
-            ct = r.headers.get("content-type", "image/jpeg").lower()
-            ext = "png" if "png" in ct else "webp" if "webp" in ct else "jpg"
-            filename = f"{uuid.uuid4().hex}.{ext}"
-            (UPLOAD_DIR / filename).write_bytes(r.content)
-            return f"/static/uploads/influencers/{filename}"
+        from app.services.safe_fetch import safe_get_image
+        got = safe_get_image(url)   # 내부 주소 거부 + 진짜 이미지만
+        if not got:
+            return ""
+        data, ext = got
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        (UPLOAD_DIR / filename).write_bytes(data)
+        return f"/static/uploads/influencers/{filename}"
     except Exception as e:
         logger.warning(f"이미지 다운로드 실패: {e}")
         return ""

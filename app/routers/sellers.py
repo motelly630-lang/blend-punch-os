@@ -14,6 +14,9 @@ from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
 from app.models.user import User
 
+from urllib.parse import quote
+from app.services.campaign_service import foreign_ref_error
+
 router = APIRouter(prefix="/sellers")
 templates = Jinja2Templates(directory="app/templates")
 
@@ -82,6 +85,9 @@ def seller_create(
     user: User = Depends(get_current_user),
 ):
     cid = get_company_id(user)
+    _ref_err = foreign_ref_error(db, cid, influencer_id=influencer_id)
+    if _ref_err:   # 다른 회사 제품·셀러·캠페인 id 거부
+        return RedirectResponse("/sellers?err=" + quote(_ref_err), status_code=302)
     seller_code = seller_code.strip().lower()
     if not _valid_code(seller_code):
         return RedirectResponse("/sellers?err=셀러코드는+영문소문자·숫자·하이픈만+2~30자", status_code=302)
@@ -112,6 +118,9 @@ def seller_edit(
     user: User = Depends(get_current_user),
 ):
     cid = get_company_id(user)
+    _ref_err = foreign_ref_error(db, cid, influencer_id=influencer_id)
+    if _ref_err:   # 다른 회사 제품·셀러·캠페인 id 거부
+        return RedirectResponse("/sellers?err=" + quote(_ref_err), status_code=302)
     s = db.query(Seller).filter(Seller.company_id == cid, Seller.id == seller_id).first()
     if not s:
         return RedirectResponse("/sellers?err=셀러를+찾을+수+없습니다", status_code=302)

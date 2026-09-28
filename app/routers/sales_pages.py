@@ -118,6 +118,15 @@ def pages_new(request: Request, db: Session = Depends(get_db),
     })
 
 
+def _foreign_refs(db: Session, cid: int, product_id: str, campaign_id: str) -> str | None:
+    """판매 페이지는 우리 회사 제품·캠페인에만 연결 (다른 회사 제품을 우리 쇼핑몰에 걸지 못하게)."""
+    if not db.query(Product.id).filter(Product.company_id == cid, Product.id == product_id).first():
+        return "제품을+찾을+수+없습니다"
+    if campaign_id and not db.query(Campaign.id).filter(Campaign.company_id == cid, Campaign.id == campaign_id).first():
+        return "캠페인을+찾을+수+없습니다"
+    return None
+
+
 @router.post("/new")
 async def pages_create(
     slug: str = Form(...),
@@ -149,6 +158,9 @@ async def pages_create(
     cid = get_company_id(user)
     if db.query(SalesPage).filter(SalesPage.slug == slug).first():
         return RedirectResponse("/sales-pages/new?err=이미+사용중인+슬러그입니다", status_code=302)
+    bad = _foreign_refs(db, cid, product_id, campaign_id)
+    if bad:
+        return RedirectResponse(f"/sales-pages/new?err={bad}", status_code=302)
 
     main_img = _save_image(main_image_file)
     extra_imgs = []
@@ -234,6 +246,10 @@ async def pages_update(
     page = db.query(SalesPage).filter(SalesPage.company_id == cid, SalesPage.id == page_id).first()
     if not page:
         return RedirectResponse("/sales-pages", status_code=302)
+
+    bad = _foreign_refs(db, cid, product_id, campaign_id)
+    if bad:
+        return RedirectResponse(f"/sales-pages/{page_id}/edit?err={bad}", status_code=302)
 
     slug = slug.strip().lower()
     dup = db.query(SalesPage).filter(SalesPage.slug == slug, SalesPage.id != page_id).first()

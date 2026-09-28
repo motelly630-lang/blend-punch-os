@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import Product
 from app.ai.proposal_generator import generate_proposal
 from app.auth.dependencies import get_current_user
+from app.auth.tenant import get_company_id
 from app.models.user import User
 
 router = APIRouter(prefix="/api/ai")
@@ -17,7 +18,7 @@ def ai_proposal_draft(
     product_id: str = Form(""),
     custom_instructions: str = Form(""),
 ):
-    product = db.query(Product).filter(Product.id == product_id).first() if product_id else None
+    product = db.query(Product).filter(Product.company_id == get_company_id(current_user), Product.id == product_id).first() if product_id else None
 
     if not product:
         return HTMLResponse(

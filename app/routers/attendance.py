@@ -38,7 +38,8 @@ def attendance_index(
     logs = (
         db.query(AttendanceLog, User)
         .join(User, AttendanceLog.user_id == User.id)
-        .filter(AttendanceLog.date == selected_date)
+        .filter(AttendanceLog.date == selected_date,
+                *(() if user.company_id is None else (User.company_id == user.company_id,)))   # 수퍼어드민만 전체
         .order_by(AttendanceLog.first_login_at)
         .all()
     )
@@ -64,6 +65,8 @@ def user_visits(
         return RedirectResponse("/", status_code=302)
 
     target = db.query(User).filter(User.id == user_id).first()
+    if target and user.company_id is not None and target.company_id != user.company_id:
+        target = None   # 다른 회사 직원 기록은 볼 수 없음
     if not target:
         return RedirectResponse("/attendance", status_code=302)
 

@@ -16,7 +16,7 @@ from app.models.sales_page import SalesPage
 from app.models.product import Product
 from app.models.seller import Seller
 from app.models.business_info import BusinessInfo
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_internal_request
 from app.auth.tenant import get_company_id
 from app.models.user import User
 from app.services.kakao_notify import send_kakao_shipping
@@ -29,9 +29,9 @@ templates = Jinja2Templates(directory="app/templates")
 
 # ── 공개 API (SHOP → OS) ────────────────────────────────────────────────────
 
-@router.post("/api/create")
+@router.post("/api/create", dependencies=[Depends(require_internal_request)])
 async def order_create_api(request: Request, db: Session = Depends(get_db)):
-    """결제 완료 후 blend-pick에서 호출하는 주문 생성 API"""
+    """결제 완료 후 blend-pick에서 호출하는 주문 생성 API — 같은 서버 안에서 부른 요청만 (보안 점검 2026-09-28)"""
     import random, string
     try:
         body = await request.json()

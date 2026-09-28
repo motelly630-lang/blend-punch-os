@@ -22,6 +22,14 @@ COST_CATEGORIES = [
 ]
 
 
+def _safe_redirect(target: str | None) -> str:
+    """같은 사이트 안 경로로만 돌려보낸다 (외부 주소로 튕기는 open redirect 방지)."""
+    t = (target or "").strip()
+    if not t.startswith("/") or t.startswith("//") or t.startswith("/\\"):
+        return "/settlements?tab=calc"
+    return t
+
+
 @router.post("/new")
 def transaction_create(
     db: Session = Depends(get_db),
@@ -37,6 +45,10 @@ def transaction_create(
     redirect_to: str = Form("/settlements?tab=calc"),
 ):
     cid = get_company_id(current_user)
+    if campaign_id:   # 다른 회사 캠페인에 매출·비용을 붙이지 못하게
+        from app.models.campaign import Campaign
+        if not db.query(Campaign.id).filter(Campaign.company_id == cid, Campaign.id == campaign_id).first():
+            return RedirectResponse(_safe_redirect(None), status_code=302)
     txn_date = None
     if transaction_date:
         try:
@@ -56,7 +68,7 @@ def transaction_create(
     )
     db.add(t)
     db.commit()
-    return RedirectResponse(redirect_to, status_code=302)
+    return RedirectResponse(_safe_redirect(redirect_to), status_code=302)
 
 
 @router.post("/{txn_id}/delete")
@@ -73,4 +85,4 @@ def transaction_delete(
     if t:
         db.delete(t)
         db.commit()
-    return RedirectResponse(redirect_to, status_code=302)
+    return RedirectResponse(_safe_redirect(redirect_to), status_code=302)

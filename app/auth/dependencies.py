@@ -1,4 +1,4 @@
-from fastapi import Request, Depends
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
@@ -46,6 +46,32 @@ def require_super_admin(user: User = Depends(get_current_user)) -> User:
     if user.company_id is not None or user.role != "admin":
         raise InsufficientPermissions()
     return user
+
+
+PLATFORM_COMPANY_ID = 1   # 블렌드펀치 본사 (공개 카탈로그·사업자 정보·쇼핑몰 문의의 주인)
+
+
+def require_platform_admin(user: User = Depends(get_current_user)) -> User:
+    """블렌드펀치 전체에 걸린 설정(사업자 정보·브랜딩·쇼핑몰 문의)용.
+    수퍼어드민이거나 블렌드펀치(1번 회사) 관리자만. 다른 회사 관리자는 불가."""
+    if user.role != "admin" or user.company_id not in (None, PLATFORM_COMPANY_ID):
+        raise InsufficientPermissions()
+    return user
+
+
+_LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+_FORWARD_HEADERS = ("x-forwarded-for", "x-real-ip", "forwarded")
+
+
+def require_internal_request(request: Request) -> None:
+    """같은 서버 안(블랜드픽 → localhost:8000)에서 직접 부른 요청만 통과.
+
+    nginx 를 거쳐 들어온 바깥 요청은 전달 헤더(X-Forwarded-For 등)가 붙거나 주소가 바깥이라 거부된다.
+    전제: 운영 nginx 가 전달 헤더를 붙인다 — 배포 전 EC2 설정으로 확인할 것.
+    """
+    host = request.client.host if request.client else ""
+    if host not in _LOOPBACK or any(h in request.headers for h in _FORWARD_HEADERS):
+        raise HTTPException(status_code=403, detail="내부 전용 주소입니다")
 
 
 def require_manager(user: User = Depends(get_current_user)) -> User:

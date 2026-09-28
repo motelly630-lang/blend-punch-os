@@ -1,18 +1,23 @@
-from fastapi import APIRouter, Form
+import json
+from html import escape as _e
+
+from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse
+from app.auth.dependencies import get_current_user
+from app.models.user import User
 from app.ai.product_analyzer import analyze_product_url, analyze_product_text
 
 router = APIRouter(prefix="/api/ai")
 
 
 @router.post("/product-fill", response_class=HTMLResponse)
-def ai_product_fill(url: str = Form(...)):
+def ai_product_fill(url: str = Form(...), current_user: User = Depends(get_current_user)):
     try:
         data = analyze_product_url(url)
     except Exception as e:
         return HTMLResponse(
             f'<div class="text-red-600 text-sm p-3 bg-red-50 rounded-lg border border-red-200">'
-            f"AI 분석 실패: {e}</div>"
+            f"AI 분석 실패: {_e(str(e))}</div>"
         )
 
     key_benefits = data.get("key_benefits", [])
@@ -28,7 +33,7 @@ def ai_product_fill(url: str = Form(...)):
     </svg>
     AI 분석 완료 — 아래 버튼을 눌러 폼에 반영하세요
   </div>
-  <button type="button" onclick="applyAiFill({repr(data)})"
+  <button type="button" data-fill="{_e(json.dumps(data, ensure_ascii=False, default=str))}" onclick="applyAiFill(JSON.parse(this.dataset.fill))"
     class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
     폼에 적용하기
   </button>
@@ -82,13 +87,13 @@ function applyAiFill(data) {{
 
 
 @router.post("/product-text-fill", response_class=HTMLResponse)
-def ai_product_text_fill(raw_text: str = Form(...)):
+def ai_product_text_fill(raw_text: str = Form(...), current_user: User = Depends(get_current_user)):
     try:
         data = analyze_product_text(raw_text)
     except Exception as e:
         return HTMLResponse(
             f'<div class="text-red-600 text-sm p-3 bg-red-50 rounded-lg border border-red-200">'
-            f"AI 분석 실패: {e}</div>"
+            f"AI 분석 실패: {_e(str(e))}</div>"
         )
 
     return HTMLResponse(f"""
@@ -100,14 +105,14 @@ def ai_product_text_fill(raw_text: str = Form(...)):
     AI 추출 완료 — 아래 버튼을 눌러 폼에 반영하세요
   </div>
   <div class="grid grid-cols-2 gap-2 text-xs text-gray-600">
-    {f'<div><span class="text-gray-400">제품명</span><div class="font-medium">{data.get("name") or "-"}</div></div>' if data.get("name") else ""}
-    {f'<div><span class="text-gray-400">브랜드</span><div class="font-medium">{data.get("brand") or "-"}</div></div>' if data.get("brand") else ""}
+    {f'<div><span class="text-gray-400">제품명</span><div class="font-medium">{_e(str(data.get("name") or "-"))}</div></div>' if data.get("name") else ""}
+    {f'<div><span class="text-gray-400">브랜드</span><div class="font-medium">{_e(str(data.get("brand") or "-"))}</div></div>' if data.get("brand") else ""}
     {f'<div><span class="text-gray-400">소비자가</span><div class="font-medium">₩{int(data["consumer_price"]):,}</div></div>' if data.get("consumer_price") else ""}
     {f'<div><span class="text-gray-400">공구가</span><div class="font-medium text-blue-700">₩{int(data["groupbuy_price"]):,}</div></div>' if data.get("groupbuy_price") else ""}
-    {f'<div><span class="text-gray-400">할인율</span><div class="font-medium text-green-700">{data["discount_rate"]}%</div></div>' if data.get("discount_rate") else ""}
-    {f'<div><span class="text-gray-400">커미션율</span><div class="font-medium">{data["seller_commission_rate"]}%</div></div>' if data.get("seller_commission_rate") else ""}
+    {f'<div><span class="text-gray-400">할인율</span><div class="font-medium text-green-700">{_e(str(data["discount_rate"]))}%</div></div>' if data.get("discount_rate") else ""}
+    {f'<div><span class="text-gray-400">커미션율</span><div class="font-medium">{_e(str(data["seller_commission_rate"]))}%</div></div>' if data.get("seller_commission_rate") else ""}
   </div>
-  <button type="button" onclick="applyAiTextFill({repr(data)})"
+  <button type="button" data-fill="{_e(json.dumps(data, ensure_ascii=False, default=str))}" onclick="applyAiTextFill(JSON.parse(this.dataset.fill))"
     class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 w-full">
     폼에 적용하기
   </button>

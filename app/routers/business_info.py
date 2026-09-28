@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.business_info import BusinessInfo
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_platform_admin
 from app.models.user import User
 from app.services.image_service import save_upload, UPLOAD_DIR_BRANDING
 
@@ -84,7 +84,7 @@ def biz_info_save(
     return_policy:     str = Form(""),
     payment_guide:     str = Form(""),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_platform_admin),
 ):
     info = _get_or_create(db)
     info.company_name      = company_name.strip() or None
@@ -105,11 +105,11 @@ def biz_info_save(
 @router.post("/branding/login-bg")
 async def upload_login_bg(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_platform_admin),
     file: UploadFile = File(...),
 ):
     info = _get_or_create(db)
-    url = await save_upload(file, UPLOAD_DIR_BRANDING)
+    url = save_upload(file, UPLOAD_DIR_BRANDING)
     info.login_bg_image = url
     info.updated_at = datetime.utcnow()
     db.commit()
@@ -119,11 +119,11 @@ async def upload_login_bg(
 @router.post("/branding/orders-banner")
 async def upload_orders_banner(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_platform_admin),
     file: UploadFile = File(...),
 ):
     info = _get_or_create(db)
-    url = await save_upload(file, UPLOAD_DIR_BRANDING)
+    url = save_upload(file, UPLOAD_DIR_BRANDING)
     info.orders_banner_image = url
     info.updated_at = datetime.utcnow()
     db.commit()
@@ -133,7 +133,7 @@ async def upload_orders_banner(
 @router.post("/branding/login-bg/delete")
 def delete_login_bg(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_platform_admin),
 ):
     info = _get_or_create(db)
     info.login_bg_image = None
@@ -145,7 +145,7 @@ def delete_login_bg(
 @router.post("/branding/orders-banner/delete")
 def delete_orders_banner(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_platform_admin),
 ):
     info = _get_or_create(db)
     info.orders_banner_image = None

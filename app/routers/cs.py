@@ -498,6 +498,9 @@ def cs_assign(
         return RedirectResponse("/cs?err=CS를+찾을+수+없습니다", status_code=303)
 
     new_id = assigned_user_id or None
+    cand = db.query(User).filter(User.id == new_id).first() if new_id else None
+    if new_id and (cand is None or get_company_id(cand) != cid):   # 수퍼어드민(회사 없음)=1번 회사로 봄
+        return RedirectResponse(f"/cs/{cs_id}?err=같은+회사+직원만+지정할+수+있습니다", status_code=303)
     if new_id != ticket.assigned_user_id:
         ticket.assigned_user_id = new_id
         target = db.query(User).filter(User.id == new_id).first() if new_id else None

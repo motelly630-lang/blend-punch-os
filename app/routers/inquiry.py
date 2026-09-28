@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.inquiry import Inquiry
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import require_internal_request, require_platform_admin
 from app.models.user import User
 
 router = APIRouter(prefix="/inquiries")
@@ -14,7 +14,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 # ── API 엔드포인트 (구체적인 경로 먼저) ───────────────────────────────
 
-@router.post("/api/submit")
+@router.post("/api/submit", dependencies=[Depends(require_internal_request)])
 def inquiry_submit(
     name: str = Form(...),
     contact: str = Form(...),
@@ -35,7 +35,7 @@ def inquiry_submit(
     return {"ok": True, "id": inquiry.id}
 
 
-@router.get("/api/user/{user_id}")
+@router.get("/api/user/{user_id}", dependencies=[Depends(require_internal_request)])
 def inquiry_by_user(user_id: str, db: Session = Depends(get_db)):
     inquiries = (
         db.query(Inquiry)
@@ -66,7 +66,7 @@ def inquiry_list(
     request: Request,
     status: str = "",
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_platform_admin),
 ):
     q = db.query(Inquiry).order_by(Inquiry.created_at.desc())
     if status:
@@ -95,7 +95,7 @@ def inquiry_detail(
     inquiry_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_platform_admin),
 ):
     inquiry = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
     if not inquiry:
@@ -118,7 +118,7 @@ def inquiry_reply(
     inquiry_id: str,
     reply: str = Form(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_platform_admin),
 ):
     inquiry = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
     if inquiry:
