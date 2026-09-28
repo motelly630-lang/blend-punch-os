@@ -109,5 +109,38 @@ class SuggestBoxEscapingTests(unittest.TestCase):
         self.assertNotIn("textContent", body, "textContent→innerHTML 방식은 따옴표를 바꾸지 않는다")
 
 
+
+class CopyButtonTests(unittest.TestCase):
+    def test_install_page_has_bookmarklet(self):
+        r = client_for(make_user("admin", company_id=1)).get("/products/copy-button")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("javascript:(function(){", r.text.replace("&#39;", "'"))
+        self.assertIn("BPOS1:", r.text)
+
+    def test_bookmarklet_is_valid_javascript(self):
+        import shutil
+        import subprocess
+        import tempfile
+        from app.routers.products import COPY_BUTTON_JS
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node 없음")
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+            f.write(COPY_BUTTON_JS)
+        self.assertEqual(subprocess.run([node, "--check", f.name]).returncode, 0)
+
+    def test_copybtn_log_label(self):
+        db = SessionLocal()
+        p = Product(name=f"복사버튼 {uid()}", brand="x", category="기타", company_id=1)
+        db.add(p)
+        db.commit()
+        c = client_for(make_user("admin", company_id=1))
+        c.patch(f"/products/{p.id}/field", json={"field": "unique_selling_point", "value": f"복사소개 {uid()}",
+                                               "via": "copybtn", "source_url": "https://smartstore.naver.com/x/products/1"})
+        page = c.get("/products?view=fill&missing=image").text
+        self.assertIn("복사 버튼</span>", page)
+        db.close()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -170,6 +170,7 @@
 <div class="mb-3 text-xs text-gray-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
   칸에 입력하고 <b>Tab</b> 이나 다른 곳을 누르면 바로 저장됩니다. 사진은 <b>이미지 주소를 붙여넣거나</b> <b>파일을 끌어다 놓으세요</b>.
   <b>찾은 곳 링크</b>를 먼저 붙여두면 누가·언제·어디서 찾아 채웠는지 기록에 함께 남아, 나중에 자동 채우기 학습 재료가 됩니다.
+  네이버 스마트스토어는 <b>📋 붙여넣기</b>를 쓰세요 — 판매 페이지에서 <a href="/products/copy-button" class="text-indigo-700 underline">복사 버튼</a>을 누른 뒤 여기서 붙여넣으면 됩니다.
   채운 제품은 새로고침하면 이 목록에서 빠집니다.
 </div>
 <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
@@ -209,7 +210,9 @@
             <input type="url" class="fill-source flex-1 min-w-0 border border-gray-100 bg-gray-50 rounded-md px-2 py-1 text-[11px]"
               placeholder="찾은 곳 링크 (판매 페이지)">
             <button type="button" class="fill-suggest flex-shrink-0 text-[11px] font-semibold px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-              title="이 링크의 판매 페이지에서 사진·가격·소개 후보를 가져옵니다 (저장은 '적용'을 눌러야)">🔍 제안</button>
+              title="이 링크의 판매 페이지에서 사진·가격·소개 후보를 가져옵니다 (자사몰 등 — 네이버는 막힘)">🔍 제안</button>
+            <button type="button" class="fill-paste flex-shrink-0 text-[11px] font-semibold px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              title="판매 페이지에서 [📋 OS로 복사] 버튼으로 복사한 정보를 붙여넣어 제안으로 봅니다">📋 붙여넣기</button>
           </div>
           <div class="fill-suggestions mt-1 hidden"></div>
         </td>
@@ -343,7 +346,7 @@
         <td class="py-1 text-gray-400 whitespace-nowrap">{{ lg.created_at.strftime('%m-%d %H:%M') if lg.created_at else '' }}</td>
         <td class="text-gray-600">{{ lg.username or '-' }}</td>
         <td class="text-gray-800">{{ r.name or '(삭제된 제품)' }}</td>
-        <td class="text-gray-600">{{ {'product_image':'사진','category':'카테고리','groupbuy_price':'공구가','consumer_price':'소비자가','seller_commission_rate':'커미션','unique_selling_point':'한 줄 소개'}.get(lg.field, lg.field) }}{% if lg.via == 'autofill' %} <span class="text-[10px] px-1 rounded bg-indigo-50 text-indigo-600">자동 제안</span>{% endif %}</td>
+        <td class="text-gray-600">{{ {'product_image':'사진','category':'카테고리','groupbuy_price':'공구가','consumer_price':'소비자가','seller_commission_rate':'커미션','unique_selling_point':'한 줄 소개'}.get(lg.field, lg.field) }}{% if lg.via == 'autofill' %} <span class="text-[10px] px-1 rounded bg-indigo-50 text-indigo-600">자동 제안</span>{% elif lg.via == 'copybtn' %} <span class="text-[10px] px-1 rounded bg-emerald-50 text-emerald-600">복사 버튼</span>{% endif %}</td>
         {% macro fv(v) -%}{% if v and lg.field == 'seller_commission_rate' %}{{ ((v | float) * 100) | round(1) }}%{% elif v and lg.field in ('groupbuy_price', 'consumer_price') %}{{ "{:,}".format(v | float | int) }}원{% else %}{{ v or '없음' }}{% endif %}{%- endmacro %}
         <td class="text-gray-600 max-w-xs truncate"><span class="text-gray-300">{{ fv(lg.old_value) }}</span> → {{ fv(lg.new_value) }}</td>
         <td class="max-w-[12rem] truncate">{% if lg.source_url %}<a href="{{ lg.source_url }}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">{{ lg.source_url }}</a>{% else %}<span class="text-gray-300">-</span>{% endif %}</td>
@@ -498,19 +501,20 @@
     return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
-  function applyTo(row, field, value) {
+  function applyTo(row, field, value, via) {
+    via = via || 'autofill';
     var inp = row.querySelector('[data-field="' + field + '"]');
-    if (inp) { inp.value = value; saveField(inp, 'autofill'); return; }
+    if (inp) { inp.value = value; saveField(inp, via); return; }
     // 표에 없는 칸(소비자가)은 바로 저장
     var src = row.querySelector('.fill-source');
     status(row, '저장 중', 'text-gray-400');
     fetch('/products/' + row.dataset.pid + '/field', {method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({field: field, value: String(value), via: 'autofill', source_url: src ? src.value : ''})})
+      body: JSON.stringify({field: field, value: String(value), via: via, source_url: src ? src.value : ''})})
       .then(function (r) { return r.json(); })
       .then(function (d) { status(row, d.ok ? '저장됨 ✓' : '실패', d.ok ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'); })
       .catch(function () { status(row, '실패', 'text-red-500 font-semibold'); });
   }
-  function renderSuggestions(row, sg) {
+  function renderSuggestions(row, sg, via) {
     var box = row.querySelector('.fill-suggestions'), html = '<div class="rounded-lg border border-indigo-100 bg-indigo-50/60 p-2 space-y-1.5 text-[11px]">';
     var src = sg.sources || {};
     if (sg.image) html += '<div class="flex items-center gap-2"><img src="' + esc(sg.image) + '" class="w-10 h-10 rounded object-cover bg-white" onerror="this.style.display=\'none\'">'
@@ -526,12 +530,46 @@
     box.innerHTML = html; box.classList.remove('hidden');
     box.querySelectorAll('.sg-apply').forEach(function (b) {
       b.addEventListener('click', function () {
-        applyTo(row, b.dataset.field, b.dataset.value);
+        applyTo(row, b.dataset.field, b.dataset.value, via);
         if (b.dataset.field === 'product_image') showThumb(row, b.dataset.value);
         b.textContent = '적용됨'; b.disabled = true; b.classList.add('opacity-60');
       });
     });
   }
+  // ── 📋 붙여넣기: 판매 페이지의 [OS로 복사] 버튼이 만든 'BPOS1:{...}' 글자를 읽어 제안으로 (서버가 페이지를 열지 않음) ──
+  function httpOnly(u) { u = String(u || '').trim(); if (u.indexOf('//') === 0) u = 'https:' + u; return /^https?:\/\//i.test(u) ? u : ''; }
+  function parseCopied(text) {
+    text = String(text || '').trim();
+    if (text.indexOf('BPOS1:') !== 0) return null;
+    try { var o = JSON.parse(text.slice(6)); } catch (e) { return null; }
+    var clip = function (v, n) { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n - 1) + '…' : v; };
+    var digits = String(o.price == null ? '' : o.price).replace(/[^0-9.]/g, '');
+    var price = digits ? Math.round(parseFloat(digits)) : 0;
+    var sg = {name: clip(o.name, 200) || null, image: httpOnly(o.image) || null,
+              price: (price > 0 && price < 100000000) ? price : null, description: clip(o.description, 120) || null,
+              sources: {image: '복사 버튼', price: '복사 버튼', description: '복사 버튼'}};
+    return {sg: sg, url: httpOnly(o.url)};
+  }
+  function showPasted(row, text) {
+    var box = row.querySelector('.fill-suggestions'), got = parseCopied(text);
+    if (!got || !(got.sg.image || got.sg.price || got.sg.description)) {
+      box.innerHTML = '<div class="text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1">복사 버튼으로 복사한 내용이 아니에요. 판매 페이지에서 [📋 OS로 복사]를 먼저 눌러주세요.</div>';
+      box.classList.remove('hidden'); return;
+    }
+    var src = row.querySelector('.fill-source');
+    if (got.url && src && !src.value) src.value = got.url;
+    renderSuggestions(row, got.sg, 'copybtn');
+  }
+  table.querySelectorAll('.fill-paste').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var row = btn.closest('tr');
+      var ask = function () { var t = window.prompt('판매 페이지에서 [📋 OS로 복사]로 복사한 내용을 붙여넣으세요'); if (t) showPasted(row, t); };
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(function (t) { if (t && t.indexOf('BPOS1:') === 0) showPasted(row, t); else ask(); }, ask);
+      } else { ask(); }
+    });
+  });
+
   table.querySelectorAll('.fill-suggest').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var row = btn.closest('tr'), src = row.querySelector('.fill-source'), box = row.querySelector('.fill-suggestions');

@@ -213,6 +213,39 @@ def product_brand(brand_name: str, request: Request, db: Session = Depends(get_d
     )
 
 
+# ── 복사 버튼(북마크) — 대표님 브라우저에서 보고 있는 판매 페이지의 사진·가격·이름·링크를 복사 ──
+# 서버가 대신 읽으면 네이버 등이 막는다(2026-09-28 확인). 사람이 보는 페이지에서 사람이 누르는 방식이라 막히지 않는다.
+COPY_BUTTON_JS = (
+    "(function(){"
+    "var q=function(s){var e=document.querySelector(s);return e?(e.getAttribute('content')||''):''};"
+    "var o={v:1,url:location.href,name:q('meta[property=\"og:title\"]')||document.title,"
+    "image:q('meta[property=\"og:image\"]'),"
+    "description:q('meta[property=\"og:description\"]')||q('meta[name=\"description\"]'),"
+    "price:q('meta[property=\"product:price:amount\"]')};"
+    "try{document.querySelectorAll('script[type=\"application/ld+json\"]').forEach(function(s){"
+    "var d=JSON.parse(s.textContent);(Array.isArray(d)?d:(d['@graph']||[d])).forEach(function(n){"
+    "if(n&&/product/i.test(String(n['@type']))){o.name=n.name||o.name;var im=n.image;"
+    "im=Array.isArray(im)?im[0]:im;im=(im&&im.url)||im;if(typeof im==='string')o.image=im;"
+    "var of=Array.isArray(n.offers)?n.offers[0]:n.offers;if(of&&(of.price||of.lowPrice))o.price=of.price||of.lowPrice;}})})}catch(e){}"
+    "if(!o.price){var b='';document.querySelectorAll('[class*=price],[class*=Price]').forEach(function(el){"
+    "if(b)return;var m=(el.textContent||'').replace(/\\s/g,'').match(/([0-9][0-9,]{2,})원/);if(m)b=m[1]});o.price=b}"
+    "var t='BPOS1:'+JSON.stringify(o);"
+    "var ok=function(){alert('OS로 복사했어요: '+String(o.name||'').slice(0,40)+'\\nOS 빠르게 채우기에서 [📋 붙여넣기]를 누르세요')};"
+    "var no=function(){prompt('자동 복사가 막혔어요. 아래 글자를 전부 복사해서 OS에 붙여넣으세요',t)};"
+    "if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(t).then(ok,no)}else{no()}"
+    "})();"
+)
+
+
+@router.get("/copy-button")
+def product_copy_button(request: Request, current_user: User = Depends(get_current_user)):
+    """복사 버튼 설치 안내 (브라우저 즐겨찾기 막대에 끌어다 놓기)."""
+    return templates.TemplateResponse("products/copy_button.html", {
+        "request": request, "active_page": "products", "current_user": current_user,
+        "bookmarklet": "javascript:" + COPY_BUTTON_JS,
+    })
+
+
 @router.get("/new")
 def product_new(request: Request, db: Session = Depends(get_db),
                 current_user: User = Depends(get_current_user)):

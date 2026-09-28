@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}복사 버튼 설치 | BLEND PUNCH OS{% endblock %}
+{% block page_title %}복사 버튼 설치{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl space-y-4">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+    <h2 class="text-lg font-bold text-gray-900 mb-1">판매 페이지 → OS, 한 번에 복사</h2>
+    <p class="text-sm text-gray-500 mb-5">
+      스마트스토어·쿠팡·자사몰에서 제품 페이지를 연 채로 이 버튼을 누르면 <b>대표 사진·가격·제품명·링크</b>가 복사됩니다.
+      OS <a href="/products?view=fill" class="text-blue-600 hover:underline">빠르게 채우기</a>에서 <b>📋 붙여넣기</b>를 누르면 제안으로 뜨고, <b>적용</b>을 눌러야 저장돼요.
+    </p>
+
+    <div class="rounded-xl bg-indigo-50 border border-indigo-100 p-5 text-center mb-5">
+      <div class="text-xs text-indigo-500 mb-2">이 버튼을 <b>즐겨찾기 막대로 끌어다 놓으세요</b></div>
+      <a href="{{ bookmarklet }}" onclick="event.preventDefault(); alert('누르는 게 아니라, 즐겨찾기 막대로 끌어다 놓아 주세요.');"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 text-white font-bold shadow hover:bg-indigo-700 cursor-move">
+        📋 OS로 복사
+      </a>
+    </div>
+
+    <ol class="text-sm text-gray-700 space-y-2 list-decimal pl-5">
+      <li>즐겨찾기 막대가 안 보이면 <b>⌘ + Shift + B</b> (윈도우는 <b>Ctrl + Shift + B</b>)를 누르세요.</li>
+      <li>위의 <b>📋 OS로 복사</b> 버튼을 마우스로 잡아 즐겨찾기 막대에 놓으세요.</li>
+      <li>네이버에서 제품을 찾아 <b>상품 페이지를 연 상태</b>에서 즐겨찾기 막대의 <b>📋 OS로 복사</b>를 누르세요.</li>
+      <li>OS 빠르게 채우기에서 해당 제품 줄의 <b>📋 붙여넣기</b>를 누르세요.</li>
+    </ol>
+  </div>
+
+  <details class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-sm">
+    <summary class="cursor-pointer font-semibold text-gray-700">끌어다 놓기가 안 될 때 (직접 추가)</summary>
+    <ol class="mt-3 space-y-2 list-decimal pl-5 text-gray-700">
+      <li>즐겨찾기 막대에서 오른쪽 클릭 → <b>페이지 추가</b>(또는 북마크 추가)</li>
+      <li>이름: <b>OS로 복사</b></li>
+      <li>URL 칸에 아래 글자를 전부 복사해 붙여넣고 저장</li>
+    </ol>
+    <textarea readonly rows="4" onclick="this.select()"
+      class="mt-3 w-full font-mono text-[11px] border border-gray-200 rounded-lg p-2 bg-gray-50">{{ bookmarklet }}</textarea>
+  </details>
+
+  <p class="text-xs text-gray-400">
+    이 버튼은 대표님이 <b>직접 보고 있는 페이지</b>의 정보만 읽어 복사합니다. 사이트에 따라 가격을 못 찾으면 비워 두고, 사진·이름만 채워질 수 있어요.
+  </p>
+</div>
+{% endblock %}
