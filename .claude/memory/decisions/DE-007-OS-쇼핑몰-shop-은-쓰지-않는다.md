@@ -2,12 +2,14 @@
 id: DE-007
 type: decision
 title: OS 안의 쇼핑몰(/shop 판매 화면)은 쓰지 않는다 — 삭제는 되돌림, 개발자와 논의 후 결정
-status: active
+status: superseded
 supersedes:
 tags: [쇼핑몰, shop, 판매페이지, 결제, 토스, 고객주문, 우선순위, 산지픽, 블랜드픽, 판매채널, 연동]
 paths: ["app/routers/shop.py", "app/templates/shop/**"]
-updated: 2026-09-24
+updated: 2026-09-28
 ---
+
+> **대체됨 (2026-09-28) → [[DE-009]]**: 대표님이 삭제 확정 + OS 를 통합 아카이브로.
 
 OS 에 들어 있는 고객용 판매 화면(`/shop/{slug}`, `app/routers/shop.py` · `app/templates/shop/`)은
 운영에서 쓰지 않는다. 대표님 결정 (2026-09-24, 명시): "그거 샵은 안 쓸거야 우리 이미 따로 만들어놔서 그거는 포기".
