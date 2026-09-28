@@ -56,6 +56,9 @@ def proposal_product_create(
     body: str = Form(...),
 ):
     cid = get_company_id(current_user)
+    _ref_err = foreign_ref_error(db, cid, product_id=product_id)
+    if _ref_err:   # 다른 회사 제품 id 거부 (코덱스 재검토 2026-09-28 #1)
+        return RedirectResponse("/proposals?err=" + quote(_ref_err), status_code=302)
     proposal = Proposal(
         company_id=cid,
         product_id=product_id or None,
@@ -129,7 +132,8 @@ def proposal_card(proposal_id: str, request: Request, db: Session = Depends(get_
                   current_user: User = Depends(get_current_user)):
     cid = get_company_id(current_user)
     proposal = db.query(Proposal).filter(Proposal.company_id == cid, Proposal.id == proposal_id).first()
-    if not proposal or not proposal.product:
+    # 이미 잘못 연결된 옛 자료도 다른 회사 제품은 보여주지 않는다
+    if not proposal or not proposal.product or proposal.product.company_id != cid:
         return RedirectResponse(f"/proposals/{proposal_id}", status_code=302)
     return templates.TemplateResponse("proposals/card.html", {
         "request": request, "proposal": proposal, "product": proposal.product,

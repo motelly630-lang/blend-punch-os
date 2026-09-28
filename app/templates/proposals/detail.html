@@ -3,7 +3,9 @@
 {% block page_title %}제안서 상세{% endblock %}
 
 {% block header_actions %}
-{% if proposal.proposal_type == 'product_sheet' and proposal.product %}
+{% set own_product = proposal.product if (proposal.product and proposal.product.company_id == proposal.company_id) else none %}
+{% set own_influencer = proposal.influencer if (proposal.influencer and proposal.influencer.company_id == proposal.company_id) else none %}
+{% if proposal.proposal_type == 'product_sheet' and own_product %}
 <a href="/proposals/{{ proposal.id }}/card" target="_blank"
   class="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors">
   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -19,6 +21,8 @@
 {% endblock %}
 
 {% block content %}
+{% set own_product = proposal.product if (proposal.product and proposal.product.company_id == proposal.company_id) else none %}
+{% set own_influencer = proposal.influencer if (proposal.influencer and proposal.influencer.company_id == proposal.company_id) else none %}
 <div class="max-w-2xl space-y-5">
 
   <!-- Meta info -->
@@ -54,22 +58,22 @@
     </div>
 
     <!-- Links -->
-    {% if proposal.product or proposal.influencer %}
+    {% if own_product or own_influencer %}
     <div class="mt-4 flex flex-wrap gap-3 text-sm">
-      {% if proposal.product %}
-      <a href="/products/{{ proposal.product.id }}" class="flex items-center gap-1.5 text-blue-600 hover:text-blue-700">
+      {% if own_product %}
+      <a href="/products/{{ own_product.id }}" class="flex items-center gap-1.5 text-blue-600 hover:text-blue-700">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
         </svg>
-        {{ proposal.product.name }}
+        {{ own_product.name }}
       </a>
       {% endif %}
-      {% if proposal.influencer %}
-      <a href="/influencers/{{ proposal.influencer.id }}" class="flex items-center gap-1.5 text-purple-600 hover:text-purple-700">
+      {% if own_influencer %}
+      <a href="/influencers/{{ own_influencer.id }}" class="flex items-center gap-1.5 text-purple-600 hover:text-purple-700">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
         </svg>
-        {{ proposal.influencer.name }}
+        {{ own_influencer.name }}
       </a>
       {% endif %}
     </div>

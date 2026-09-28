@@ -62,7 +62,7 @@
         {% elif pr.proposal_type == 'product_sheet' %}셀러 제품 제안서
         {% else %}{{ pr.proposal_type }}{% endif %}
       </span>
-      {% if pr.product %}<span>{{ pr.product.name }}</span>{% endif %}
+      {% if pr.product and pr.product.company_id == pr.company_id %}<span>{{ pr.product.name }}</span>{% endif %}
       {% if pr.influencer %}<span>{{ pr.influencer.name }}</span>{% endif %}
       <span class="ml-auto">{{ pr.created_at | date }}</span>
     </div>
@@ -109,7 +109,7 @@
           {% else %}{{ pr.proposal_type }}{% endif %}
         </td>
         <td class="px-5 py-3.5 text-gray-600">
-          {% if pr.product %}{{ pr.product.name }}{% else %}<span class="text-gray-300">-</span>{% endif %}
+          {% if pr.product and pr.product.company_id == pr.company_id %}{{ pr.product.name }}{% else %}<span class="text-gray-300">-</span>{% endif %}
         </td>
         <td class="px-5 py-3.5 text-gray-600">
           {% if pr.influencer %}{{ pr.influencer.name }}{% else %}<span class="text-gray-300">-</span>{% endif %}

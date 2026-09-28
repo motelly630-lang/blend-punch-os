@@ -54,10 +54,16 @@ class AiProductFillAuthTests(unittest.TestCase):
             self.assertIn(r.status_code, (302, 303, 401, 403), path)
 
     def test_logged_in_internal_url_refused_without_network(self):
-        c = client_for(make_user("admin", company_id=1))
-        r = c.post("/api/ai/product-fill", data={"url": "http://169.254.169.254/latest/meta-data/"})
-        self.assertEqual(r.status_code, 200)
-        self.assertNotIn("ami-id", r.text)
+        """로그인해도 내부 주소는 실제로 요청이 나가지 않아야 한다 (코덱스: 응답 내용만 보던 허술한 시험 교체)."""
+        srv, base, hits = _local_server(b"LOCAL_ONLY_MARKER", "text/html")
+        try:
+            c = client_for(make_user("admin", company_id=1))
+            r = c.post("/api/ai/product-fill", data={"url": base + "/secret"})
+            self.assertEqual(r.status_code, 200)
+        finally:
+            srv.shutdown()
+        self.assertEqual(hits, [], "내부 주소로 요청이 나가면 안 됨")
+        self.assertNotIn("LOCAL_ONLY_MARKER", r.text)
 
 
 def _png_bytes():
@@ -117,6 +123,55 @@ class SafeImageTests(unittest.TestCase):
         finally:
             srv.shutdown()
         self.assertEqual(hits, [], "내부 주소로 요청이 나가면 안 됨")
+
+
+
+def _local_server(body: bytes, ctype: str):
+    """127.0.0.1 에 잠깐 띄우는 시험 서버 — 요청이 오면 hits 에 경로를 남긴다."""
+    import http.server
+    import threading
+    hits = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            hits.append(self.path)
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}", hits
+
+
+class DnsRebindingTests(unittest.TestCase):
+    """검사 때는 공인 IP, 연결 때는 내부 IP 를 주는 DNS 를 흉내 — 검사한 IP 로만 연결해야 한다 (코덱스 재검토 #2)."""
+
+    def test_connection_is_pinned_to_checked_ip(self):
+        import socket
+        from unittest import mock
+        answers = iter(["93.184.216.34", "127.0.0.1", "127.0.0.1", "127.0.0.1"])
+
+        def fake_getaddrinfo(host, *a, **k):
+            if host == "rebind.invalid":
+                return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (next(answers), 0))]
+            raise socket.gaierror("no")
+
+        seen = []
+
+        def handler(req):
+            seen.append((req.url.host, req.headers.get("host")))
+            return httpx.Response(200, content=b"ok")
+
+        with mock.patch.object(safe_fetch.socket, "getaddrinfo", fake_getaddrinfo):
+            r = safe_get("http://rebind.invalid:8080/private", transport=httpx.MockTransport(handler))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(seen, [("93.184.216.34", "rebind.invalid:8080")],
+                         "연결은 검사한 공인 IP 로, 도메인은 Host 헤더로만")
 
 
 if __name__ == "__main__":

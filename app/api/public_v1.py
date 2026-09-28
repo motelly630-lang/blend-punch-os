@@ -355,6 +355,7 @@ def create_order(
     if body.seller_code:
         from app.models.seller import Seller
         seller = db.query(Seller).filter(
+            Seller.company_id == sp.company_id,   # 판매 페이지와 같은 회사 셀러만 (코덱스 재검토 #4)
             Seller.seller_code == body.seller_code,
             Seller.is_active == True,
         ).first()
@@ -400,24 +401,8 @@ def create_order(
     }
 
 
-@router.get("/orders/{order_id}")
-def get_order_status(
-    order_id: str,
-    authorization: Optional[str] = Header(None),
-    db: Session = Depends(get_db),
-):
-    """주문 상태 조회."""
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="주문을 찾을 수 없습니다.")
-    return {
-        "order_id": order.id,
-        "order_number": order.order_number,
-        "order_status": order.order_status,
-        "payment_status": order.payment_status,
-        "total_price": order.total_price,
-        "created_at": order.created_at.isoformat(),
-    }
+# 주문 상태 조회(GET /orders/{order_id})는 제거 — 로그인 없이 주문 id 만으로 다른 회사 주문의 금액·상태가 보였고
+# 블랜드픽도 쓰지 않는다 (코덱스 재검토 2026-09-28 #3, 운영 확인). 필요해지면 주문 전용 조회 열쇠부터.
 
 
 # ── 공구 신청 ─────────────────────────────────────────────────────────────────
@@ -428,8 +413,17 @@ def create_application(
     db: Session = Depends(get_db),
 ):
     """인플루언서 공구 신청."""
+    if body.product_id:   # 1번 회사의 공개 제품만 연결 (코덱스 재검토 #4)
+        ok = db.query(Product.id).filter(
+            Product.id == body.product_id, Product.company_id == PUBLIC_COMPANY_ID,
+            Product.status == "active", Product.is_archived.isnot(True),
+            (Product.visibility_status == "active") | (Product.visibility_status.is_(None)),
+        ).first()
+        if not ok:
+            raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
     app_obj = GroupBuyApplication(
         id=str(uuid.uuid4()),
+        company_id=PUBLIC_COMPANY_ID,
         product_id=body.product_id,
         product_name=body.product_name,
         brand=body.brand,
