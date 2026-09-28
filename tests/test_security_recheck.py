@@ -40,6 +40,22 @@ class ProductSheetTests(unittest.TestCase):
             self.assertNotIn("PRIVATE_PRODUCT_MARKER", r.text, path)
             self.assertNotIn("PRIVATE_USP_MARKER", r.text, path)
 
+    def test_old_mislinked_influencer_hidden_everywhere(self):
+        """코덱스 재검토2 A — 옛 제안서에 잘못 연결된 다른 회사 셀러 이름이 목록·상세에 나오면 안 됨."""
+        from app.models import Influencer
+        inf1 = Influencer(name=f"FOREIGN_INFLUENCER_MARKER {uid()}", handle="h", platform="instagram", company_id=1)
+        own = Influencer(name=f"OWN_INFLUENCER {uid()}", handle="o", platform="instagram", company_id=2)
+        self.db.add_all([inf1, own])
+        self.db.flush()
+        bad = Proposal(company_id=2, influencer_id=inf1.id, proposal_type="email", body="x")
+        good = Proposal(company_id=2, influencer_id=own.id, proposal_type="email", body="y")
+        self.db.add_all([bad, good])
+        self.db.commit()
+        page = self.c2.get("/proposals").text
+        self.assertNotIn("FOREIGN_INFLUENCER_MARKER", page)
+        self.assertIn(own.name, page, "자기 회사 셀러 이름은 계속 보여야")
+        self.assertNotIn("FOREIGN_INFLUENCER_MARKER", self.c2.get(f"/proposals/{bad.id}").text)
+
     def test_own_product_sheet_still_works(self):
         c1 = client_for(make_user("admin", company_id=1))
         r = c1.post("/proposals/product/new", data={"product_id": self.p1.id, "body": "ok"})

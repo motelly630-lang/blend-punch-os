@@ -61,8 +61,16 @@ def _pinned(url: str, ip) -> tuple[httpx.URL, dict, dict]:
     """검사를 통과한 IP 로 바로 연결하는 요청 정보 — 연결 순간 DNS 를 다시 묻지 않는다 (DNS rebinding 방지).
     원래 도메인은 Host 헤더와 HTTPS 인증서 확인(SNI)에 그대로 쓴다."""
     u = httpx.URL(url)
-    host_header = u.host if u.port is None else f"{u.host}:{u.port}"
-    extensions = {"sni_hostname": u.host} if u.scheme == "https" else {}
+    ascii_host = u.raw_host.decode("ascii")          # 한글 도메인은 IDNA(xn--…) 표기로
+    try:
+        ipaddress.ip_address(ascii_host)
+        is_ip_literal = True
+    except ValueError:
+        is_ip_literal = False
+    shown = f"[{ascii_host}]" if ":" in ascii_host else ascii_host   # IPv6 는 대괄호
+    host_header = shown if u.port is None else f"{shown}:{u.port}"
+    # 인증서는 원래 도메인으로 확인 (IP 로 적은 주소면 SNI 없이 IP 로 확인)
+    extensions = {"sni_hostname": ascii_host} if u.scheme == "https" and not is_ip_literal else {}
     return u.copy_with(host=str(ip)), {"Host": host_header}, extensions
 
 

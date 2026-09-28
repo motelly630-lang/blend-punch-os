@@ -174,5 +174,39 @@ class DnsRebindingTests(unittest.TestCase):
                          "연결은 검사한 공인 IP 로, 도메인은 Host 헤더로만")
 
 
+
+class PinnedHostFormatTests(unittest.TestCase):
+    """IP 고정 연결에서 Host·SNI 표기 (코덱스 재검토2 B): 한글 도메인·포트·IPv6."""
+
+    def _run(self, url, resolved):
+        import socket
+        from unittest import mock
+        seen = []
+
+        def fake_getaddrinfo(host, *a, **k):
+            return [(socket.AF_INET6 if ":" in resolved else socket.AF_INET, socket.SOCK_STREAM, 6, "", (resolved, 0))]
+
+        def handler(req):
+            seen.append((req.url.host, req.headers.get("host"), req.extensions.get("sni_hostname")))
+            return httpx.Response(200, content=b"ok")
+
+        with mock.patch.object(safe_fetch.socket, "getaddrinfo", fake_getaddrinfo):
+            r = safe_get(url, transport=httpx.MockTransport(handler))
+        self.assertEqual(r.status_code, 200)
+        return seen[0]
+
+    def test_korean_domain_uses_idna(self):
+        self.assertEqual(self._run("https://한글.example/path", "93.184.216.34"),
+                         ("93.184.216.34", "xn--bj0bj06e.example", "xn--bj0bj06e.example"))
+
+    def test_port_kept_in_host(self):
+        self.assertEqual(self._run("http://shop.example:8080/p", "93.184.216.34"),
+                         ("93.184.216.34", "shop.example:8080", None))
+
+    def test_ipv6_literal_host_has_brackets_and_no_sni(self):
+        host, hdr, sni = self._run("https://[2606:2800:220:1::1]:8443/p", "2606:2800:220:1::1")
+        self.assertEqual((hdr, sni), ("[2606:2800:220:1::1]:8443", None))
+
+
 if __name__ == "__main__":
     unittest.main()
