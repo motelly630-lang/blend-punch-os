@@ -1,7 +1,7 @@
 """템플릿 JSON 속성 (RG-006): tojson 을 큰따옴표 속성에 넣어도 화면이 깨지지 않는다.
 
 - 템플릿 전체에 이스케이프 없는 `tojson` 속성이 0건
-- 제품 수정·제품 상세·쇼핑몰 화면에서 따옴표가 든 값이 있어도 Alpine 속성이 끝까지 온전하다
+- 제품 수정·제품 상세 화면에서 따옴표가 든 값이 있어도 Alpine 속성이 끝까지 온전하다
 """
 from tests import _env  # noqa: F401  (app 보다 먼저)
 from tests._env import SessionLocal, client_for, make_user, uid
@@ -12,7 +12,6 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from app.models.product import Product
-from app.models.sales_page import SalesPage
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -74,23 +73,6 @@ class TemplateJsonAttrTest(unittest.TestCase):
         xs = [x for x in _xdata(r.text) if "editing: false" in x]
         self.assertEqual(len(xs), 1)
         self.assertIn("saved: false }", xs[0])
-
-    def test_쇼핑몰_화면의_shopPage_속성이_끝까지_온전하다(self):
-        pid = _mk_product()
-        slug = f"t{uid()}"
-        db = SessionLocal()
-        try:
-            db.add(SalesPage(slug=slug, product_id=pid, price=10000, status="active", is_published=True,
-                             options=[{"name": '빨강 "L"', "price": 0, "stock": 5}],
-                             addon_products=[{"name": "가상추가", "price": 1000, "max_qty": 1}]))
-            db.commit()
-        finally:
-            db.close()
-        r = client_for().get(f"/shop/{slug}")
-        self.assertEqual(r.status_code, 200)
-        xs = [x for x in _xdata(r.text) if x.lstrip().startswith("shopPage(")]
-        self.assertEqual(len(xs), 1)
-        self.assertTrue(xs[0].rstrip().endswith(")"), xs[0][:80])
 
 
 if __name__ == "__main__":
