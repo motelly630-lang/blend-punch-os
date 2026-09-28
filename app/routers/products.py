@@ -72,6 +72,19 @@ def _ensure_brand(db: Session, cid: int, brand_name: str) -> None:
         db.add(BrandModel(company_id=cid, name=name))
 
 
+def _checked_number(value, lo: float, hi: float):
+    """빈 값 → None, 범위 안의 유한한 숫자 → float, 그 외(음수·범위 밖·무한대·숫자 아님) → False."""
+    import math
+    text = (value or "").strip() if isinstance(value, str) else str(value)
+    if not text:
+        return None
+    try:
+        num = float(text)
+    except (TypeError, ValueError):
+        return False
+    return num if math.isfinite(num) and lo <= num <= hi else False
+
+
 def _log_value(v):
     """기록용 문자열 — 목록은 줄바꿈으로, 비어 있으면 None."""
     if v is None or v == "":
@@ -88,9 +101,14 @@ def _log_change(db, cid, product_id, field, before, after, user, *, via=None, so
         return
     src = (source_url or "").strip()[:1000]
     src = src if src.lower().startswith(("http://", "https://")) else None   # 링크로 보여주므로 http(s)만
-    db.add(ProductFieldLog(company_id=cid, product_id=product_id, field=field, old_value=old, new_value=new,
-                           source_url=src, via=(via or "")[:20] or None,
-                           user_id=getattr(user, "id", None), username=getattr(user, "username", None)))
+    try:
+        with db.begin_nested():   # 기록이 실패해도(예: 표 생성 전) 칸 저장은 되게 — 기록만 건너뛴다
+            db.add(ProductFieldLog(company_id=cid, product_id=product_id, field=field, old_value=old, new_value=new,
+                                   source_url=src, via=(via or "")[:20] or None,
+                                   user_id=getattr(user, "id", None), username=getattr(user, "username", None)))
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("제품 입력 기록 저장 실패 — 칸 저장은 계속")
 
 
 # 빈칸(채워야 할 정보) 필터 — key: (표시 이름, 조건)
@@ -163,11 +181,16 @@ def product_list(request: Request, db: Session = Depends(get_db),
 
     recent_logs = []
     if tab == "products" and view == "fill":
-        rows = (db.query(ProductFieldLog, Product.name)
-                .outerjoin(Product, (Product.id == ProductFieldLog.product_id) & (Product.company_id == cid))
-                .filter(ProductFieldLog.company_id == cid)
-                .order_by(ProductFieldLog.created_at.desc()).limit(20).all())
-        recent_logs = [{"log": lg, "name": nm} for lg, nm in rows]
+        try:   # 기록 표가 아직 없어도 화면은 열리게
+            with db.begin_nested():
+                rows = (db.query(ProductFieldLog, Product.name)
+                        .outerjoin(Product, (Product.id == ProductFieldLog.product_id) & (Product.company_id == cid))
+                        .filter(ProductFieldLog.company_id == cid)
+                        .order_by(ProductFieldLog.created_at.desc()).limit(20).all())
+            recent_logs = [{"log": lg, "name": nm} for lg, nm in rows]
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("제품 입력 기록 조회 실패 — 화면은 기록 없이")
 
     return templates.TemplateResponse(
         "products/list.html",
@@ -655,7 +678,10 @@ async def product_suggest(
         return JSONResponse({"ok": False, "error": f"이 사이트가 자동 조회를 막았습니다 (HTTP {r.status_code}) — 직접 채워주세요"})
     if r.status_code >= 400:
         return JSONResponse({"ok": False, "error": f"페이지를 열지 못했습니다 (HTTP {r.status_code})"})
-    found = extract(r.text, url)   # 상대 경로 이미지는 원래 링크 기준으로 푼다 (요청은 IP 고정 주소라 쓰지 않음)
+    # 상대 경로 사진은 '최종' 페이지 주소 기준으로 푼다 — safe_get 은 주소 넘김 뒤의 도메인 주소를 응답에 담는다
+    # (연결만 IP 로 고정, 코덱스 검토 2026-09-28 #7)
+    final_url = str(r.request.url) if r.request is not None else url
+    found = extract(r.text, final_url)
     if not any(found.get(k) for k in ("image", "price", "description", "name")):
         return JSONResponse({"ok": False, "error": "페이지에서 사진·가격 정보를 찾지 못했습니다 (화면을 스크립트로 그리는 사이트일 수 있음)"})
     return JSONResponse({"ok": True, "suggestions": found})
@@ -703,9 +729,15 @@ async def product_patch_field(
         elif field in TEXT_FIELDS:
             setattr(product, field, value.strip() or None)
         elif field in NUM_FIELDS:
-            setattr(product, field, float(value) if value.strip() else None)
+            num = _checked_number(value, 0, 10_000_000_000)   # 가격·금액: 0 이상 (코덱스 검토 2026-09-28 #3)
+            if num is False:
+                return JSONResponse({"ok": False, "error": "out of range"})
+            setattr(product, field, num)
         elif field in PCT_FIELDS:
-            setattr(product, field, float(value) / 100.0 if value.strip() else 0.0)
+            num = _checked_number(value, 0, 100)             # 비율: 0~100%
+            if num is False:
+                return JSONResponse({"ok": False, "error": "out of range"})
+            setattr(product, field, num / 100.0 if num is not None else 0.0)
         else:
             return JSONResponse({"ok": False, "error": "unknown field"})
     except (ValueError, TypeError):

@@ -222,9 +222,9 @@
             {% for cat in filter_categories %}<option value="{{ cat }}" {% if p.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
           </select>
         </td>
-        <td class="px-3 py-2"><input type="number" min="0" step="10" data-field="groupbuy_price"
+        <td class="px-3 py-2"><input type="number" min="0" step="1" data-field="groupbuy_price"
           value="{{ p.groupbuy_price | int if p.groupbuy_price else '' }}" class="fill-input w-full border border-gray-200 rounded-md px-2 py-1 text-xs"></td>
-        <td class="px-3 py-2"><input type="number" min="0" max="100" step="0.5" data-field="seller_commission_rate"
+        <td class="px-3 py-2"><input type="number" min="0" max="100" step="0.1" data-field="seller_commission_rate"
           value="{{ ((p.seller_commission_rate * 100) | round(1)) if p.seller_commission_rate else '' }}" class="fill-input w-full border border-gray-200 rounded-md px-2 py-1 text-xs"></td>
         <td class="px-3 py-2"><input type="text" data-field="unique_selling_point" value="{{ p.unique_selling_point or '' }}"
           placeholder="셀러에게 보여줄 한 줄" class="fill-input w-full border border-gray-200 rounded-md px-2 py-1 text-xs"></td>
@@ -363,17 +363,16 @@
   {% for b in brand_list %}
   <a href="/products/brand/{{ b.name | urlencode }}"
     class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:border-blue-300 hover:shadow-md transition-all group">
-    {% if b.logo %}
+    {# 사진이 깨지면 미리 만들어 둔 이름 칸을 보여준다 — 브랜드명을 스크립트 문자열에 넣지 않는다 (XSS, 코덱스 검토 2026-09-28) #}
+    {% set pic = b.logo or b.first_image %}
+    {% if pic %}
     <div class="w-full h-16 bg-gray-50 flex items-center justify-center overflow-hidden">
-      <img src="{{ b.logo }}" alt="{{ b.name }}" loading="lazy"
-        onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center px-3\'><span class=\'text-sm font-bold text-gray-700 text-center leading-tight line-clamp-2\'>{{ b.name }}</span></div>'"
-        class="max-h-full max-w-full object-contain p-2">
-    </div>
-    {% elif b.first_image %}
-    <div class="w-full h-16 bg-gray-50 overflow-hidden">
-      <img src="{{ b.first_image }}" alt="{{ b.name }}" loading="lazy"
-        onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center px-3\'><span class=\'text-sm font-bold text-gray-700 text-center leading-tight line-clamp-2\'>{{ b.name }}</span></div>'"
-        class="w-full h-full object-cover">
+      <img src="{{ pic }}" alt="{{ b.name }}" loading="lazy"
+        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+        class="{% if b.logo %}max-h-full max-w-full object-contain p-2{% else %}w-full h-full object-cover{% endif %}">
+      <div class="w-full h-full items-center justify-center px-3" style="display:none">
+        <span class="text-sm font-bold text-gray-700 text-center leading-tight line-clamp-2">{{ b.name }}</span>
+      </div>
     </div>
     {% else %}
     <div class="w-full h-16 bg-gray-50 flex items-center justify-center px-3 group-hover:bg-blue-50 transition-colors">
@@ -465,35 +464,49 @@
     if (url) { img.src = url; img.classList.remove('hidden'); empty.classList.add('hidden'); }
     else { img.classList.add('hidden'); empty.classList.remove('hidden'); }
   }
-  function saveField(input, via) {
+  // 칸마다 저장을 줄 세워 처리한다 — 저장 중에 다시 고쳐도 마지막 값까지 저장하고,
+  // 화면 값 = 서버가 받은 값일 때만 '저장됨' (코덱스 검토 2026-09-28 #2). 결과는 성공 여부(true/false)로 돌려준다.
+  function saveField(input, via, sourceUrl) {
+    var opt = {via: via || 'fill', source: sourceUrl};
+    input._chain = (input._chain || Promise.resolve(true)).then(function () { return doSave(input, opt); });
+    return input._chain;
+  }
+  function doSave(input, opt) {
     var row = input.closest('tr'), pid = row.dataset.pid, field = input.dataset.field, value = input.value;
-    if (input.dataset.saved === value) return;
+    if (input.dataset.saved === value) { status(row, '저장됨 ✓', 'text-green-600 font-semibold'); return Promise.resolve(true); }
+    if (!input.checkValidity()) {   // 음수·범위 밖 값은 보내지 않는다 (서버도 거부)
+      input.reportValidity(); status(row, '값 확인', 'text-amber-600 font-semibold'); return Promise.resolve(false);
+    }
     status(row, '저장 중', 'text-gray-400');
-    var src = row.querySelector('.fill-source');
-    fetch('/products/' + pid + '/field', {
+    var srcEl = row.querySelector('.fill-source');
+    var source = opt.source != null ? opt.source : (srcEl ? srcEl.value : '');
+    return fetch('/products/' + pid + '/field', {
       method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({field: field, value: value, via: via || 'fill', source_url: src ? src.value : ''})
+      body: JSON.stringify({field: field, value: value, via: opt.via, source_url: source})
     }).then(function (r) { return r.json(); }).then(function (d) {
-      if (d.ok) {
-        input.dataset.saved = value;
-        status(row, '저장됨 ✓', 'text-green-600 font-semibold');
-        if (field === 'product_image') showThumb(row, value);
-      } else { status(row, '실패', 'text-red-500 font-semibold'); }
-    }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); });
+      if (!d.ok) { status(row, d.error === 'out of range' ? '범위 밖 값' : '실패', 'text-red-500 font-semibold'); return false; }
+      input.dataset.saved = value;
+      if (field === 'product_image') showThumb(row, value);
+      if (input.value === value) status(row, '저장됨 ✓', 'text-green-600 font-semibold');
+      else status(row, '입력 중', 'text-gray-400');   // 저장하는 사이 또 고침 → 칸을 벗어나면 이어서 저장
+      return true;
+    }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); return false; });
   }
   function uploadFile(row, file) {
     if (!file || !file.type || file.type.indexOf('image/') !== 0) { status(row, '이미지 아님', 'text-red-500'); return; }
-    var fd = new FormData(); fd.append('product_image', file); fd.append('via', 'fill');
-    var src = row.querySelector('.fill-source'); if (src && src.value) fd.append('source_url', src.value);
-    status(row, '올리는 중', 'text-gray-400');
-    fetch('/products/' + row.dataset.pid + '/upload-image', {method: 'POST', body: fd})
-      .then(function (r) { return r.json(); }).then(function (d) {
-        if (d.ok) {
-          var inp = row.querySelector('[data-field="product_image"]');
+    var inp = row.querySelector('[data-field="product_image"]');
+    inp._chain = (inp._chain || Promise.resolve(true)).then(function () {   // 같은 사진 칸의 주소 저장과 같은 줄
+      var fd = new FormData(); fd.append('product_image', file); fd.append('via', 'fill');
+      var src = row.querySelector('.fill-source'); if (src && src.value) fd.append('source_url', src.value);
+      status(row, '올리는 중', 'text-gray-400');
+      return fetch('/products/' + row.dataset.pid + '/upload-image', {method: 'POST', body: fd})
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (!d.ok) { status(row, '실패', 'text-red-500 font-semibold'); return false; }
           inp.value = d.image_url; inp.dataset.saved = d.image_url;
           showThumb(row, d.image_url); status(row, '저장됨 ✓', 'text-green-600 font-semibold');
-        } else { status(row, '실패', 'text-red-500 font-semibold'); }
-      }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); });
+          return true;
+        }).catch(function () { status(row, '실패', 'text-red-500 font-semibold'); return false; });
+    });
   }
   // ── 자동 채우기 1단계: 판매 페이지에서 후보 가져오기 → '적용'을 눌러야 저장 (기록 via=autofill) ──
   // 글자·속성 안전 변환 — 따옴표까지 바꿔야 속성값(data-value, src) 밖으로 빠져나가지 못한다
@@ -501,28 +514,29 @@
     return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
-  function applyTo(row, field, value, via) {
+  // 제안을 적용 — 기록의 '찾은 곳'은 그 제안을 만든 주소(sourceUrl)로 남긴다 (#4). 성공 여부를 돌려준다 (#5)
+  function applyTo(row, field, value, via, sourceUrl) {
     via = via || 'autofill';
     var inp = row.querySelector('[data-field="' + field + '"]');
-    if (inp) { inp.value = value; saveField(inp, via); return; }
+    if (inp) { inp.value = value; return saveField(inp, via, sourceUrl); }
     // 표에 없는 칸(소비자가)은 바로 저장
-    var src = row.querySelector('.fill-source');
     status(row, '저장 중', 'text-gray-400');
-    fetch('/products/' + row.dataset.pid + '/field', {method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({field: field, value: String(value), via: via, source_url: src ? src.value : ''})})
+    return fetch('/products/' + row.dataset.pid + '/field', {method: 'PATCH', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({field: field, value: String(value), via: via, source_url: sourceUrl || ''})})
       .then(function (r) { return r.json(); })
-      .then(function (d) { status(row, d.ok ? '저장됨 ✓' : '실패', d.ok ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'); })
-      .catch(function () { status(row, '실패', 'text-red-500 font-semibold'); });
+      .then(function (d) { status(row, d.ok ? '저장됨 ✓' : '실패', d.ok ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'); return !!d.ok; })
+      .catch(function () { status(row, '실패', 'text-red-500 font-semibold'); return false; });
   }
-  function renderSuggestions(row, sg, via) {
+  function renderSuggestions(row, sg, via, sourceUrl, note) {
     var box = row.querySelector('.fill-suggestions'), html = '<div class="rounded-lg border border-indigo-100 bg-indigo-50/60 p-2 space-y-1.5 text-[11px]">';
     var src = sg.sources || {};
+    if (note) html += '<div class="text-amber-700">' + esc(note) + '</div>';
     if (sg.image) html += '<div class="flex items-center gap-2"><img src="' + esc(sg.image) + '" class="w-10 h-10 rounded object-cover bg-white" onerror="this.style.display=\'none\'">'
       + '<span class="flex-1 text-gray-500">사진 <span class="text-gray-400">· ' + esc(src.image) + '</span></span>'
       + '<button type="button" class="sg-apply px-2 py-0.5 rounded bg-indigo-600 text-white" data-field="product_image" data-value="' + esc(sg.image) + '">적용</button></div>';
     if (sg.price) html += '<div class="flex items-center gap-1.5 flex-wrap"><span class="flex-1 text-gray-600">판매 페이지 가격 <b>' + Number(sg.price).toLocaleString() + '원</b> <span class="text-gray-400">· ' + esc(src.price) + '</span></span>'
-      + '<button type="button" class="sg-apply px-2 py-0.5 rounded bg-white border border-indigo-200 text-indigo-700" data-field="consumer_price" data-value="' + sg.price + '">소비자가로</button>'
-      + '<button type="button" class="sg-apply px-2 py-0.5 rounded bg-white border border-indigo-200 text-indigo-700" data-field="groupbuy_price" data-value="' + sg.price + '">공구가로</button></div>';
+      + '<button type="button" class="sg-apply px-2 py-0.5 rounded bg-white border border-indigo-200 text-indigo-700" data-field="consumer_price" data-value="' + esc(sg.price) + '">소비자가로</button>'
+      + '<button type="button" class="sg-apply px-2 py-0.5 rounded bg-white border border-indigo-200 text-indigo-700" data-field="groupbuy_price" data-value="' + esc(sg.price) + '">공구가로</button></div>';
     if (sg.description) html += '<div class="flex items-start gap-1.5"><span class="flex-1 text-gray-600">' + esc(sg.description) + ' <span class="text-gray-400">· ' + esc(src.description) + '</span></span>'
       + '<button type="button" class="sg-apply flex-shrink-0 px-2 py-0.5 rounded bg-white border border-indigo-200 text-indigo-700" data-field="unique_selling_point" data-value="' + esc(sg.description) + '">소개로</button></div>';
     if (sg.name) html += '<div class="text-gray-400">페이지의 제품명: ' + esc(sg.name) + ' — 같은 제품인지 확인하고 적용하세요</div>';
@@ -530,9 +544,11 @@
     box.innerHTML = html; box.classList.remove('hidden');
     box.querySelectorAll('.sg-apply').forEach(function (b) {
       b.addEventListener('click', function () {
-        applyTo(row, b.dataset.field, b.dataset.value, via);
-        if (b.dataset.field === 'product_image') showThumb(row, b.dataset.value);
-        b.textContent = '적용됨'; b.disabled = true; b.classList.add('opacity-60');
+        b.disabled = true; b.textContent = '저장 중';
+        applyTo(row, b.dataset.field, b.dataset.value, via, sourceUrl).then(function (ok) {
+          if (ok) { b.textContent = '적용됨'; b.classList.add('opacity-60'); }
+          else { b.disabled = false; b.textContent = '다시 적용'; }   // 실패하면 다시 누를 수 있게
+        });
       });
     });
   }
@@ -556,9 +572,12 @@
       box.innerHTML = '<div class="text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1">복사 버튼으로 복사한 내용이 아니에요. 판매 페이지에서 [📋 OS로 복사]를 먼저 눌러주세요.</div>';
       box.classList.remove('hidden'); return;
     }
-    var src = row.querySelector('.fill-source');
-    if (got.url && src && !src.value) src.value = got.url;
-    renderSuggestions(row, got.sg, 'copybtn');
+    var src = row.querySelector('.fill-source'), note = '';
+    if (got.url && src) {   // 찾은 곳 링크는 복사한 페이지 주소로 맞춘다 (#4)
+      if (src.value && src.value !== got.url) note = '찾은 곳 링크를 복사한 페이지 주소로 바꿨어요';
+      src.value = got.url;
+    }
+    renderSuggestions(row, got.sg, 'copybtn', got.url || (src ? src.value : ''), note);
   }
   table.querySelectorAll('.fill-paste').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -574,12 +593,13 @@
     btn.addEventListener('click', function () {
       var row = btn.closest('tr'), src = row.querySelector('.fill-source'), box = row.querySelector('.fill-suggestions');
       if (!src.value) { src.focus(); status(row, '링크 먼저', 'text-amber-600'); return; }
+      var asked = src.value;   // 이 제안의 출처 = 누른 순간의 링크
       btn.disabled = true; btn.textContent = '가져오는 중…';
       fetch('/products/' + row.dataset.pid + '/suggest', {method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({source_url: src.value})})
+        body: JSON.stringify({source_url: asked})})
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          if (d.ok) renderSuggestions(row, d.suggestions);
+          if (d.ok) renderSuggestions(row, d.suggestions, 'autofill', asked);
           else { box.innerHTML = '<div class="text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1">' + esc(d.error || '가져오지 못했습니다') + '</div>'; box.classList.remove('hidden'); }
         })
         .catch(function () { box.innerHTML = '<div class="text-[11px] text-red-600">가져오지 못했습니다</div>'; box.classList.remove('hidden'); })

@@ -78,8 +78,8 @@
 
 {% block content %}
 
-{% if not has_filter %}
-<!-- ══ 첫 화면 배너 ══ -->
+{% if not has_filter and page == 1 %}
+<!-- ══ 첫 화면 배너 (1페이지에서만 — 숫자는 1페이지에서만 계산, 코덱스 검토 2026-09-28 #6) ══ -->
 <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-blue-700 to-sky-600 text-white px-6 py-10 sm:px-10 sm:py-12 mb-8 shadow-lg">
   <div class="relative z-10 max-w-2xl">
     <p class="text-sm font-semibold text-blue-100 mb-2">BLEND PUNCH 셀러 카탈로그</p>
