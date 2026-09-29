@@ -23,8 +23,10 @@
   <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
   </svg>
-  공구 신청이 완료되었습니다! 담당자가 확인 후 연락드리겠습니다.
+  {% if request.query_params.get('dup') %}이미 접수된 신청이에요. 담당자가 확인 후 연락드리겠습니다.{% else %}공구 신청이 완료되었습니다! 담당자가 확인 후 연락드리겠습니다.{% endif %}
 </div>
+{% elif request.query_params.get('apply_error') %}
+<div class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">⚠️ {{ request.query_params.get('apply_error')[:80] }}</div>
 {% endif %}
 
 <!-- 브레드크럼 -->
@@ -77,7 +79,8 @@
         </svg>
       </button>
     </div>
-    <form method="post" action="/public/apply" class="px-6 py-5 space-y-4">
+    <form method="post" action="/public/apply" class="px-6 py-5 space-y-4"
+      onsubmit="var b=this.querySelector('button[type=submit]'); if(b.disabled) return false; b.disabled=true; b.textContent='보내는 중…';">
       <input type="hidden" name="product_id" :value="productId">
       <input type="hidden" name="product_name" :value="productName">
       <input type="hidden" name="brand" value="{{ brand_name }}">

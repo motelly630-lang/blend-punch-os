@@ -9,7 +9,12 @@
 
 {% if request.query_params.get('applied') %}
 <div class="max-w-3xl mb-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800 font-medium">
-  ✅ 공구 신청이 완료되었습니다! 담당자가 확인 후 연락드리겠습니다.
+  {% if request.query_params.get('dup') %}✅ 이미 접수된 신청이에요. 담당자가 확인 후 연락드리겠습니다.
+  {% else %}✅ 공구 신청이 완료되었습니다! 담당자가 확인 후 연락드리겠습니다.{% endif %}
+</div>
+{% elif request.query_params.get('apply_error') %}
+<div class="max-w-3xl mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 font-medium">
+  ⚠️ {{ request.query_params.get('apply_error')[:80] }}
 </div>
 {% endif %}
 
@@ -220,7 +225,8 @@
       </div>
       <button type="button" @click="open = false" class="text-gray-300 hover:text-gray-500 text-xl leading-none px-2">✕</button>
     </div>
-    <form method="post" action="/public/apply" class="px-5 py-4 space-y-3.5">
+    <form method="post" action="/public/apply" class="px-5 py-4 space-y-3.5"
+      onsubmit="var b=this.querySelector('button[type=submit]'); if(b.disabled) return false; b.disabled=true; b.textContent='보내는 중…';">
       <input type="hidden" name="product_id" value="{{ product.id }}">
       <input type="hidden" name="product_name" value="{{ product.name }}">
       <input type="hidden" name="brand" value="{{ product.brand or '' }}">
