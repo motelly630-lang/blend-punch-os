@@ -72,5 +72,22 @@ class PublicCatalogStatsTests(unittest.TestCase):
             self.assertEqual(c.get(url).status_code, 200, url)
 
 
+
+class BrandPageCardTests(unittest.TestCase):
+    def test_new_cards_and_safe_apply_button(self):
+        seed_companies()
+        db = SessionLocal()
+        brand = f"카드브랜드{uid()}"
+        evil = "따옴표');window.__x=1;// 제품"
+        pid = _product(db, brand=brand, name=evil, discount_rate=0.2).id
+        db.close()
+        html = client_for().get(f"/public/products/brand/{brand}").text
+        self.assertIn(f'data-apply-id="{pid}"', html)
+        self.assertIn("openApply(this.dataset.applyId, this.dataset.applyName)", html)
+        self.assertNotIn("openApply('", html, "제품 이름을 스크립트 문자열에 넣으면 안 됨")
+        self.assertIn("20%", html)          # 할인율 배지
+        self.assertIn("무상 샘플", html)     # 새 카드 배지
+
+
 if __name__ == "__main__":
     unittest.main()
