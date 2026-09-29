@@ -307,7 +307,12 @@ def convert(attr: str, raw: str):
         return _rate(raw)
     if attr in _NUMERIC:
         v = _num(raw)
-        return int(v) if (v is not None and attr == "followers") else v
+        if attr == "followers":
+            # 시트의 팔로워 '0' 은 '모름' 이다 (2026-09-29 운영: 1,245줄 중 1,074줄이 0).
+            # 0 을 값으로 받으면 새벽에 Meta 로 채운 진짜 팔로워를 10분 뒤 동기화가 0 으로 덮는다
+            # (4일간 597명). 빈 칸처럼 건너뛰고, OS 의 진짜 값은 OS→시트 내려받기가 시트에 적는다.
+            return int(v) if v else None
+        return v
     if attr in _LIST:
         items = [s.strip() for s in raw.replace("/", ",").replace("，", ",").split(",") if s.strip()]
         return items or None
