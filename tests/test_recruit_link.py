@@ -60,11 +60,56 @@ class CleanRefTests(unittest.TestCase):
         for v in (None, "", "-x", "a" * 41, "<script>", "한글-insta", "a b", "x/y"):
             self.assertIsNone(public.clean_ref(v), v)
 
-    def test_user_code(self):
-        self.assertEqual(public.recruit_user_code("Hyeok"), "hyeok")
-        self.assertEqual(public.recruit_user_code("김 혁"), "staff")
-        self.assertEqual(public.recruit_user_code("a.b@c"), "abc")
-        self.assertIsNotNone(public.clean_ref(public.recruit_user_code("x" * 80) + "-insta"))
+    def test_abs_image_url(self):
+        base = settings.app_base_url.rstrip("/")
+        self.assertEqual(public._abs_url("/uploads/a.jpg"), base + "/uploads/a.jpg")
+        self.assertEqual(public._abs_url("HTTPS://cdn.x/a.jpg"), "HTTPS://cdn.x/a.jpg")
+        self.assertEqual(public._abs_url("//cdn.x/a.jpg"), "https://cdn.x/a.jpg")
+        for bad in (None, "", "  ", "data:image/png;base64,AAAA", "javascript:alert(1)"):
+            self.assertIsNone(public._abs_url(bad), bad)
+
+
+class UserCodeTests(unittest.TestCase):
+    """코덱스 검토 2 — 서로 다른 직원이 같은 코드가 되면 안 됨."""
+
+    def mk(self, name, when):
+        from datetime import datetime
+        from app.models.user import User
+        db = SessionLocal()
+        u = User(username=name, hashed_password="x", role="staff", company_id=1, created_at=datetime(2020, 1, 1) + when)
+        db.add(u)
+        db.commit()
+        db.refresh(u)
+        db.expunge(u)
+        db.close()
+        return u
+
+    def code(self, u):
+        db = SessionLocal()
+        try:
+            return public.recruit_user_code(db, u)
+        finally:
+            db.close()
+
+    def test_distinct_and_stable(self):
+        from datetime import timedelta as td
+        tag = uid()[:6]
+        first = self.mk(f"Hy{tag}", td(0))
+        second = self.mk(f"hy.{tag}", td(1))        # 줄이면 같은 값
+        ko1, ko2 = self.mk("김혁", td(2)), self.mk("이민수", td(3))
+        long1 = self.mk("L" * 30 + f"a{tag}", td(4))
+        long2 = self.mk("L" * 30 + f"b{tag}", td(5))  # 앞 24자가 같음
+        codes = [self.code(u) for u in (first, second, ko1, ko2, long1, long2)]
+        self.assertEqual(len(set(codes)), len(codes), codes)
+        self.assertEqual(codes[0], f"hy{tag}", "먼저 가입한 직원은 짧은 코드 유지")
+        self.assertTrue(codes[1].startswith(f"hy{tag}_"))
+        self.assertTrue(codes[2].startswith("u_"))
+        self.assertEqual(self.code(first), codes[0], "다시 계산해도 같음")
+        self.mk(f"HY{tag}", td(10))                  # 나중에 같은 이름 직원이 생겨도
+        self.assertEqual(self.code(first), codes[0], "기존 직원 코드는 안 바뀜")
+        for c in codes:
+            for ch in ("insta", "kakao", "dm", "etc"):
+                self.assertIsNotNone(public.clean_ref(f"{c}-{ch}"), c)
 
 
 class OgTagTests(Base):
@@ -80,11 +125,18 @@ class OgTagTests(Base):
         self.assertTrue(meta(page, "og:url").endswith(f"/public/products/product/{p.id}"))
         self.assertEqual(page.count('property="og:title"'), 1, "기본 og 와 겹치면 안 됨")
 
+    def test_og_escapes_product_text(self):
+        p = _pub(self.db, name='x" onload="alert(1)', unique_selling_point="<img src=x onerror=alert(1)>",
+                 product_image="data:image/png;base64,AAAA")
+        page = client_for().get(f"/public/products/product/{p.id}").text
+        self.assertNotIn('onload="alert', page)
+        self.assertNotIn("<img src=x", page)
+        self.assertEqual(meta(page, "og:image"), settings.app_base_url.rstrip("/") + "/static/og-image.png")
+
     def test_no_image_uses_default(self):
         p = _pub(self.db)
         page = client_for().get(f"/public/products/product/{p.id}").text
-        self.assertTrue(meta(page, "og:image").endswith("/static/og-image.png"))
-        self.assertTrue(meta(page, "og:image").startswith("http"))
+        self.assertEqual(meta(page, "og:image"), settings.app_base_url.rstrip("/") + "/static/og-image.png")
 
 
 class RefFlowTests(Base):
@@ -94,7 +146,42 @@ class RefFlowTests(Base):
         r = c.get(f"/public/products/product/{p.id}?ref=Hyeok-Insta")
         self.assertIn('name="ref" value="hyeok-insta"', r.text)
         self.assertIn("bp_ref=hyeok-insta", r.headers.get("set-cookie", ""))
-        self.assertIn("httponly", r.headers["set-cookie"].lower())
+        ck = r.headers["set-cookie"].lower()
+        for part in ("httponly", "secure", "samesite=lax", "max-age=2592000", "path=/"):
+            self.assertIn(part, ck)
+
+    def test_pages_not_shared_cached(self):
+        """코덱스 검토 3 — 방문자별 ref 가 든 페이지를 중간 캐시가 남에게 주면 안 됨."""
+        p = _pub(self.db)
+        for url in ("/public/products?ref=a-insta", f"/public/products/product/{p.id}",
+                    f"/public/products/brand/{p.brand}"):
+            r = client_for().get(url)
+            self.assertIn("no-store", r.headers.get("cache-control", ""), url)
+            self.assertIn("private", r.headers.get("cache-control", ""), url)
+            self.assertIn("Cookie", r.headers.get("vary", ""), url)
+
+    def test_two_visitors_keep_their_own_ref(self):
+        p = _pub(self.db)
+        a, b = client_for(), client_for()
+        a.cookies.set("bp_ref", "alice-insta")
+        b.cookies.set("bp_ref", "bob-kakao")
+        url = f"/public/products/product/{p.id}"
+        self.assertIn('name="ref" value="alice-insta"', a.get(url).text)
+        self.assertIn('name="ref" value="bob-kakao"', b.get(url).text)
+
+    def test_new_link_overrides_old_cookie_bad_link_keeps_it(self):
+        p = _pub(self.db)
+        c = client_for()
+        c.cookies.set("bp_ref", "old-insta")
+        url = f"/public/products/product/{p.id}"
+        r = c.get(url + "?ref=new-kakao")
+        self.assertIn('value="new-kakao"', r.text)
+        self.assertIn("bp_ref=new-kakao", r.headers["set-cookie"])
+        c2 = client_for()
+        c2.cookies.set("bp_ref", "old-insta")
+        r = c2.get(url + "?ref=<bad>")
+        self.assertIn('name="ref" value="old-insta"', r.text)
+        self.assertNotIn("set-cookie", {k.lower() for k in r.headers.keys()})
 
     def test_bad_ref_not_stored(self):
         p = _pub(self.db)
@@ -140,6 +227,8 @@ class RefFlowTests(Base):
         texts = [" ".join(f["text"] for f in c.kwargs["blocks"][2]["fields"]) for c in post.call_args_list]
         self.assertIn("유입: hyeok-insta", texts[0])
         self.assertIn("유입: 직접 방문", texts[1])
+        field = [f for f in post.call_args_list[0].kwargs["blocks"][2]["fields"] if f["text"].startswith("유입")][0]
+        self.assertEqual(field["type"], "plain_text")
 
 
 class AdminTests(Base):
@@ -158,8 +247,47 @@ class AdminTests(Base):
         page = admin.get(f"/products/{p.id}").text
         self.assertIn("모집 링크 복사", page)
         self.assertIn(f'data-url="{settings.app_base_url.rstrip("/")}/public/products/product/{p.id}"', page)
+        self.assertRegex(page, r'data-user="[a-z0-9_-]+"')
         self.assertNotIn("공개 카탈로그에 안 보여요", page)
         self.assertIn("공개 카탈로그에 안 보여요", admin.get(f"/products/{hidden.id}").text)
+
+
+class ClipboardFallbackTests(unittest.TestCase):
+    """코덱스 검토 1 — 복사 기능이 없거나 실패해도 링크를 직접 복사할 창이 뜬다 (node 로 실제 코드 실행)."""
+
+    def test_copy_paths(self):
+        import json, shutil, subprocess
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node 없음")
+        seed_companies()
+        db = SessionLocal()
+        pid = _pub(db).id
+        db.close()
+        page = client_for(make_user("admin", company_id=1)).get(f"/products/{pid}").text
+        xdata = htmlmod.unescape(re.search(r'<div x-data="(\{ open: false, ch:.*?\})"\s', page, re.S).group(1))
+        js = """
+const make = new Function('return (' + %s + ')');
+const cases = {none: undefined, reject: {writeText: () => Promise.reject(new Error('no'))},
+  sync: {writeText: () => { throw new Error('boom') }}, ok: {writeText: () => Promise.resolve()}};
+(async () => { const out = {};
+  for (const [k, cb] of Object.entries(cases)) {
+    const prompts = []; Object.defineProperty(globalThis, 'navigator', {value: {clipboard: cb}, configurable: true, writable: true}); global.window = {prompt: (m, t) => prompts.push(t)};
+    global.setTimeout = () => 0;
+    const o = make(); o.$refs = {base: {dataset: {url: 'https://x/p/1', user: 'hy'}}}; o.ch = 'kakao';
+    try { o.copy() } catch (e) { out[k] = 'throw'; continue }
+    await new Promise(r => setImmediate(r));
+    out[k] = {prompts, done: o.done};
+  }
+  console.log(JSON.stringify(out)); })();
+""" % json.dumps(xdata)
+        r = subprocess.run([node, "-e", js], capture_output=True, text=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        link = "https://x/p/1?ref=hy-kakao"
+        for k in ("none", "reject", "sync"):
+            self.assertEqual(out[k], {"prompts": [link], "done": False}, k)
+        self.assertEqual(out["ok"], {"prompts": [], "done": True})
 
 
 if __name__ == "__main__":

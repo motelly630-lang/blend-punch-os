@@ -18,7 +18,8 @@
 </a>
 <div x-data="{ open: false, ch: 'insta', done: false,
     link() { return this.$refs.base.dataset.url + '?ref=' + this.$refs.base.dataset.user + '-' + this.ch },
-    copy() { navigator.clipboard.writeText(this.link()).then(() => { this.done = true; setTimeout(() => this.done = false, 1500) }).catch(() => window.prompt('아래 링크를 복사해 쓰세요', this.link())) } }"
+    copy() { const t = this.link(); const ok = () => { this.done = true; setTimeout(() => this.done = false, 1500) }; const fail = () => window.prompt('아래 링크를 복사해 쓰세요', t);
+      try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(ok, fail) } else { fail() } } catch (e) { fail() } } }"
   class="relative inline-block" data-recruit-link>
   <span x-ref="base" data-url="{{ recruit.url }}" data-user="{{ recruit.user }}" hidden></span>
   <button type="button" @click="open = !open"

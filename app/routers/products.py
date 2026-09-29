@@ -434,7 +434,7 @@ def product_detail(product_id: str, request: Request, db: Session = Depends(get_
     from app.routers.public import _public_filter, recruit_user_code
     recruit = {
         "url": f"{settings.app_base_url.rstrip('/')}/public/products/product/{product.id}",
-        "user": recruit_user_code(current_user.username),
+        "user": recruit_user_code(db, current_user),
         "is_public": _public_filter(db.query(Product.id)).filter(Product.id == product.id).first() is not None,
     }
 

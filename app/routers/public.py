@@ -93,10 +93,28 @@ def clean_ref(v) -> str | None:
     return v if _REF_RE.match(v) else None
 
 
-def recruit_user_code(username) -> str:
-    """직원 아이디 → 모집 코드 앞부분 (영문 소문자·숫자·_- 만, 30자). 비면 'staff'."""
-    s = re.sub(r"[^a-z0-9_-]", "", str(username or "").lower())[:30].strip("-_")
-    return s or "staff"
+def _code_slug(username) -> str:
+    return re.sub(r"[^a-z0-9_-]", "", str(username or "").lower())[:24].strip("-_")
+
+
+def recruit_user_code(db: Session, user) -> str:
+    """직원 → 모집 코드 앞부분 (직원마다 다르게, 한 번 정해지면 안 바뀜).
+
+    - 아이디를 영문 소문자·숫자·_- 로 줄인 값 (24자)
+    - 같은 값이 되는 직원이 먼저 가입해 있으면 뒤에 아이디 번호 6자리를 붙인다 (hyeok_3fa2b1)
+    - 한글 아이디처럼 남는 글자가 없으면 u_번호6자리
+    먼저 가입한 사람은 계속 짧은 코드를 쓰므로, 새 직원이 생겨도 이미 보낸 링크의 뜻이 안 바뀐다.
+    """
+    from app.models.user import User
+    slug = _code_slug(user.username)
+    tag = re.sub(r"[^a-z0-9]", "", str(user.id).lower())[:6]
+    if not slug:
+        return f"u_{tag}"
+    mine = (user.created_at or datetime.min, str(user.id))
+    for other in db.query(User.id, User.username, User.created_at).filter(User.id != user.id):
+        if _code_slug(other.username) == slug and (other.created_at or datetime.min, str(other.id)) < mine:
+            return f"{slug}_{tag}"
+    return slug
 
 
 def current_ref(request: Request) -> str | None:
@@ -104,7 +122,12 @@ def current_ref(request: Request) -> str | None:
 
 
 def remember_ref(request: Request, response):
-    """주소에 ?ref= 가 있으면 쿠키로 30일 기억 (마지막 링크 기준)."""
+    """주소에 ?ref= 가 있으면 쿠키로 30일 기억 (마지막 링크 기준).
+
+    페이지 안 신청 폼에 방문자별 ref 가 들어가므로, 중간 캐시가 다른 사람에게 재사용하지 않게 막는다.
+    """
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
     ref = clean_ref(request.query_params.get("ref"))
     if ref:
         response.set_cookie(REF_COOKIE, ref, max_age=REF_MAX_AGE, httponly=True, samesite="lax", secure=True)
@@ -112,10 +135,18 @@ def remember_ref(request: Request, response):
 
 
 def _abs_url(u: str | None) -> str | None:
+    """공유 미리보기용 이미지 주소 → 절대 주소. 쓸 수 없는 형식(data: 등)은 None (기본 이미지로)."""
     from app.config import settings
+    u = (u or "").strip()
     if not u:
         return None
-    return u if u.startswith(("http://", "https://")) else settings.app_base_url.rstrip("/") + "/" + u.lstrip("/")
+    if u.lower().startswith(("http://", "https://")):
+        return u
+    if u.startswith("//"):
+        return "https:" + u
+    if ":" in u.split("/", 1)[0]:   # data:, javascript: 같은 다른 형식
+        return None
+    return settings.app_base_url.rstrip("/") + "/" + u.lstrip("/")
 
 
 def _no_image_last():
