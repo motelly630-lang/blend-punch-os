@@ -36,6 +36,7 @@ class Base(unittest.TestCase):
         seed_companies()
         self.db = SessionLocal()
         public._apply_hits.clear()
+        public._here_times.clear()
         self._events = mock.patch.object(settings, "slack_events", "public_apply")
         self._events.start()
 
@@ -63,8 +64,7 @@ class ApplyFlowTests(Base):
 
     def test_apply_saves_server_values_and_notifies(self):
         p = _pub(self.db)
-        with mock.patch.object(sn, "post", wraps=sn.post) as post, \
-                mock.patch.object(public, "_recent_here_count", return_value=0):   # 앞 시험의 알림 기록과 분리
+        with mock.patch.object(sn, "post", wraps=sn.post) as post:
             r = self.apply(p, return_to="detail", contact_value="kim1234")
         self.assertEqual(r.headers["location"], f"/public/products/product/{p.id}?applied=1")
         a = self.db.query(GroupBuyApplication).filter(GroupBuyApplication.product_id == p.id).one()
@@ -128,9 +128,7 @@ class AbuseTests(Base):
 
     def test_here_only_for_first_few(self):
         blocks_seen = []
-        counts = iter(range(100))
-        with mock.patch.object(sn, "post", wraps=sn.post) as post, \
-                mock.patch.object(public, "_recent_here_count", side_effect=lambda cid: next(counts)):
+        with mock.patch.object(sn, "post", wraps=sn.post) as post:
             for i in range(public.HERE_LIMIT + 2):
                 public._apply_hits.clear()
                 p = _pub(self.db)
@@ -204,22 +202,65 @@ class ApplicationsAdminPageTests(unittest.TestCase):
 
 
 
-class HereCounterRealLogTests(unittest.TestCase):
-    def test_counter_uses_real_notification_log(self):
-        import random
-        from app.models.feature_flag import Company
-        seed_companies()
-        db = SessionLocal()
-        cid = random.randint(100_000, 999_999)
-        db.add(Company(id=cid, name=f"알림시험{cid}", plan="pro", is_active=True))
-        db.commit()
-        db.close()
-        with mock.patch.object(settings, "slack_events", "public_apply"):
-            self.assertEqual(public._recent_here_count(cid), 0)
-            for i in range(2):
-                sn.post(public.APPLY_SLACK_EVENT, "groupbuy", "t", cid, dedupe_key=f"public_apply:t{cid}-{i}")
-            self.assertEqual(public._recent_here_count(cid), 2)
+class DuplicateKeyTests(Base):
+    """코덱스 재검토 A — 다른 신청을 중복으로 오인하면 안 됨."""
 
+    def test_same_name_different_product_is_new(self):
+        name = f"동명제품 {uid()}"
+        a = _pub(self.db, name=name, brand="브랜드A")
+        b = _pub(self.db, name=name, brand="브랜드B")
+        with mock.patch.object(sn, "post"):
+            self.apply(a, contact_value="review-contact")
+            r = self.apply(b, contact_value="review-contact", return_to="detail")
+        self.assertNotIn("dup=1", r.headers["location"])
+        self.assertEqual((self.count(a), self.count(b)), (1, 1))
+
+    def test_same_value_different_contact_type_is_new(self):
+        p = _pub(self.db)
+        with mock.patch.object(sn, "post"):
+            self.apply(p, contact_type="카카오", contact_value="review-contact")
+            self.apply(p, contact_type="인스타", contact_value="review-contact")
+        self.assertEqual(self.count(p), 2)
+
+    def test_other_company_record_does_not_block(self):
+        p = _pub(self.db)
+        self.db.add(GroupBuyApplication(company_id=2, product_name=p.name, applicant_name="x", contact_type="카카오",
+                                        contact_value="shared-contact"))
+        self.db.commit()
+        with mock.patch.object(sn, "post"):
+            self.apply(p, contact_type="카카오", contact_value="shared-contact")
+        self.assertEqual(self.count(p), 1)
+
+
+class ConcurrencyTests(Base):
+    """코덱스 재검토 B·C — 동시에 와도 같은 신청 1건, @here 는 상한까지만."""
+
+    def test_concurrent_same_application_saved_once(self):
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        from sqlalchemy.orm import Query
+        p = _pub(self.db)
+        real_first = Query.first
+
+        def slow_first(q, *a, **k):   # '중복 없음'을 확인한 뒤 저장까지의 틈을 넓힌다 (잠금이 없으면 모두 저장됨)
+            r = real_first(q, *a, **k)
+            if threading.current_thread() is not threading.main_thread():
+                __import__("time").sleep(0.15)
+            return r
+
+        data = form(contact_value="concurrent-person")
+        data.update(product_id=p.id, product_name="x")
+        with mock.patch.object(sn, "post"), mock.patch.object(Query, "first", slow_first):
+            with ThreadPoolExecutor(5) as ex:
+                list(ex.map(lambda _: client_for().post("/public/apply", data=data), range(5)))
+        self.assertEqual(self.count(p), 1)
+
+    def test_concurrent_here_reservations_capped(self):
+        from concurrent.futures import ThreadPoolExecutor
+        cid = 424242
+        with ThreadPoolExecutor(20) as ex:
+            got = list(ex.map(lambda _: public._reserve_here(cid), range(20)))
+        self.assertEqual(sum(got), public.HERE_LIMIT)
 
 if __name__ == "__main__":
     unittest.main()

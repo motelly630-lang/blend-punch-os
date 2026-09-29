@@ -1,3 +1,4 @@
+import threading
 from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Request, Depends, Form
@@ -251,6 +252,10 @@ APPLY_DUP_WINDOW = timedelta(minutes=10)     # 같은 연락처·같은 제품 �
 APPLY_IP_LIMIT, APPLY_IP_WINDOW = 5, 600.0   # 같은 주소에서 10분에 5건까지
 HERE_LIMIT, HERE_WINDOW = 3, timedelta(minutes=10)   # @here 는 10분에 3건까지, 그 뒤는 조용히
 _apply_hits: dict[str, list[float]] = {}     # 운영 uvicorn 워커 1개 기준 (DE-004). 워커를 늘리면 공유 저장소로
+_here_times: dict[int, list[float]] = {}     # 회사별 @here 사용 시각 (같은 전제)
+# 동기 라우터·백그라운드 작업은 스레드에서 동시에 돈다 — '확인하고 저장'·'@here 몫 가져가기'를 한 번에 하나씩
+_apply_lock = threading.Lock()
+_here_lock = threading.Lock()
 
 
 def _cut(v, n: int) -> str:
@@ -282,17 +287,17 @@ def notify_application_slack(app_id: str, company_id: int, info: dict) -> None:
         logging.getLogger(__name__).exception("공구 신청 Slack 알림 실패 (신청은 저장됨) id=%s", app_id)
 
 
-def _recent_here_count(company_id: int) -> int:
-    from app.database import SessionLocal
-    from app.models.slack_notification_log import SlackNotificationLog as L
-    db = SessionLocal()
-    try:
-        since = datetime.utcnow() - HERE_WINDOW
-        return (db.query(func.count(L.id))
-                .filter(L.company_id == company_id, L.event == APPLY_SLACK_EVENT, L.created_at >= since)
-                .scalar() or 0)
-    finally:
-        db.close()
+def _reserve_here(company_id: int) -> bool:
+    """@here 몫을 원자적으로 하나 가져간다 — 회사별 10분에 HERE_LIMIT 번까지 (동시에 와도 넘지 않음)."""
+    import time as _t
+    now, window = _t.monotonic(), HERE_WINDOW.total_seconds()
+    with _here_lock:
+        times = [t for t in _here_times.get(company_id, []) if now - t < window]
+        ok = len(times) < HERE_LIMIT
+        if ok:
+            times.append(now)
+        _here_times[company_id] = times
+        return ok
 
 
 def _notify_application_slack(app_id: str, company_id: int, info: dict) -> None:
@@ -300,7 +305,7 @@ def _notify_application_slack(app_id: str, company_id: int, info: dict) -> None:
     from app.services import slack_notify as sn
     if APPLY_SLACK_EVENT not in sn.enabled_events():   # 'all' 이어도 직접 적지 않았으면 보내지 않음
         return
-    here = _recent_here_count(company_id) < HERE_LIMIT
+    here = _reserve_here(company_id)
     plain = lambda t: {"type": "plain_text", "text": t, "emoji": False}
     fields = [plain(f"제품: {_cut(info.get('product_name'), 120)}"),
               plain(f"브랜드: {_cut(info.get('brand'), 60) or '-'}"),
@@ -362,33 +367,36 @@ def submit_application(
         return back(apply_error="입력한 내용을 확인해주세요 (이름·연락처는 필수, 글자 수 제한)")
 
     ip = request.client.host if request.client else "?"
-    # 같은 연락처·같은 제품으로 10분 안에 다시 신청 → 새로 만들지 않고 알림도 없음
-    dup = (db.query(GroupBuyApplication.id)
-           .filter(GroupBuyApplication.contact_value == contact_value,
-                   GroupBuyApplication.product_name == product_name,
-                   GroupBuyApplication.created_at >= datetime.utcnow() - APPLY_DUP_WINDOW)
-           .first())
-    if dup:
-        return back(applied=1, dup=1)
-    if _apply_rate_limited(ip):
-        return back(apply_error="신청이 너무 많아요. 잠시 후 다시 시도해주세요")
-
     # 신청 레코드는 신청 대상 제품의 소속 회사로 귀속시킨다.
     # 모델 default(=1)에 맡기면 타사 제품에 들어온 신청이 1번 회사 받은함으로 섞인다.
-    app = GroupBuyApplication(
-        company_id=target.company_id if target else PUBLIC_COMPANY_ID,
-        product_id=target.id if target else None,   # 공개 제품이 아니면 연결하지 않음
-        product_name=product_name,
-        brand=brand or None,
-        applicant_name=applicant_name,
-        contact_type=contact_type,
-        contact_value=contact_value,
-        channel_handle=channel_handle or None,
-        followers=followers or None,
-        message=message or None,
-    )
-    db.add(app)
-    db.commit()
+    company_id = target.company_id if target else PUBLIC_COMPANY_ID
+    A = GroupBuyApplication
+    # '같은 신청' = 같은 회사 · 같은 연락 방식 · 같은 연락처 · 같은 대상(공개 제품이면 제품 번호, 아니면 브랜드+제품명)
+    same = [A.company_id == company_id, A.contact_type == contact_type, A.contact_value == contact_value,
+            A.created_at >= datetime.utcnow() - APPLY_DUP_WINDOW]
+    if target:
+        same.append(A.product_id == target.id)
+    else:
+        same += [A.product_id.is_(None), A.product_name == product_name, func.coalesce(A.brand, "") == brand]
+    with _apply_lock:   # 확인 → 저장을 한 번에 하나씩 (동시에 같은 신청이 여러 건 생기지 않게)
+        if db.query(A.id).filter(*same).first():
+            return back(applied=1, dup=1)
+        if _apply_rate_limited(ip):
+            return back(apply_error="신청이 너무 많아요. 잠시 후 다시 시도해주세요")
+        app = A(
+            company_id=company_id,
+            product_id=target.id if target else None,   # 공개 제품이 아니면 연결하지 않음
+            product_name=product_name,
+            brand=brand or None,
+            applicant_name=applicant_name,
+            contact_type=contact_type,
+            contact_value=contact_value,
+            channel_handle=channel_handle or None,
+            followers=followers or None,
+            message=message or None,
+        )
+        db.add(app)
+        db.commit()
     background.add_task(notify_application_slack, app.id, app.company_id, {
         "product_name": product_name, "brand": brand, "applicant_name": applicant_name,
         "contact_type": contact_type, "contact_value": contact_value,
