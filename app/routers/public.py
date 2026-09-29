@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Request, Depends, Form
+from urllib.parse import quote
+
+from fastapi import APIRouter, BackgroundTasks, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
@@ -243,8 +245,52 @@ def public_product_detail(product_id: str, request: Request, db: Session = Depen
 
 
 # ── /public/apply ────────────────────────────────────────────────
+APPLY_SLACK_EVENT = "public_apply"   # 운영 SLACK_EVENTS 에 넣어야 발송된다 (기본 꺼짐)
+
+
+def _cut(v, n: int) -> str:
+    v = " ".join(str(v or "").split())
+    return (v[: n - 1] + "…") if len(v) > n else v
+
+
+def notify_application_slack(app_id: str, company_id: int, info: dict) -> None:
+    """공구 신청 → Slack 02-공동구매-운영 (@here 로 놓치지 않게). 신청 저장 뒤 백그라운드에서 호출.
+    신청자가 쓴 글자는 모두 escape — <!channel> 같은 전체 호출·링크 위장이 되지 않게 한다.
+    실패해도 신청은 이미 저장돼 있다 — 어떤 오류도 밖으로 내보내지 않고 기록만 남긴다."""
+    try:
+        _notify_application_slack(app_id, company_id, info)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("공구 신청 Slack 알림 실패 (신청은 저장됨) id=%s", app_id)
+
+
+def _notify_application_slack(app_id: str, company_id: int, info: dict) -> None:
+    from app.config import settings
+    from app.services import slack_notify as sn
+    e = lambda v, n=200: sn.escape(_cut(v, n)) or "-"
+    lines = [
+        f"<!here> *{e(info.get('product_name'), 120)}*" + (f" ({e(info.get('brand'), 60)})" if info.get("brand") else ""),
+        f"신청자: *{e(info.get('applicant_name'), 60)}*",
+        f"연락: {e(info.get('contact_type'), 20)} · `{e(info.get('contact_value'), 100)}`",
+    ]
+    if info.get("channel_handle") or info.get("followers"):
+        lines.append(f"채널: {e(info.get('channel_handle'), 80)}" + (f" · 팔로워 {e(info.get('followers'), 30)}" if info.get("followers") else ""))
+    if info.get("message"):
+        lines.append(f"메시지: {e(info.get('message'), 500)}")
+    link = f"{settings.app_base_url.rstrip('/')}/applications"
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": "🔥 새 공구 신청", "emoji": True}},
+        {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}},
+        {"type": "context", "elements": [{"type": "mrkdwn",
+                                          "text": f"공개 카탈로그에서 신청 · <{link}|OS 신청 관리에서 보기>"}]},
+    ]
+    text = f"🔥 새 공구 신청 — {_cut(info.get('product_name'), 60)} / {_cut(info.get('applicant_name'), 30)}"
+    sn.post(APPLY_SLACK_EVENT, "groupbuy", text, company_id, dedupe_key=f"{APPLY_SLACK_EVENT}:{app_id}", blocks=blocks)
+
+
 @router.post("/apply")
 def submit_application(
+    background: BackgroundTasks,
     product_id: str = Form(""),
     product_name: str = Form(...),
     brand: str = Form(""),
@@ -254,6 +300,7 @@ def submit_application(
     channel_handle: str = Form(""),
     followers: str = Form(""),
     message: str = Form(""),
+    return_to: str = Form(""),
     db: Session = Depends(get_db),
 ):
     # 신청 레코드는 신청 대상 제품의 소속 회사로 귀속시킨다.
@@ -262,9 +309,11 @@ def submit_application(
         _public_filter(db.query(Product)).filter(Product.id == product_id).first()
         if product_id else None
     )
+    if target:   # 공개 제품이면 이름·브랜드는 서버 값으로 (화면이 보낸 값보다 믿을 수 있음)
+        product_name, brand = target.name, target.brand or brand
     app = GroupBuyApplication(
         company_id=target.company_id if target else PUBLIC_COMPANY_ID,
-        product_id=product_id or None,
+        product_id=target.id if target else None,   # 공개 제품이 아니면 연결하지 않음
         product_name=product_name,
         brand=brand or None,
         applicant_name=applicant_name,
@@ -276,7 +325,14 @@ def submit_application(
     )
     db.add(app)
     db.commit()
-    return RedirectResponse(f"/public/products/brand/{brand}?applied=1", status_code=302)
+    background.add_task(notify_application_slack, app.id, app.company_id, {
+        "product_name": product_name, "brand": brand, "applicant_name": applicant_name,
+        "contact_type": contact_type, "contact_value": contact_value,
+        "channel_handle": channel_handle, "followers": followers, "message": message,
+    })
+    if return_to == "detail" and target:
+        return RedirectResponse(f"/public/products/product/{target.id}?applied=1", status_code=302)
+    return RedirectResponse(f"/public/products/brand/{quote(brand or '')}?applied=1", status_code=302)
 
 
 # ── 하위 호환 리다이렉트 ────────────────────────────────────────
