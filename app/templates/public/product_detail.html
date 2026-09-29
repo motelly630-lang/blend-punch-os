@@ -1,5 +1,11 @@
 {% extends "public/base.html" %}
 {% block title %}{{ product.name }} | BLEND PUNCH 카탈로그{% endblock %}
+{% block og_tags %}
+<meta property="og:title" content="{{ og.title }}">
+<meta property="og:description" content="{{ og.description }}">
+<meta property="og:image" content="{{ og.image }}">
+<meta property="og:url" content="{{ og.url }}">
+{% endblock %}
 
 {% block content %}
 <div x-data="{ open: false }" @keydown.escape.window="open = false">
@@ -231,6 +237,7 @@
       <input type="hidden" name="product_name" value="{{ product.name }}">
       <input type="hidden" name="brand" value="{{ product.brand or '' }}">
       <input type="hidden" name="return_to" value="detail">
+      <input type="hidden" name="ref" value="{{ ref or '' }}">
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">이름 <span class="text-red-400">*</span></label>
         <input type="text" name="applicant_name" required maxlength="60" placeholder="이름 또는 활동명"

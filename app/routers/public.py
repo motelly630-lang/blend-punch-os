@@ -1,3 +1,4 @@
+import re
 import threading
 from urllib.parse import quote
 
@@ -78,6 +79,43 @@ def _brand_list(db: Session) -> list[dict]:
          "logo": brand_logos.get(r.brand), "first_image": first_imgs.get(r.brand)}
         for r in rows
     ]
+
+
+# ── 모집 링크 유입 경로 (?ref=hyeok-insta) ─────────────────────────
+REF_COOKIE = "bp_ref"
+REF_MAX_AGE = 30 * 24 * 3600          # 30일 동안 기억 — 링크로 들어와 다른 제품을 보다 신청해도 남도록
+_REF_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
+
+
+def clean_ref(v) -> str | None:
+    """유입 코드는 영문 소문자·숫자·-·_ 40자까지만 (그 외는 버림)."""
+    v = (v or "").strip().lower()
+    return v if _REF_RE.match(v) else None
+
+
+def recruit_user_code(username) -> str:
+    """직원 아이디 → 모집 코드 앞부분 (영문 소문자·숫자·_- 만, 30자). 비면 'staff'."""
+    s = re.sub(r"[^a-z0-9_-]", "", str(username or "").lower())[:30].strip("-_")
+    return s or "staff"
+
+
+def current_ref(request: Request) -> str | None:
+    return clean_ref(request.query_params.get("ref")) or clean_ref(request.cookies.get(REF_COOKIE))
+
+
+def remember_ref(request: Request, response):
+    """주소에 ?ref= 가 있으면 쿠키로 30일 기억 (마지막 링크 기준)."""
+    ref = clean_ref(request.query_params.get("ref"))
+    if ref:
+        response.set_cookie(REF_COOKIE, ref, max_age=REF_MAX_AGE, httponly=True, samesite="lax", secure=True)
+    return response
+
+
+def _abs_url(u: str | None) -> str | None:
+    from app.config import settings
+    if not u:
+        return None
+    return u if u.startswith(("http://", "https://")) else settings.app_base_url.rstrip("/") + "/" + u.lstrip("/")
 
 
 def _no_image_last():
@@ -195,7 +233,7 @@ def public_product_list(request: Request, db: Session = Depends(get_db),
             }
             popular = [PublicProduct.from_orm(pop_map[i]) for i in id_order if i in pop_map]
 
-    return templates.TemplateResponse(
+    return remember_ref(request, templates.TemplateResponse(
         "public/products.html",
         {"request": request, "brands": brands, "products": products,
          "q": q, "category_filter": category, "brand_filter": brand,
@@ -205,7 +243,7 @@ def public_product_list(request: Request, db: Session = Depends(get_db),
          "top_commission": top_commission, "with_sample": with_sample,
          "category_rows": category_rows, "category_counts": category_counts, "stats": stats,
          "page": page, "total_pages": total_pages, "total": total},
-    )
+    ))
 
 
 # ── /public/products/brand/{brand} ───────────────────────────────
@@ -224,12 +262,12 @@ def public_brand_products(brand_name: str, request: Request, db: Session = Depen
         .filter(BrandModel.company_id == PUBLIC_COMPANY_ID, BrandModel.name == brand_name)
         .first()
     )
-    return templates.TemplateResponse(
+    return remember_ref(request, templates.TemplateResponse(
         "public/brand.html",
         {"request": request, "brand_name": brand_name,
          "products": products, "total": len(products), "brands": brands,
-         "brand_obj": brand_obj},
-    )
+         "brand_obj": brand_obj, "ref": current_ref(request)},
+    ))
 
 
 # ── /public/products/product/{id} ────────────────────────────────
@@ -239,10 +277,21 @@ def public_product_detail(product_id: str, request: Request, db: Session = Depen
     if not db_product:
         return RedirectResponse("/public/products", status_code=302)
     product = PublicProduct.from_orm(db_product)
-    return templates.TemplateResponse(
+    from app.config import settings
+    base = settings.app_base_url.rstrip("/")
+    # 카톡·인스타 DM 미리보기: 제품 사진·이름·공구가·커미션
+    price = f"공구가 {int(product.groupbuy_price):,}원" if product.groupbuy_price else ""
+    comm = f"커미션 {round(product.seller_commission_rate * 100)}%" if product.seller_commission_rate else ""
+    og = {
+        "title": " · ".join(x for x in (product.name, price, comm) if x),
+        "description": product.unique_selling_point or f"{product.brand} 공동구매 제품 — 블랜드펀치 셀러 카탈로그",
+        "image": _abs_url(product.product_image) or f"{base}/static/og-image.png",
+        "url": f"{base}/public/products/product/{product.id}",
+    }
+    return remember_ref(request, templates.TemplateResponse(
         "public/product_detail.html",
-        {"request": request, "product": product},
-    )
+        {"request": request, "product": product, "og": og, "ref": current_ref(request)},
+    ))
 
 
 # ── /public/apply ────────────────────────────────────────────────
@@ -311,6 +360,7 @@ def _notify_application_slack(app_id: str, company_id: int, info: dict) -> None:
               plain(f"브랜드: {_cut(info.get('brand'), 60) or '-'}"),
               plain(f"신청자: {_cut(info.get('applicant_name'), 60)}"),
               plain(f"연락: {_cut(info.get('contact_type'), 20)} · {_cut(info.get('contact_value'), 100)}")]
+    fields.append(plain(f"유입: {info.get('source_ref') or '직접 방문'}"))
     if info.get("channel_handle") or info.get("followers"):
         fields.append(plain(f"채널: {_cut(info.get('channel_handle'), 80) or '-'} · 팔로워 {_cut(info.get('followers'), 30) or '-'}"))
     link = f"{settings.app_base_url.rstrip('/')}/applications"
@@ -342,8 +392,10 @@ def submit_application(
     followers: str = Form(""),
     message: str = Form(""),
     return_to: str = Form(""),
+    ref: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    source_ref = clean_ref(ref) or clean_ref(request.cookies.get(REF_COOKIE))
     target = (
         _public_filter(db.query(Product)).filter(Product.id == product_id).first()
         if product_id else None
@@ -394,6 +446,7 @@ def submit_application(
             channel_handle=channel_handle or None,
             followers=followers or None,
             message=message or None,
+            source_ref=source_ref,
         )
         db.add(app)
         db.commit()
@@ -401,6 +454,7 @@ def submit_application(
         "product_name": product_name, "brand": brand, "applicant_name": applicant_name,
         "contact_type": contact_type, "contact_value": contact_value,
         "channel_handle": channel_handle, "followers": followers, "message": message,
+        "source_ref": source_ref,
     })
     return back(applied=1)
 

@@ -380,6 +380,7 @@ def migrate():
 
         # --- campaigns: 공구 콘텐츠 링크 (릴스 아카이브, 2026-09-24) — 칸 추가만 (블랜드픽 영향 없음, RG-007) ---
         _add_column(conn, "campaigns", "content_urls JSON")
+        _add_column(conn, "group_buy_applications", "source_ref VARCHAR(60)")   # 공구 신청 유입 경로
 
         conn.commit()
 

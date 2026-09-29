@@ -429,12 +429,21 @@ def product_detail(product_id: str, request: Request, db: Session = Depends(get_
         .order_by(ProposalModel.created_at.desc()).limit(3).all()
     )
 
+    # 모집 링크 — 공개 카탈로그 상세 주소 + ?ref=직원아이디-채널 (유입 경로 표시)
+    from app.config import settings
+    from app.routers.public import _public_filter, recruit_user_code
+    recruit = {
+        "url": f"{settings.app_base_url.rstrip('/')}/public/products/product/{product.id}",
+        "user": recruit_user_code(current_user.username),
+        "is_public": _public_filter(db.query(Product.id)).filter(Product.id == product.id).first() is not None,
+    }
+
     return templates.TemplateResponse(
         "products/detail.html",
         {
             "request": request, "active_page": "products", "current_user": current_user,
             "product": product, "recommended_influencers": recommended_influencers,
-            "ai_campaigns": ai_campaigns, "ai_proposals": ai_proposals,
+            "ai_campaigns": ai_campaigns, "ai_proposals": ai_proposals, "recruit": recruit,
         },
     )
 

@@ -20,6 +20,7 @@ class GroupBuyApplication(Base):
     channel_handle  = Column(String(200), nullable=True)
     followers       = Column(String(50),  nullable=True)    # 예: "5만", "12,000"
     message         = Column(Text,        nullable=True)
+    source_ref      = Column(String(60),  nullable=True)    # 유입 경로 — 모집 링크의 ?ref= (예: hyeok-insta)
 
     status     = Column(String(20), default="new")          # new|reviewing|approved|rejected
     admin_note = Column(Text, nullable=True)
