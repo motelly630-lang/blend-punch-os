@@ -92,6 +92,31 @@ class CampaignCardReviewTests(unittest.TestCase):
         self.assertIn("window.CAMP_TODO_ONLY", html, "캘린더도 채울 것 필터")
         self.assertIn("calendar: 'calendar'", html, "네 가지 보기 기억")
         self.assertIn("this.$root", html, "창 안 첫 칸으로 초점")
+        self.assertIn("self._openGen !== gen", html, "빨리 닫았다 다시 열 때 예전 초점 예약 무시")
+        self.assertIn("CampBoard.setView(ok[mode] || 'list', archive)", html, "보관함은 보기 선호를 안 덮음")
+
+    def test_completed_without_revenue_is_reference_only(self):
+        """매출은 안 적는 날도 있음 — 채울 것(필터)에 넣지 않고 회색 참고 표시만."""
+        from app.models import Product
+        from app.models.influencer import Influencer
+        seed_companies()
+        db = SessionLocal()
+        p = Product(company_id=1, name=f"매출0 {uid()}", brand="b", category="기타", status="active")
+        i = Influencer(company_id=1, name=f"인플 {uid()}", platform="instagram", handle="@y")
+        db.add_all([p, i])
+        db.flush()
+        c = Campaign(company_id=1, name="끝난 공구", product_id=p.id, influencer_id=i.id, status="completed",
+                     start_date=date.today() - timedelta(days=9), end_date=date.today() - timedelta(days=3),
+                     actual_revenue=0)
+        db.add(c)
+        db.commit()
+        cid = c.id
+        db.close()
+        html = self.page()
+        row = html[html.index(f'data-camp="{cid}"'):]
+        row = row[: row.index('class="camp-row', 10)] if 'class="camp-row' in row[10:] else row
+        self.assertIn('data-todo="0"', row)
+        self.assertIn("매출 미입력", row)
 
 
 if __name__ == "__main__":

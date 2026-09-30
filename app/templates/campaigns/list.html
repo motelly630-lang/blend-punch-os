@@ -124,7 +124,7 @@
     <option value="influencer">인플루언서순</option>
     <option value="revenue">매출순</option>
   </select>
-  <button type="button" id="camp-todo-btn" onclick="CampBoard.toggleTodo()" title="제품 연결·인플루언서·기간·매출 중 비어 있는 캠페인만"
+  <button type="button" id="camp-todo-btn" onclick="CampBoard.toggleTodo()" title="제품 연결·인플루언서·기간 중 비어 있는 캠페인만 (매출은 필수 아님)"
     class="px-3 py-2 text-xs font-medium border border-amber-200 text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
     채울 것만 <span id="camp-todo-count"></span>
   </button>
@@ -349,7 +349,6 @@
       {% if not c.product %}{% set _ = todos.append('제품 연결') %}{% endif %}
       {% if not c.influencer %}{% set _ = todos.append('인플루언서') %}{% endif %}
       {% if not c.start_date or not c.end_date %}{% set _ = todos.append('기간') %}{% endif %}
-      {% if st == 'completed' and not c.actual_revenue %}{% set _ = todos.append('매출 입력') %}{% endif %}
       {% endif %}
       <div class="camp-card relative h-full bg-white rounded-xl border shadow-sm transition-all flex flex-col overflow-hidden" data-todo="{{ '1' if todos else '0' }}"
         :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200' : '{{ borders }}'">
@@ -391,6 +390,7 @@
             {% if brand_name %}{% if c.influencer %}<span class="text-gray-300">·</span>{% endif %}<span class="text-gray-500 truncate">{{ brand_name }}</span>{% endif %}
           </div>
           {% if prod_name and c.name != prod_name %}<div class="cc-sub mt-1 text-xs text-gray-400 truncate" title="{{ c.name }}">{{ c.name }}</div>{% endif %}
+          {% if st == 'completed' and not c.actual_revenue %}<div class="mt-1 text-[11px] text-gray-400" title="필수 아님 — 적을 수 있을 때 매출 입력에서">매출 미입력</div>{% endif %}
           {% if todos %}<div class="mt-1.5 flex flex-wrap items-center gap-1 text-[11px]"><span class="text-amber-600 font-semibold">채울 것</span>{% for t in todos %}<span class="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100">{{ t }}</span>{% endfor %}</div>{% endif %}
           </div>
         </a>
@@ -413,12 +413,13 @@
       <!-- 빠른 수정: 카드 안에서 늘어나지 않고 화면 가운데 창으로 -->
       <div x-show="editing" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6"
         role="dialog" aria-modal="true"
-        x-init="$watch('editing', v => { if (!v) $nextTick(() => $refs.editBtn && $refs.editBtn.focus()) })"
+        x-init="$watch('editing', v => { if (!v) $nextTick(() => { if (!editing && $refs.editBtn) $refs.editBtn.focus() }) })"
         @click.self="cancelEdit()"
         @keydown.escape="if (editing) cancelEdit()"
         @keydown.tab="(function (e, box) {
-          var f = [...box.querySelectorAll('button, input, select, textarea, a[href]')].filter(x => !x.disabled && x.offsetParent);
+          var f = [...box.querySelectorAll('button, input, select, textarea, a[href]')].filter(x => !x.disabled && x.offsetParent && x.tabIndex !== -1);
           if (!f.length) return;
+          if (f.indexOf(document.activeElement) < 0) { e.preventDefault(); (e.shiftKey ? f[f.length - 1] : f[0]).focus(); return }
           if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus() }
           else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus() }
         })($event, $el)">
@@ -624,9 +625,11 @@ function campCard(opts) {
       this.editing = true;
       this.$dispatch('camp-edit-opened', { id: this.cid });
       // 창이 실제로 보인 뒤에 초점 이동 ($el 은 누른 버튼이라 root 에서 찾음, 다시 열 때는 표시가 한 박자 늦어 setTimeout)
-      var root = this.$root || this.$el;
+      var root = this.$root || this.$el, self = this;
+      var gen = this._openGen = (this._openGen || 0) + 1;   // 빨리 닫았다 다시 열면 예전 예약은 무시
       this.$nextTick(function() {
         setTimeout(function() {
+          if (!self.editing || self._openGen !== gen) return;
           var f = root.querySelector('[data-edit-focus]');
           if (f) f.focus();
         }, 30);
@@ -1025,11 +1028,11 @@ function createPanel() {
     }
 
     // ── View switch ───────────────────────────────────────────────────
-    function setView(v) {
+    function setView(v, noSave) {
       var dense = (v === 'rows');
       if (dense) v = 'list';
       if (listEl) listEl.classList.toggle('dense', dense);
-      try { localStorage.setItem('campListMode', dense ? 'rows' : (v === 'list' ? 'cards' : v)); } catch (e) {}
+      if (!noSave) try { localStorage.setItem('campListMode', dense ? 'rows' : (v === 'list' ? 'cards' : v)); } catch (e) {}
       state.view = v;
       var map = { list: 'view-list', timeline: 'view-timeline', calendar: 'view-calendar' };
       Object.keys(map).forEach(function (k) {
@@ -1083,8 +1086,9 @@ function createPanel() {
     try { mode = localStorage.getItem('campListMode') || 'cards'; } catch (e) {}
     var ok = { rows: 'rows', cards: 'list', timeline: 'timeline', calendar: 'calendar' };
     // 보관함은 보기 버튼이 없으니 항상 기본(카드/한 줄만 반영)
-    if (document.getElementById('camp-list') && document.getElementById('camp-list').dataset.mode === 'archive' && mode !== 'rows') mode = 'cards';
-    CampBoard.setView(ok[mode] || 'list');
+    var archive = document.getElementById('camp-list') && document.getElementById('camp-list').dataset.mode === 'archive';
+    if (archive && mode !== 'rows') mode = 'cards';
+    CampBoard.setView(ok[mode] || 'list', archive);   // 보관함은 표시만 바꾸고 일반 목록 선호는 안 덮음
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootCampBoard);
