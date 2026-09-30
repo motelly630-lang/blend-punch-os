@@ -4,6 +4,7 @@ from tests._env import SessionLocal, client_for, make_user, seed_companies, uid
 
 import html as htmlmod
 import re
+from urllib.parse import quote
 import unittest
 from unittest import mock
 
@@ -71,7 +72,10 @@ class CleanRefTests(unittest.TestCase):
         self.assertEqual(public._abs_url("HTTPS://cdn.x/a.jpg"), "HTTPS://cdn.x/a.jpg")
         self.assertEqual(public._abs_url("//cdn.x/a.jpg"), "https://cdn.x/a.jpg")
         self.assertEqual(public._abs_url("uploads/a.jpg"), base + "/uploads/a.jpg")
+        self.assertEqual(public._abs_url("https://cdn.x:8443/a.jpg"), "https://cdn.x:8443/a.jpg")
+        self.assertEqual(public._abs_url("https://[::1]/a.jpg"), "https://[::1]/a.jpg")
         for bad in (None, "", "  ", "data:image/png;base64,AAAA", "javascript:alert(1)", "https://", "//",
+                    "https://cdn.x:bad/a", "https://cdn.x:99999/a", "https://exa\\mple.com/a",
                     "///cdn.x/a.jpg", "https://cdn.x/a\nb.jpg", "https://cdn.x/a b.jpg", "ftp://cdn.x/a.jpg",
                     "http://[bad/a.jpg"):
             self.assertIsNone(public._abs_url(bad), bad)
@@ -80,12 +84,12 @@ class CleanRefTests(unittest.TestCase):
 class UserCodeTests(unittest.TestCase):
     """코덱스 재검토 A·B — 직원 코드는 계정 고유번호 전체. 겹치지 않고, 개명·다른 계정 삭제에도 안 바뀐다."""
 
-    def mk(self, name, uid_hex, company_id=1):
+    def mk(self, name, uid_hex, company_id=1, role="staff", raw_id=None):
         from app.models.user import User
         db = SessionLocal()
         h = uid_hex
-        u = User(id=f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:]}", username=name, hashed_password="x",
-                 role="staff", company_id=company_id)
+        u = User(id=raw_id or f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:]}", username=name, hashed_password="x",
+                 role=role, company_id=company_id)
         db.add(u)
         db.commit()
         db.refresh(u)
@@ -118,17 +122,45 @@ class UserCodeTests(unittest.TestCase):
         self.assertEqual(public.recruit_user_code(b2), before)
         db.close()
 
+    def test_non_standard_ids_get_no_code(self):
+        """코덱스 3차 B — 표준 UUID 가 아니면 링크를 만들지 않는다 (겹침·40자 초과·이름 조회 실패 방지)."""
+        from types import SimpleNamespace as NS
+        good = "12345678-1234-4234-8234-123456789abc"
+        self.assertEqual(public.recruit_user_code(NS(id=good)), good.replace("-", ""))
+        for bad in ("old-admin", "oldadmin", "A" * 36, "김직원", good.upper(), good.replace("-", ""),
+                    "{" + good + "}", "urn:uuid:" + good, "", None):
+            self.assertIsNone(public.recruit_user_code(NS(id=bad)), bad)
+
+    def test_non_standard_account_sees_disabled_notice(self):
+        seed_companies()
+        u = self.mk(f"odd{uid()}", "0" * 32, company_id=1, role="admin", raw_id=f"odd-{uid()}")
+        db = SessionLocal()
+        pid = _pub(db).id
+        db.close()
+        page = client_for(u).get(f"/products/{pid}").text
+        self.assertIn("모집 링크 사용 불가", page)
+        self.assertNotIn("data-recruit-link", page)
+
     def test_labels_show_name_and_channel_only_for_own_company(self):
         import uuid as _u
         seed_companies()
         me = self.mk(f"hyeok{uid()}", _u.uuid4().hex, company_id=1)
         other = self.mk(f"other{uid()}", _u.uuid4().hex, company_id=2)
-        mine, theirs = f"{public.recruit_user_code(me)}-kakao", f"{public.recruit_user_code(other)}-insta"
+        g_admin = self.mk(f"gadmin{uid()}", _u.uuid4().hex, company_id=None, role="admin")
+        g_partner = self.mk(f"gpartner{uid()}", _u.uuid4().hex, company_id=None, role="partner")
+        g_staff = self.mk(f"gstaff{uid()}", _u.uuid4().hex, company_id=None, role="staff")
+        my_partner = self.mk(f"mypartner{uid()}", _u.uuid4().hex, company_id=1, role="partner")
+        code = lambda u: f"{public.recruit_user_code(u)}-insta"
+        mine, theirs = f"{public.recruit_user_code(me)}-kakao", code(other)
         db = SessionLocal()
-        labels = public.ref_labels(db, [mine, theirs, "hand-made", None], 1)
+        labels = public.ref_labels(db, [mine, theirs, "hand-made", None, code(g_admin), code(g_partner),
+                                        code(g_staff), code(my_partner)], 1)
         db.close()
         self.assertEqual(labels[mine], f"{me.username} · 카카오톡")
         self.assertEqual(labels[theirs], theirs, "다른 회사 직원 이름은 안 보여줌")
+        self.assertEqual(labels[code(g_admin)], f"{g_admin.username} · 인스타 DM", "전체 관리자는 표시")
+        for u in (g_partner, g_staff, my_partner):
+            self.assertEqual(labels[code(u)], code(u), f"{u.username}: 회사 없는 비관리자·협력사는 이름 숨김")
         self.assertEqual(labels["hand-made"], "hand-made")
 
 
@@ -196,6 +228,27 @@ class RefFlowTests(Base):
         self.assertEqual(r.headers["location"], f"/public/products/product/{p.id}?ref=kim-insta")
         r = client_for().get(f"/public/products/{p.id}?ref=<bad>")
         self.assertEqual(r.headers["location"], f"/public/products/product/{p.id}")
+
+    def test_old_brand_address_encodes_name(self):
+        for name, enc in (("A?x=1", "A%3Fx%3D1"), ("A#B", "A%23B"), ("한 글&", "%ED%95%9C%20%EA%B8%80%26")):
+            r = client_for().get(f"/public/brand/{quote(name, safe='')}?ref=kim-insta")
+            self.assertEqual(r.headers["location"], f"/public/products/brand/{enc}?ref=kim-insta", name)
+
+    def test_vary_merge(self):
+        from starlette.responses import Response
+        for before, after in (("Accept-Encoding", "Accept-Encoding, Cookie"), ("cookie", "cookie"), ("*", "*")):
+            r = Response(headers={"Vary": before})
+            self.assertEqual(public.no_store(r).headers["vary"], after)
+
+    def test_label_failure_does_not_block_apply(self):
+        p = _pub(self.db)
+        with mock.patch.object(settings, "slack_events", "public_apply"), \
+                mock.patch.object(public, "ref_labels", side_effect=RuntimeError("db hiccup")), \
+                mock.patch.object(sn, "post", wraps=sn.post) as post:
+            r = client_for().post("/public/apply", data=_form(p.id, ref="kim-insta"))
+        self.assertIn("applied=1", r.headers["location"])
+        joined = " ".join(f["text"] for f in post.call_args.kwargs["blocks"][2]["fields"])
+        self.assertIn("유입: kim-insta", joined)
 
     def test_two_visitors_keep_their_own_ref(self):
         p = _pub(self.db)
@@ -271,6 +324,8 @@ class RefFlowTests(Base):
             client_for().post("/public/apply", data=_form(p.id, ref=code))
         joined = " ".join(f["text"] for f in post2.call_args.kwargs["blocks"][2]["fields"])
         self.assertIn(f"유입: {staff.username} · 카카오톡", joined)
+        field = [f for f in post2.call_args.kwargs["blocks"][2]["fields"] if f["text"].startswith("유입")][0]
+        self.assertEqual(field["type"], "plain_text")
         self.assertEqual(self.saved_latest(p.id).source_ref, code, "저장은 코드 그대로")
         field = [f for f in post.call_args_list[0].kwargs["blocks"][2]["fields"] if f["text"].startswith("유입")][0]
         self.assertEqual(field["type"], "plain_text")

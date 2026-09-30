@@ -1,3 +1,4 @@
+import logging
 import re
 import threading
 from urllib.parse import quote
@@ -97,13 +98,20 @@ RECRUIT_CHANNELS = {"insta": "인스타 DM", "kakao": "카카오톡", "dm": "기
 _STAFF_REF_RE = re.compile(r"^([0-9a-f]{32})-([a-z]+)$")
 
 
-def recruit_user_code(user) -> str:
+def recruit_user_code(user) -> str | None:
     """직원 → 모집 코드 앞부분 = 계정 고유번호(UUID) 32자리.
 
     아이디를 줄여 쓰면 직원끼리 겹치거나 개명·삭제 때 바뀐다 (코덱스 재검토 A·B).
     고유번호는 계정마다 다르고 절대 안 바뀌므로, 화면·슬랙에는 ref_label 로 이름을 풀어 보여준다.
+    표준 형식(소문자·하이픈 36자) UUID 가 아닌 계정은 None — 모집 링크를 만들지 않는다 (코덱스 3차 B).
     """
-    return str(user.id).replace("-", "").lower()
+    import uuid as _uuid
+    raw = str(user.id or "")
+    try:
+        u = _uuid.UUID(raw)
+    except ValueError:
+        return None
+    return u.hex if str(u) == raw else None
 
 
 def ref_labels(db: Session, refs, company_id: int | None) -> dict:
@@ -118,7 +126,8 @@ def ref_labels(db: Session, refs, company_id: int | None) -> dict:
             ids[f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:]}"] = h
     names = {}
     if ids:
-        names = {ids[u.id]: u.username for u in db.query(User.id, User.username).filter(User.id.in_(list(ids)), (User.company_id == company_id) | User.company_id.is_(None))}
+        names = {ids[u.id]: u.username for u in db.query(User.id, User.username).filter(User.id.in_(list(ids)), User.role != "partner",
+                         (User.company_id == company_id) | (User.company_id.is_(None) & (User.role == "admin")))}
     out = {}
     for r in refs:
         m = _STAFF_REF_RE.match(r)
@@ -133,11 +142,22 @@ def current_ref(request: Request) -> str | None:
     return clean_ref(request.query_params.get("ref")) or clean_ref(request.cookies.get(REF_COOKIE))
 
 
+def _safe_label(db: Session, ref: str | None, company_id: int) -> str | None:
+    """슬랙용 유입 표시 — 이름 조회가 실패해도 신청·알림은 그대로 (코드 원문으로)."""
+    if not ref:
+        return None
+    try:
+        return ref_labels(db, [ref], company_id).get(ref, ref)
+    except Exception:
+        logging.getLogger(__name__).warning("유입 이름 조회 실패 — 코드 그대로 표시", exc_info=True)
+        return ref
+
+
 def no_store(response):
     """중간 캐시가 저장·재사용하지 않게 (공개 페이지·이동 응답 공통)."""
     response.headers["Cache-Control"] = "private, no-store"
     vary = [v.strip() for v in response.headers.get("Vary", "").split(",") if v.strip()]
-    if "Cookie" not in vary:
+    if not any(v.lower() in ("cookie", "*") for v in vary):
         response.headers["Vary"] = ", ".join(vary + ["Cookie"])
     return response
 
@@ -163,7 +183,7 @@ def _abs_url(u: str | None) -> str | None:
     from urllib.parse import urlsplit
     from app.config import settings
     u = (u or "").strip()
-    if not u or any(ord(c) < 33 or ord(c) == 127 for c in u):
+    if not u or "\\" in u or any(ord(c) < 33 or ord(c) == 127 for c in u):
         return None
     if u.startswith("//"):
         u = "https:" + u
@@ -176,6 +196,10 @@ def _abs_url(u: str | None) -> str | None:
     except ValueError:
         return None
     if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
+        return None
+    try:
+        parts.port   # 숫자 아님·범위 밖이면 ValueError
+    except ValueError:
         return None
     return u
 
@@ -516,7 +540,7 @@ def submit_application(
         "product_name": product_name, "brand": brand, "applicant_name": applicant_name,
         "contact_type": contact_type, "contact_value": contact_value,
         "channel_handle": channel_handle, "followers": followers, "message": message,
-        "source_ref": ref_labels(db, [source_ref], company_id).get(source_ref) if source_ref else None,
+        "source_ref": _safe_label(db, source_ref, company_id),
     })
     return back(applied=1)
 
@@ -529,7 +553,7 @@ def _ref_qs(request: Request) -> str:
 
 @router.get("/brand/{brand_name}")
 def public_brand_redirect(brand_name: str, request: Request):
-    return _redirect(f"/public/products/brand/{brand_name}{_ref_qs(request)}", status_code=301)
+    return _redirect(f"/public/products/brand/{quote(brand_name, safe='')}{_ref_qs(request)}", status_code=301)
 
 
 @router.get("/products/{product_id}")
