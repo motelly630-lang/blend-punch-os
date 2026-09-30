@@ -39,7 +39,7 @@
     <div class="text-[11px] font-mono break-all bg-gray-50 border border-gray-100 rounded-lg p-2 mb-3" x-text="link()"></div>
     <button type="button" @click="copy()" class="w-full text-sm font-semibold py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
       x-text="done ? '복사됐어요 ✓' : '링크 복사'"></button>
-    <p class="mt-2 text-[11px] text-gray-400">이 링크로 들어온 신청은 신청 관리·슬랙에 <b x-text="$refs.base.dataset.user + '-' + ch"></b> 로 표시돼요.</p>
+    <p class="mt-2 text-[11px] text-gray-400">이 링크로 들어온 신청은 신청 관리·슬랙에 <b>{{ current_user.username }} · <span x-text="({insta: '인스타 DM', kakao: '카카오톡', dm: '기타 DM·문자', etc: '기타'})[ch]"></span></b> 로 표시돼요.</p>
   </div>
 </div>
 <a href="/products/{{ product.id }}/edit" class="text-sm font-medium px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">편집</a>

@@ -7,6 +7,7 @@ from app.models.group_buy_application import GroupBuyApplication
 from app.auth.dependencies import get_current_user
 from app.auth.tenant import get_company_id
 from app.models.user import User
+from app.routers.public import ref_labels
 
 router = APIRouter(prefix="/applications")
 templates = Jinja2Templates(directory="app/templates")
@@ -35,6 +36,7 @@ def application_list(request: Request, db: Session = Depends(get_db),
         "current_user": current_user,
         "apps": apps, "status_filter": status,
         "counts": counts, "STATUS_KR": STATUS_KR,
+        "ref_labels": ref_labels(db, [a.source_ref for a in apps], cid),
     })
 
 

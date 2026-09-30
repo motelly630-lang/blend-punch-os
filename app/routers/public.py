@@ -93,32 +93,57 @@ def clean_ref(v) -> str | None:
     return v if _REF_RE.match(v) else None
 
 
-def _code_slug(username) -> str:
-    return re.sub(r"[^a-z0-9_-]", "", str(username or "").lower())[:24].strip("-_")
+RECRUIT_CHANNELS = {"insta": "인스타 DM", "kakao": "카카오톡", "dm": "기타 DM·문자", "etc": "기타"}
+_STAFF_REF_RE = re.compile(r"^([0-9a-f]{32})-([a-z]+)$")
 
 
-def recruit_user_code(db: Session, user) -> str:
-    """직원 → 모집 코드 앞부분 (직원마다 다르게, 한 번 정해지면 안 바뀜).
+def recruit_user_code(user) -> str:
+    """직원 → 모집 코드 앞부분 = 계정 고유번호(UUID) 32자리.
 
-    - 아이디를 영문 소문자·숫자·_- 로 줄인 값 (24자)
-    - 같은 값이 되는 직원이 먼저 가입해 있으면 뒤에 아이디 번호 6자리를 붙인다 (hyeok_3fa2b1)
-    - 한글 아이디처럼 남는 글자가 없으면 u_번호6자리
-    먼저 가입한 사람은 계속 짧은 코드를 쓰므로, 새 직원이 생겨도 이미 보낸 링크의 뜻이 안 바뀐다.
+    아이디를 줄여 쓰면 직원끼리 겹치거나 개명·삭제 때 바뀐다 (코덱스 재검토 A·B).
+    고유번호는 계정마다 다르고 절대 안 바뀌므로, 화면·슬랙에는 ref_label 로 이름을 풀어 보여준다.
     """
+    return str(user.id).replace("-", "").lower()
+
+
+def ref_labels(db: Session, refs, company_id: int | None) -> dict:
+    """유입 코드 → 보여줄 글자. 이 회사 직원(또는 전체 관리자)의 모집 코드면 '아이디 · 채널', 아니면 코드 그대로."""
     from app.models.user import User
-    slug = _code_slug(user.username)
-    tag = re.sub(r"[^a-z0-9]", "", str(user.id).lower())[:6]
-    if not slug:
-        return f"u_{tag}"
-    mine = (user.created_at or datetime.min, str(user.id))
-    for other in db.query(User.id, User.username, User.created_at).filter(User.id != user.id):
-        if _code_slug(other.username) == slug and (other.created_at or datetime.min, str(other.id)) < mine:
-            return f"{slug}_{tag}"
-    return slug
+    refs = {r for r in refs if r}
+    ids = {}
+    for r in refs:
+        m = _STAFF_REF_RE.match(r)
+        if m:
+            h = m.group(1)
+            ids[f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:]}"] = h
+    names = {}
+    if ids:
+        names = {ids[u.id]: u.username for u in db.query(User.id, User.username).filter(User.id.in_(list(ids)), (User.company_id == company_id) | User.company_id.is_(None))}
+    out = {}
+    for r in refs:
+        m = _STAFF_REF_RE.match(r)
+        if m and m.group(1) in names:
+            out[r] = f"{names[m.group(1)]} · {RECRUIT_CHANNELS.get(m.group(2), m.group(2))}"
+        else:
+            out[r] = r
+    return out
 
 
 def current_ref(request: Request) -> str | None:
     return clean_ref(request.query_params.get("ref")) or clean_ref(request.cookies.get(REF_COOKIE))
+
+
+def no_store(response):
+    """중간 캐시가 저장·재사용하지 않게 (공개 페이지·이동 응답 공통)."""
+    response.headers["Cache-Control"] = "private, no-store"
+    vary = [v.strip() for v in response.headers.get("Vary", "").split(",") if v.strip()]
+    if "Cookie" not in vary:
+        response.headers["Vary"] = ", ".join(vary + ["Cookie"])
+    return response
+
+
+def _redirect(url: str, status_code: int = 302):
+    return no_store(RedirectResponse(url, status_code=status_code))
 
 
 def remember_ref(request: Request, response):
@@ -126,8 +151,7 @@ def remember_ref(request: Request, response):
 
     페이지 안 신청 폼에 방문자별 ref 가 들어가므로, 중간 캐시가 다른 사람에게 재사용하지 않게 막는다.
     """
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
+    no_store(response)
     ref = clean_ref(request.query_params.get("ref"))
     if ref:
         response.set_cookie(REF_COOKIE, ref, max_age=REF_MAX_AGE, httponly=True, samesite="lax", secure=True)
@@ -135,18 +159,25 @@ def remember_ref(request: Request, response):
 
 
 def _abs_url(u: str | None) -> str | None:
-    """공유 미리보기용 이미지 주소 → 절대 주소. 쓸 수 없는 형식(data: 등)은 None (기본 이미지로)."""
+    """공유 미리보기용 이미지 주소 → 절대 주소. 쓸 수 없는 형식(data:·호스트 없음·제어문자 등)은 None (기본 이미지로)."""
+    from urllib.parse import urlsplit
     from app.config import settings
     u = (u or "").strip()
-    if not u:
+    if not u or any(ord(c) < 33 or ord(c) == 127 for c in u):
         return None
-    if u.lower().startswith(("http://", "https://")):
-        return u
     if u.startswith("//"):
-        return "https:" + u
-    if ":" in u.split("/", 1)[0]:   # data:, javascript: 같은 다른 형식
+        u = "https:" + u
+    elif not u.lower().startswith(("http://", "https://")):
+        if ":" in u.split("/", 1)[0]:   # data:, javascript: 같은 다른 형식
+            return None
+        u = settings.app_base_url.rstrip("/") + "/" + u.lstrip("/")
+    try:
+        parts = urlsplit(u)
+    except ValueError:
         return None
-    return settings.app_base_url.rstrip("/") + "/" + u.lstrip("/")
+    if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
+        return None
+    return u
 
 
 def _no_image_last():
@@ -306,7 +337,7 @@ def public_brand_products(brand_name: str, request: Request, db: Session = Depen
 def public_product_detail(product_id: str, request: Request, db: Session = Depends(get_db)):
     db_product = _public_filter(db.query(Product)).filter(Product.id == product_id).first()
     if not db_product:
-        return RedirectResponse("/public/products", status_code=302)
+        return _redirect("/public/products")
     product = PublicProduct.from_orm(db_product)
     from app.config import settings
     base = settings.app_base_url.rstrip("/")
@@ -435,8 +466,8 @@ def submit_application(
     def back(**q):
         qs = "&".join(f"{k}={quote(str(v))}" for k, v in q.items())
         if return_to == "detail" and target:
-            return RedirectResponse(f"/public/products/product/{target.id}?{qs}", status_code=302)
-        return RedirectResponse(f"/public/products/brand/{quote(brand or '')}?{qs}", status_code=302)
+            return _redirect(f"/public/products/product/{target.id}?{qs}")
+        return _redirect(f"/public/products/brand/{quote(brand or '')}?{qs}")
 
     # 서버 검사 — 화면 제한(maxlength 등)을 우회해도 걸러낸다
     applicant_name, contact_value = applicant_name.strip(), contact_value.strip()
@@ -485,17 +516,22 @@ def submit_application(
         "product_name": product_name, "brand": brand, "applicant_name": applicant_name,
         "contact_type": contact_type, "contact_value": contact_value,
         "channel_handle": channel_handle, "followers": followers, "message": message,
-        "source_ref": source_ref,
+        "source_ref": ref_labels(db, [source_ref], company_id).get(source_ref) if source_ref else None,
     })
     return back(applied=1)
 
 
 # ── 하위 호환 리다이렉트 ────────────────────────────────────────
+def _ref_qs(request: Request) -> str:
+    ref = clean_ref(request.query_params.get("ref"))
+    return f"?ref={ref}" if ref else ""
+
+
 @router.get("/brand/{brand_name}")
-def public_brand_redirect(brand_name: str):
-    return RedirectResponse(f"/public/products/brand/{brand_name}", status_code=301)
+def public_brand_redirect(brand_name: str, request: Request):
+    return _redirect(f"/public/products/brand/{brand_name}{_ref_qs(request)}", status_code=301)
 
 
 @router.get("/products/{product_id}")
-def public_product_redirect(product_id: str):
-    return RedirectResponse(f"/public/products/product/{product_id}", status_code=301)
+def public_product_redirect(product_id: str, request: Request):
+    return _redirect(f"/public/products/product/{product_id}{_ref_qs(request)}", status_code=301)

@@ -46,6 +46,11 @@ class Base(unittest.TestCase):
     def tearDown(self):
         self.db.close()
 
+    def saved_latest(self, pid):
+        self.db.expire_all()
+        return (self.db.query(GroupBuyApplication).filter(GroupBuyApplication.product_id == pid)
+                .order_by(GroupBuyApplication.created_at.desc()).first())
+
     def saved(self, pid):
         self.db.expire_all()
         return self.db.query(GroupBuyApplication).filter(GroupBuyApplication.product_id == pid).one()
@@ -65,18 +70,22 @@ class CleanRefTests(unittest.TestCase):
         self.assertEqual(public._abs_url("/uploads/a.jpg"), base + "/uploads/a.jpg")
         self.assertEqual(public._abs_url("HTTPS://cdn.x/a.jpg"), "HTTPS://cdn.x/a.jpg")
         self.assertEqual(public._abs_url("//cdn.x/a.jpg"), "https://cdn.x/a.jpg")
-        for bad in (None, "", "  ", "data:image/png;base64,AAAA", "javascript:alert(1)"):
+        self.assertEqual(public._abs_url("uploads/a.jpg"), base + "/uploads/a.jpg")
+        for bad in (None, "", "  ", "data:image/png;base64,AAAA", "javascript:alert(1)", "https://", "//",
+                    "///cdn.x/a.jpg", "https://cdn.x/a\nb.jpg", "https://cdn.x/a b.jpg", "ftp://cdn.x/a.jpg",
+                    "http://[bad/a.jpg"):
             self.assertIsNone(public._abs_url(bad), bad)
 
 
 class UserCodeTests(unittest.TestCase):
-    """코덱스 검토 2 — 서로 다른 직원이 같은 코드가 되면 안 됨."""
+    """코덱스 재검토 A·B — 직원 코드는 계정 고유번호 전체. 겹치지 않고, 개명·다른 계정 삭제에도 안 바뀐다."""
 
-    def mk(self, name, when):
-        from datetime import datetime
+    def mk(self, name, uid_hex, company_id=1):
         from app.models.user import User
         db = SessionLocal()
-        u = User(username=name, hashed_password="x", role="staff", company_id=1, created_at=datetime(2020, 1, 1) + when)
+        h = uid_hex
+        u = User(id=f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:]}", username=name, hashed_password="x",
+                 role="staff", company_id=company_id)
         db.add(u)
         db.commit()
         db.refresh(u)
@@ -84,32 +93,43 @@ class UserCodeTests(unittest.TestCase):
         db.close()
         return u
 
-    def code(self, u):
-        db = SessionLocal()
-        try:
-            return public.recruit_user_code(db, u)
-        finally:
-            db.close()
-
-    def test_distinct_and_stable(self):
-        from datetime import timedelta as td
-        tag = uid()[:6]
-        first = self.mk(f"Hy{tag}", td(0))
-        second = self.mk(f"hy.{tag}", td(1))        # 줄이면 같은 값
-        ko1, ko2 = self.mk("김혁", td(2)), self.mk("이민수", td(3))
-        long1 = self.mk("L" * 30 + f"a{tag}", td(4))
-        long2 = self.mk("L" * 30 + f"b{tag}", td(5))  # 앞 24자가 같음
-        codes = [self.code(u) for u in (first, second, ko1, ko2, long1, long2)]
-        self.assertEqual(len(set(codes)), len(codes), codes)
-        self.assertEqual(codes[0], f"hy{tag}", "먼저 가입한 직원은 짧은 코드 유지")
-        self.assertTrue(codes[1].startswith(f"hy{tag}_"))
-        self.assertTrue(codes[2].startswith("u_"))
-        self.assertEqual(self.code(first), codes[0], "다시 계산해도 같음")
-        self.mk(f"HY{tag}", td(10))                  # 나중에 같은 이름 직원이 생겨도
-        self.assertEqual(self.code(first), codes[0], "기존 직원 코드는 안 바뀜")
+    def test_codes_unique_even_with_same_prefix_and_lookalike_names(self):
+        import uuid as _u
+        pre = _u.uuid4().hex[:6]
+        users = [self.mk(f"foo{pre}", pre + "a" * 26), self.mk(f"f.oo{pre}", pre + "b" * 26),
+                 self.mk(f"김혁{pre}", pre + "c" * 26), self.mk(f"u_{pre}", pre + "d" * 26)]
+        codes = [public.recruit_user_code(u) for u in users]
+        self.assertEqual(len(set(codes)), 4, codes)
         for c in codes:
-            for ch in ("insta", "kakao", "dm", "etc"):
+            for ch in public.RECRUIT_CHANNELS:
                 self.assertIsNotNone(public.clean_ref(f"{c}-{ch}"), c)
+
+    def test_code_survives_rename_and_other_deletion(self):
+        import uuid as _u
+        from app.models.user import User
+        a = self.mk(f"foo{uid()}", _u.uuid4().hex)
+        b = self.mk(f"f.oo{uid()}", _u.uuid4().hex)
+        before = public.recruit_user_code(b)
+        db = SessionLocal()
+        db.query(User).filter(User.id == a.id).delete()
+        db.query(User).filter(User.id == b.id).update({"username": f"renamed{uid()}"})
+        db.commit()
+        b2 = db.query(User).filter(User.id == b.id).one()
+        self.assertEqual(public.recruit_user_code(b2), before)
+        db.close()
+
+    def test_labels_show_name_and_channel_only_for_own_company(self):
+        import uuid as _u
+        seed_companies()
+        me = self.mk(f"hyeok{uid()}", _u.uuid4().hex, company_id=1)
+        other = self.mk(f"other{uid()}", _u.uuid4().hex, company_id=2)
+        mine, theirs = f"{public.recruit_user_code(me)}-kakao", f"{public.recruit_user_code(other)}-insta"
+        db = SessionLocal()
+        labels = public.ref_labels(db, [mine, theirs, "hand-made", None], 1)
+        db.close()
+        self.assertEqual(labels[mine], f"{me.username} · 카카오톡")
+        self.assertEqual(labels[theirs], theirs, "다른 회사 직원 이름은 안 보여줌")
+        self.assertEqual(labels["hand-made"], "hand-made")
 
 
 class OgTagTests(Base):
@@ -154,11 +174,28 @@ class RefFlowTests(Base):
         """코덱스 검토 3 — 방문자별 ref 가 든 페이지를 중간 캐시가 남에게 주면 안 됨."""
         p = _pub(self.db)
         for url in ("/public/products?ref=a-insta", f"/public/products/product/{p.id}",
-                    f"/public/products/brand/{p.brand}"):
+                    f"/public/products/brand/{p.brand}", "/public/products/product/없는제품",
+                    f"/public/products/{p.id}", f"/public/brand/{p.brand}"):
             r = client_for().get(url)
             self.assertIn("no-store", r.headers.get("cache-control", ""), url)
             self.assertIn("private", r.headers.get("cache-control", ""), url)
             self.assertIn("Cookie", r.headers.get("vary", ""), url)
+
+    def test_apply_redirects_not_cached(self):
+        p = _pub(self.db)
+        with mock.patch.object(sn, "post"):
+            r = client_for().post("/public/apply", data=_form(p.id))
+            bad = client_for().post("/public/apply", data=_form(p.id, applicant_name=""))
+        for resp in (r, bad):
+            self.assertIn(resp.status_code, (302, 303))
+            self.assertIn("no-store", resp.headers.get("cache-control", ""))
+
+    def test_old_address_keeps_ref(self):
+        p = _pub(self.db)
+        r = client_for().get(f"/public/products/{p.id}?ref=kim-insta")
+        self.assertEqual(r.headers["location"], f"/public/products/product/{p.id}?ref=kim-insta")
+        r = client_for().get(f"/public/products/{p.id}?ref=<bad>")
+        self.assertEqual(r.headers["location"], f"/public/products/product/{p.id}")
 
     def test_two_visitors_keep_their_own_ref(self):
         p = _pub(self.db)
@@ -227,6 +264,14 @@ class RefFlowTests(Base):
         texts = [" ".join(f["text"] for f in c.kwargs["blocks"][2]["fields"]) for c in post.call_args_list]
         self.assertIn("유입: hyeok-insta", texts[0])
         self.assertIn("유입: 직접 방문", texts[1])
+        staff = make_user("staff", company_id=1)
+        code = f"{public.recruit_user_code(staff)}-kakao"
+        with mock.patch.object(settings, "slack_events", "public_apply"), \
+                mock.patch.object(sn, "post", wraps=sn.post) as post2:
+            client_for().post("/public/apply", data=_form(p.id, ref=code))
+        joined = " ".join(f["text"] for f in post2.call_args.kwargs["blocks"][2]["fields"])
+        self.assertIn(f"유입: {staff.username} · 카카오톡", joined)
+        self.assertEqual(self.saved_latest(p.id).source_ref, code, "저장은 코드 그대로")
         field = [f for f in post.call_args_list[0].kwargs["blocks"][2]["fields"] if f["text"].startswith("유입")][0]
         self.assertEqual(field["type"], "plain_text")
 
@@ -240,14 +285,25 @@ class AdminTests(Base):
         page = client_for(make_user("admin", company_id=1)).get("/applications").text
         self.assertGreaterEqual(page.count(f"유입 · {a.source_ref}"), 2, "휴대폰·PC 둘 다")
 
+    def test_applications_page_shows_staff_name(self):
+        admin = make_user("admin", company_id=1)
+        staff = make_user("staff", company_id=1)
+        a = GroupBuyApplication(company_id=1, product_name="이름표시", applicant_name="a", contact_type="카카오",
+                                contact_value="v", source_ref=f"{public.recruit_user_code(staff)}-insta")
+        self.db.add(a)
+        self.db.commit()
+        page = client_for(admin).get("/applications").text
+        self.assertGreaterEqual(page.count(f"유입 · {staff.username} · 인스타 DM"), 2)
+
     def test_recruit_button_on_internal_detail(self):
         p = _pub(self.db)
         hidden = _pub(self.db, visibility_status="hidden")
-        admin = client_for(make_user("admin", company_id=1))
+        admin_user = make_user("admin", company_id=1)
+        admin = client_for(admin_user)
         page = admin.get(f"/products/{p.id}").text
         self.assertIn("모집 링크 복사", page)
         self.assertIn(f'data-url="{settings.app_base_url.rstrip("/")}/public/products/product/{p.id}"', page)
-        self.assertRegex(page, r'data-user="[a-z0-9_-]+"')
+        self.assertIn('data-user="' + public.recruit_user_code(admin_user) + '"', page)
         self.assertNotIn("공개 카탈로그에 안 보여요", page)
         self.assertIn("공개 카탈로그에 안 보여요", admin.get(f"/products/{hidden.id}").text)
 

@@ -51,7 +51,7 @@
     <div class="px-4 pb-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-500 border-t border-gray-50">
       <div><span class="text-gray-400">신청자</span> <span class="font-medium text-gray-700">{{ a.applicant_name }}</span></div>
       <div><span class="text-gray-400">신청일</span> {{ a.created_at | date }}</div>
-      {% if a.source_ref %}<div class="col-span-2 text-indigo-600">유입 · {{ a.source_ref }}</div>{% endif %}
+      {% if a.source_ref %}<div class="col-span-2 text-indigo-600">유입 · {{ ref_labels.get(a.source_ref, a.source_ref) }}</div>{% endif %}
       <div class="col-span-2">
         <span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 mr-1">{{ a.contact_type }}</span>{{ a.contact_value }}
       </div>
@@ -120,7 +120,7 @@
           {% if a.brand %}<div class="text-xs text-gray-400">{{ a.brand }}</div>{% endif %}
         </td>
         <td class="px-5 py-3.5 font-medium text-gray-800">{{ a.applicant_name }}
-          {% if a.source_ref %}<div class="text-[11px] font-normal text-indigo-600">유입 · {{ a.source_ref }}</div>{% endif %}</td>
+          {% if a.source_ref %}<div class="text-[11px] font-normal text-indigo-600">유입 · {{ ref_labels.get(a.source_ref, a.source_ref) }}</div>{% endif %}</td>
         <td class="px-5 py-3.5">
           <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 mr-1">{{ a.contact_type }}</span>
           <span class="text-gray-700">{{ a.contact_value }}</span>
