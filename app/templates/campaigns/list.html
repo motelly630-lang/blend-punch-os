@@ -343,6 +343,7 @@
       data-dday="{{ sort_dday }}"
       data-revenue="{{ c.actual_revenue or 0 }}"
       x-data="campCard(CAMP_DATA['{{ c.id }}'])"
+      x-init="$watch('editing', v => { if (!v) $nextTick(() => { if (!editing && $refs.editBtn) $refs.editBtn.focus() }) })"
       @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()">
       {% set todos = [] %}
       {% if st != 'cancelled' %}
@@ -410,10 +411,11 @@
         </div>
       </div>
 
-      <!-- 빠른 수정: 카드 안에서 늘어나지 않고 화면 가운데 창으로 -->
-      <div x-show="editing" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6"
+      <!-- 빠른 수정: 카드 안에서 늘어나지 않고 화면 가운데 창으로.
+           x-if — 연필을 누를 때만 창·폼을 만든다 (캠페인마다 폼을 미리 만들어 두면 목록이 무거워짐) -->
+      <template x-if="editing">
+      <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6"
         role="dialog" aria-modal="true"
-        x-init="$watch('editing', v => { if (!v) $nextTick(() => { if (!editing && $refs.editBtn) $refs.editBtn.focus() }) })"
         @click.self="cancelEdit()"
         @keydown.escape="if (editing) cancelEdit()"
         @keydown.tab="(function (e, box) {
@@ -439,6 +441,7 @@
         {% include 'campaigns/_inline_edit_form.html' %}
         </div>
       </div>
+      </template>
     </div>
     {% endfor %}
   </div>

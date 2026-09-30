@@ -26,6 +26,9 @@ class CampaignCardListTests(unittest.TestCase):
         row = html[html.index(f'data-camp="{cid}"'):]
         row = row[: row.index('class="camp-row', 10)] if 'class="camp-row' in row[10:] else row
         self.assertIn('class="fixed inset-0', row, "빠른 수정은 떠 있는 창")
+        # 속도: 수정 창·폼은 연필을 누를 때만 만든다 (캠페인 150개면 폼 150개를 미리 만들어 화면 요소 17,000개 → 4,300개)
+        self.assertIn('<template x-if="editing">', row)
+        self.assertLess(row.index('<template x-if="editing">'), row.index('제품 변경'), "폼은 x-if 안에")
         self.assertIn("/inline-update", html)
         self.assertIn("빠른등록 제품", row)
         self.assertIn(f'href="/campaigns/{cid}"', row)
