@@ -345,10 +345,12 @@
       x-data="campCard(CAMP_DATA['{{ c.id }}'])"
       @camp-edit-opened.window="if ($event.detail.id !== cid && editing) cancelEdit()">
       {% set todos = [] %}
+      {% if st != 'cancelled' %}
       {% if not c.product %}{% set _ = todos.append('제품 연결') %}{% endif %}
       {% if not c.influencer %}{% set _ = todos.append('인플루언서') %}{% endif %}
-      {% if st != 'cancelled' and (not c.start_date or not c.end_date) %}{% set _ = todos.append('기간') %}{% endif %}
+      {% if not c.start_date or not c.end_date %}{% set _ = todos.append('기간') %}{% endif %}
       {% if st == 'completed' and not c.actual_revenue %}{% set _ = todos.append('매출 입력') %}{% endif %}
+      {% endif %}
       <div class="camp-card relative h-full bg-white rounded-xl border shadow-sm transition-all flex flex-col overflow-hidden" data-todo="{{ '1' if todos else '0' }}"
         :class="editing ? 'border-blue-300 shadow-md ring-1 ring-blue-200' : '{{ borders }}'">
         {% if dday is not none and dday >= 0 %}
@@ -369,7 +371,7 @@
           </span>
           <span class="text-xs px-2 py-0.5 rounded-full whitespace-nowrap {{ ST_CHIP.get(st, 'bg-gray-100 text-gray-600') }}">{{ ST_LABEL.get(st, st) }}</span>
         </div>
-        <button @click="openEdit()" type="button" title="빠른 수정"
+        <button @click="openEdit()" type="button" title="빠른 수정" x-ref="editBtn"
             class="cc-edit absolute top-2.5 right-3 p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
         </button>
@@ -410,7 +412,16 @@
 
       <!-- 빠른 수정: 카드 안에서 늘어나지 않고 화면 가운데 창으로 -->
       <div x-show="editing" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6"
-        @click.self="cancelEdit()">
+        role="dialog" aria-modal="true"
+        x-init="$watch('editing', v => { if (!v) $nextTick(() => $refs.editBtn && $refs.editBtn.focus()) })"
+        @click.self="cancelEdit()"
+        @keydown.escape="if (editing) cancelEdit()"
+        @keydown.tab="(function (e, box) {
+          var f = [...box.querySelectorAll('button, input, select, textarea, a[href]')].filter(x => !x.disabled && x.offsetParent);
+          if (!f.length) return;
+          if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus() }
+          else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus() }
+        })($event, $el)">
         <div class="bg-white w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[92vh] overflow-y-auto">
           <div class="sticky top-0 z-40 bg-white flex items-center gap-2 px-4 py-3 border-b border-gray-100">
             <div class="min-w-0 flex-1">
@@ -421,8 +432,8 @@
               class="text-sm px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">
               <span x-show="!saving">저장</span><span x-show="saving" x-cloak>저장중...</span>
             </button>
-            <button @click="cancelEdit()" type="button"
-              class="text-sm px-3 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">취소</button>
+            <button @click="cancelEdit()" type="button" :disabled="saving" :title="saving ? '저장 중에는 닫을 수 없어요' : ''"
+              class="text-sm px-3 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-40">취소</button>
           </div>
         {% include 'campaigns/_inline_edit_form.html' %}
         </div>
@@ -612,12 +623,17 @@ function campCard(opts) {
                      campType: this.campType, extUrl: this.extUrl };
       this.editing = true;
       this.$dispatch('camp-edit-opened', { id: this.cid });
+      // 창이 실제로 보인 뒤에 초점 이동 ($el 은 누른 버튼이라 root 에서 찾음, 다시 열 때는 표시가 한 박자 늦어 setTimeout)
+      var root = this.$root || this.$el;
       this.$nextTick(function() {
-        var f = this.$el.querySelector('[data-edit-focus]');
-        if (f) f.focus();
-      }.bind(this));
+        setTimeout(function() {
+          var f = root.querySelector('[data-edit-focus]');
+          if (f) f.focus();
+        }, 30);
+      });
     },
     cancelEdit() {
+      if (this.saving) return;   // 이미 보낸 저장은 되돌릴 수 없으니, 저장 중엔 창을 닫지 않는다
       if (this._orig) Object.assign(this, this._orig);
       this.editing = false;
     },
@@ -760,6 +776,10 @@ function createPanel() {
     var ms = new Date(calYear, calMonth, 1), me = new Date(calYear, calMonth, dim);
     var dm = {};
     CAL_DATA.forEach(function(c) {
+      if (window.CAMP_TODO_ONLY) {
+        var cc = document.querySelector('.camp-row[data-camp="' + c.id + '"] .camp-card');
+        if (!cc || cc.dataset.todo !== '1') return;
+      }
       var s = new Date(c.start+'T00:00:00'), e = new Date(c.end+'T00:00:00');
       for (var d = new Date(Math.max(s,ms)); d <= Math.min(e,me); d.setDate(d.getDate()+1)) {
         var k = d.getDate();
@@ -1009,7 +1029,7 @@ function createPanel() {
       var dense = (v === 'rows');
       if (dense) v = 'list';
       if (listEl) listEl.classList.toggle('dense', dense);
-      try { localStorage.setItem('campListMode', dense ? 'rows' : 'cards'); } catch (e) {}
+      try { localStorage.setItem('campListMode', dense ? 'rows' : (v === 'list' ? 'cards' : v)); } catch (e) {}
       state.view = v;
       var map = { list: 'view-list', timeline: 'view-timeline', calendar: 'view-calendar' };
       Object.keys(map).forEach(function (k) {
@@ -1039,10 +1059,14 @@ function createPanel() {
       setInf:    function (v) { state.inf = v; render(); },
       setSearch: function (v) { state.q = (v || '').trim().toLowerCase(); render(); },
       setSort:   function (v) { state.sort = v; render(); },
-      toggleTodo: function () { state.todo = !state.todo; render(); },
+      toggleTodo: function () {
+        state.todo = !state.todo; window.CAMP_TODO_ONLY = state.todo; render();
+        if (state.view === 'calendar') renderCalendar();
+      },
       setView:   setView,
       reset:     function () {
-        state.status = DEFAULT_STATUS; state.inf = ''; state.q = ''; state.todo = false;
+        state.status = DEFAULT_STATUS; state.inf = ''; state.q = ''; state.todo = false; window.CAMP_TODO_ONLY = false;
+        if (state.view === 'calendar') renderCalendar();
         state.sort = state.archive ? 'recent' : 'schedule';
         var s = document.getElementById('camp-search'); if (s) s.value = '';
         var inf = document.getElementById('camp-inf-filter'); if (inf) inf.value = '';
@@ -1057,7 +1081,10 @@ function createPanel() {
     CampBoard.init();
     var mode = 'cards';
     try { mode = localStorage.getItem('campListMode') || 'cards'; } catch (e) {}
-    CampBoard.setView(mode === 'rows' ? 'rows' : 'list');
+    var ok = { rows: 'rows', cards: 'list', timeline: 'timeline', calendar: 'calendar' };
+    // 보관함은 보기 버튼이 없으니 항상 기본(카드/한 줄만 반영)
+    if (document.getElementById('camp-list') && document.getElementById('camp-list').dataset.mode === 'archive' && mode !== 'rows') mode = 'cards';
+    CampBoard.setView(ok[mode] || 'list');
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootCampBoard);

@@ -1,7 +1,7 @@
 {# Inline edit form — included inside each campCard Alpine x-data container.
    Expects the parent to have campCard() data bound via x-data="campCard({...})". #}
 <div x-show="editing" x-cloak
-  @keydown.enter.prevent="saveEdit()"
+  @keydown.enter="if (!$event.isComposing && $event.keyCode !== 229 && !showProdList && $event.target.tagName !== 'TEXTAREA') { $event.preventDefault(); saveEdit() }"
   @keydown.escape="cancelEdit()"
   class="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
 
