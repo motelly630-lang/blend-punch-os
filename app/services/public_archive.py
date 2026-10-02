@@ -20,7 +20,8 @@ from app.services import content_embed
 
 # /public 과 같은 회사 (app.routers.public.PUBLIC_COMPANY_ID — 라우터를 여기서 불러오면 순환 import)
 PUBLIC_COMPANY_ID = 1
-MAX_ITEMS = 600            # 한 번에 읽는 상한 — 넘으면 DB 단계 페이지 나누기로 바꿀 것
+# 공개 영상은 전부 읽어 파이썬에서 거른다 — 잘라서 읽으면 오래된 영상이 검색·정렬·상세에서 빠진다
+# (코덱스 검토 2026-10-03 #4). 수천 건을 넘어 느려지면 DB 단계 검색·페이지 나누기로 옮길 것.
 
 TABS = [("all", "전체"), ("live", "진행 중"), ("soon", "예정"), ("done", "지난 공구")]
 TYPES = [("", "모든 유형"), ("reel", "릴스"), ("post", "게시물"), ("youtube", "유튜브")]
@@ -77,7 +78,9 @@ def to_public(row: ArchiveContent, today: date, public_ids: set[str]) -> PublicA
         status=status_of(camp.start_date, camp.end_date, today),
         start_date=camp.start_date, end_date=camp.end_date,
         product_name=name, brand=brand, category=category,
-        product_image=product.product_image if listed else None,
+        # 제품 사진·이름·브랜드는 카탈로그 숨김과 상관없이 보여준다 (대표님 결정 2026-10-03).
+        # 카탈로그 상세 링크만 공개 제품일 때 — 숨김 제품 링크는 눌러도 목록으로 튕긴다.
+        product_image=product.product_image if product else None,
         product_public_id=product.id if listed else None,
         product_key=f"p:{product.id}" if product else (f"m:{brand}|{name}" if name else f"c:{camp.id}"),
         handle=((inf.handle or "").lstrip("@").strip() if inf else ""),
@@ -101,7 +104,7 @@ def load_items(db: Session, today: date, item_id: str | None = None) -> list[Pub
     )
     if item_id is not None:
         q = q.filter(ArchiveContent.id == item_id)
-    rows = q.order_by(Campaign.start_date.desc().nullslast(), ArchiveContent.created_at.desc()).limit(MAX_ITEMS).all()
+    rows = q.order_by(Campaign.start_date.desc().nullslast(), ArchiveContent.created_at.desc()).all()
     public_ids = _public_product_ids(db, {r.campaign.product_id for r in rows if r.campaign.product_id})
     return [it for it in (to_public(r, today, public_ids) for r in rows) if it]
 

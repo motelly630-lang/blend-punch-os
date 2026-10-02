@@ -247,13 +247,22 @@ def save_sales_page_image(file: UploadFile, remove_bg: bool = False) -> str | No
     return save_upload(file, UPLOAD_DIR_SALES_PAGES, remove_bg=remove_bg)
 
 
+ARCHIVE_THUMB_MAX_BYTES = 15 * 1024 * 1024     # 15MB
+ARCHIVE_THUMB_MAX_PIXELS = 40_000_000          # 가로×세로 4천만 화소 (압축 폭탄 방지)
+
+
 def save_archive_thumbnail(file: UploadFile) -> str | None:
     """공개 아카이브 썸네일 — 이미지로 열리는 파일만 WebP 로 저장, 아니면 None.
     save_upload 는 변환에 실패하면 원본을 그대로 저장하는데(HEIC 등), 공개 카드가 빈칸이 되므로 여기서는 쓰지 않는다."""
     if not file or not file.filename:
         return None
     try:
-        img = Image.open(BytesIO(file.file.read()))
+        data = file.file.read(ARCHIVE_THUMB_MAX_BYTES + 1)
+        if len(data) > ARCHIVE_THUMB_MAX_BYTES:
+            return None
+        img = Image.open(BytesIO(data))
+        if img.width * img.height > ARCHIVE_THUMB_MAX_PIXELS:
+            return None
         img.load()
         img_bytes, ext = _pil_to_bytes(_process_image(img))
     except Exception:

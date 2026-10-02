@@ -188,14 +188,16 @@ class VisibilityTests(Base):
         self.assertNotIn(i2.handle, html)
         self.assertIn(c.product_name_manual, html)
 
-    def test_숨김_제품은_이름만_나가고_사진_링크는_안나감(self):
+    def test_숨김_제품도_사진_이름_브랜드는_보이고_카탈로그_링크만_없음(self):
+        # 대표님 결정 2026-10-03: 아카이브에서는 숨김 제품도 사진·이름·브랜드를 보여준다
         p = self.product(visibility_status="hidden", product_image="/static/hidden-product.png")
         c = self.camp(product=p)
         self.publish(c)
         html = self.anon.get(f"/public/archive/{self.row(c).id}").text
         self.assertIn(p.name, html)
-        self.assertNotIn("/static/hidden-product.png", html)
-        self.assertNotIn(f"/public/products/product/{p.id}", html)
+        self.assertIn(p.brand, html)
+        self.assertIn("/static/hidden-product.png", html)
+        self.assertNotIn(f"/public/products/product/{p.id}", html, "숨김 제품 카탈로그 링크는 튕기므로 안 붙임")
 
     def test_비공개_상세주소는_목록으로(self):
         c = self.camp()
@@ -296,6 +298,77 @@ class ReviewFixTests(Base):
     def test_이상한_페이지_값도_정상_화면(self):
         for qs in ("page=abc", "page=", "page=1.5", "page=99999999999999999999"):
             self.assertEqual(self.anon.get("/public/archive?" + qs).status_code, 200, qs)
+
+
+class CodexReviewTests(Base):
+    """코덱스 검토(2026-10-03) 지적 사항."""
+
+    def test_아카이브_정보가_있는_공구도_삭제_일괄삭제됨(self):
+        admin = client_for(make_user("admin", company_id=1))
+        a, b, keep = self.camp(), self.camp(), self.camp(company_id=2)
+        self.publish(a)
+        self.publish(b, is_public="")            # 비공개 행도 마찬가지
+        self.db.add(ArchiveContent(company_id=2, campaign_id=keep.id, url=keep.content_urls[0]))
+        self.db.commit()
+        admin.post(f"/campaigns/{a.id}/delete")
+        admin.post("/campaigns/bulk-delete", data={"ids": f"{b.id},{keep.id}"})
+        ids = (a.id, b.id, keep.id)
+        db = SessionLocal()                      # 지워진 객체를 들고 있지 않은 새 연결로 확인
+        try:
+            n = lambda cid: db.query(Campaign).filter(Campaign.id == cid).count()
+            self.assertEqual((n(ids[0]), n(ids[1])), (0, 0))
+            self.assertEqual(db.query(ArchiveContent).filter(ArchiveContent.campaign_id.in_(ids[:2])).count(), 0,
+                             "딸린 아카이브 행도 지워져야 (운영 DB 외래키)")
+            self.assertEqual(n(ids[2]), 1, "다른 회사 공구는 그대로")
+            self.assertEqual(db.query(ArchiveContent).filter(ArchiveContent.campaign_id == ids[2]).count(), 1)
+        finally:
+            db.close()
+
+    def test_600건이_넘어도_오래된_영상_검색_상세_순위(self):
+        t = _kst_today()
+        tag = uid()
+        rows = []
+        for i in range(605):
+            u = f"https://www.instagram.com/reel/Bulk{uid()}{i}/"
+            c = Campaign(name="대량", company_id=1, status="active", start_date=t - timedelta(i % 30),
+                         end_date=t + timedelta(3), content_urls=[u], product_name_manual=f"대량{uid()}")
+            self.db.add(c)
+            rows.append((c, u))
+        old_c = Campaign(name="오래된", company_id=1, status="completed", start_date=t - timedelta(900),
+                         end_date=t - timedelta(890), content_urls=["https://www.instagram.com/reel/OldOne123/"],
+                         product_name_manual=f"오래된영상{tag}")
+        self.db.add(old_c)
+        self.db.flush()
+        for c, u in rows:
+            self.db.add(ArchiveContent(company_id=1, campaign_id=c.id, url=u, is_public=True, views=10))
+        old = ArchiveContent(company_id=1, campaign_id=old_c.id, url="https://www.instagram.com/reel/OldOne123/",
+                             is_public=True, views=2_000_000_000)
+        self.db.add(old)
+        self.db.commit()
+        self.assertIn(f"오래된영상{tag}", self.anon.get(f"/public/archive?q=오래된영상{tag}").text)
+        self.assertEqual(self.anon.get(f"/public/archive/{old.id}").status_code, 200)
+        top = self.anon.get("/public/archive?sort=views").text
+        self.assertIn(f"/public/archive/{old.id}", top, "조회수 1위는 첫 쪽에")
+        for c, _ in rows:
+            c.is_archived = True                 # 다른 시험에 영향 없게 정리
+        old_c.is_archived = True
+        self.db.commit()
+
+    def test_너무_큰_썸네일은_거부(self):
+        from app.services import image_service
+        c = self.camp()
+        big = b"\x89PNG" + b"0" * (image_service.ARCHIVE_THUMB_MAX_BYTES + 10)
+        r = self.staff.post(f"/campaigns/{c.id}/links/archive", data={"url": c.content_urls[0], "is_public": "1"},
+                            files={"thumbnail": ("big.png", big, "image/png")})
+        self.assertIn("err=", r.headers["location"])
+        self.assertIsNone(self.row(c))
+
+    def test_html_위장_파일_거부(self):
+        c = self.camp()
+        r = self.staff.post(f"/campaigns/{c.id}/links/archive", data={"url": c.content_urls[0], "is_public": "1"},
+                            files={"thumbnail": ("x.png", b"<html><script>alert(1)</script></html>", "image/png")})
+        self.assertIn("err=", r.headers["location"])
+        self.assertIsNone(self.row(c))
 
 
 class StatusTests(unittest.TestCase):

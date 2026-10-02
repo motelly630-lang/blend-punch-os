@@ -874,6 +874,7 @@ def campaign_link_archive(campaign_id: str, url: str = Form(""), is_public: str 
         if not row:
             row = ArchiveContent(company_id=cid, campaign_id=c.id, url=p["key"])
             db.add(row)
+        row.company_id = cid        # 공구가 이 회사 것임을 위에서 확인했다 — 예전 행의 번호가 틀렸어도 바로잡는다
         if saved:
             row.thumbnail = saved
         elif remove_thumbnail:
@@ -1200,6 +1201,8 @@ def campaign_delete(campaign_id: str, db: Session = Depends(get_db),
             from urllib.parse import quote
             return RedirectResponse(f"/campaigns/{campaign_id}?err=" + quote(
                 "정산서가 있는 공구는 지울 수 없어요 — 보관 처리해 주세요 (정산 기록을 지키기 위해)"), status_code=302)
+        # 공개 아카이브 정보는 공구에 딸린 행 — 먼저 지워야 외래키에 막히지 않는다 (코덱스 검토 2026-10-03 #2)
+        db.query(ArchiveContent).filter(ArchiveContent.campaign_id == campaign.id).delete(synchronize_session=False)
         db.delete(campaign)
         db.commit()
     return RedirectResponse("/campaigns?msg=삭제되었습니다", status_code=302)
@@ -1226,6 +1229,7 @@ def campaign_bulk_delete(
             Settlement.company_id == cid, Settlement.campaign_id.in_(owned_ids or [""])).distinct()}
         deletable = [x for x in owned_ids if x not in with_settle]
         if deletable:
+            db.query(ArchiveContent).filter(ArchiveContent.campaign_id.in_(deletable)).delete(synchronize_session=False)
             db.query(Campaign).filter(Campaign.id.in_(deletable)).delete(synchronize_session=False)
         db.commit()
         from urllib.parse import quote
