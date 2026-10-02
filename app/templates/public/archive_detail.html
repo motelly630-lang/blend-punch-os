@@ -1,0 +1,135 @@
+{% import "public/_archive_macros.html" as m %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<title>{{ item.product_name or item.brand or '공구 콘텐츠' }} | BLEND PUNCH 공구 아카이브</title>
+{% include "public/_archive_head.html" %}
+<style>
+.back{display:inline-flex;gap:6px;align-items:center;margin-top:22px;font-size:13px;color:var(--ink2);text-decoration:none}
+.detail{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:40px;margin-top:20px;align-items:start}
+@media (max-width:820px){.detail{grid-template-columns:minmax(0,1fr);gap:24px}}
+.player{position:relative;aspect-ratio:9/16;max-height:80vh;max-width:100%;width:100%;margin-inline:auto;border-radius:16px;overflow:hidden;background:#000}
+@media (max-width:820px){.player{max-width:420px}}
+.player img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.82)}
+.player iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.play{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:12px;background:none;border:0;color:#fff;cursor:pointer;font:inherit;width:100%}
+.play .circle{width:68px;height:68px;border-radius:50%;border:1.5px solid rgba(255,255,255,.85);display:grid;place-items:center;transition:transform .6s var(--ease),background .6s var(--ease)}
+.play:hover .circle{transform:scale(1.06);background:rgba(255,255,255,.12)}
+.play small{font-size:12px;opacity:.85}
+.info{display:grid;gap:20px;min-width:0}
+.head{display:grid;gap:10px}
+.head .st{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.info h1{margin:0;font-size:clamp(22px,3vw,30px);line-height:1.28;letter-spacing:-.02em;text-wrap:balance}
+.who{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink2)}
+.who .ava{width:24px;height:24px}
+.nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:12px}
+.nums div{padding:14px 16px;display:grid;gap:2px}
+.nums div+div{border-left:1px solid var(--line)}
+.nums b{font-family:var(--f-display);font-size:22px;font-weight:600}
+.nums span{font-size:11.5px;color:var(--ink3)}
+.prod{display:flex;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg3);text-decoration:none}
+.prod .pi{width:56px;height:56px;border-radius:9px;flex:none;object-fit:cover;background:var(--bg2)}
+.prod div{min-width:0}
+.prod b{display:block;font-size:14px}
+.prod span{font-size:12px;color:var(--ink2)}
+.dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13.5px;margin:0}
+.dl dt{color:var(--ink3)}
+.dl dd{margin:0}
+.others{display:grid;gap:10px}
+.strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.strip a{flex:none;width:84px;aspect-ratio:4/5;border-radius:9px;border:1px solid var(--line);position:relative;overflow:hidden;background:var(--bg3)}
+.strip a.cur{border-color:var(--ink)}
+.strip img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.strip small{position:absolute;left:6px;bottom:5px;font-size:10px;color:#fff;font-family:var(--f-display);font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.strip .ph{font-size:20px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:11px 16px;border-radius:10px;font-size:13.5px;font-weight:700;text-decoration:none;border:1px solid var(--line2)}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="logo" href="/public/archive">BLEND PUNCH</a>
+    <nav><a href="/public/products">제품 카탈로그</a><a href="/public/archive" class="on">공구 아카이브</a></nav>
+  </header>
+  <a class="back" href="/public/archive">← 아카이브 전체 보기</a>
+
+  <div class="detail">
+    <div class="player" id="player">
+      {% if item.thumbnail or item.product_image %}
+      <img src="{{ item.thumbnail or item.product_image }}" alt="" onerror="this.remove()">
+      {% else %}<div class="ph" aria-hidden="true">{{ (item.brand or item.product_name or 'B')[:1] }}</div>{% endif %}
+      <button type="button" class="play" id="play" data-embed="{{ item.embed }}" aria-label="영상 재생">
+        <span class="circle"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>
+        <small>눌러서 재생</small>
+      </button>
+    </div>
+
+    <div class="info">
+      <div class="head">
+        <div class="st">{{ m.status_badge(item, today) }}<span class="label">{{ item.label }}</span></div>
+        <h1>{{ item.product_name or item.brand }}</h1>
+        {% if item.handle %}
+        <div class="who">{% if item.profile_image %}<img class="ava" src="{{ item.profile_image }}" alt="" onerror="this.remove()">{% endif %}<span>@{{ item.handle }}</span></div>
+        {% endif %}
+      </div>
+
+      {% if item.views is not none or item.likes is not none or item.comments is not none %}
+      <div class="nums">
+        <div><b>{{ m.fmt(item.views) }}</b><span>조회수</span></div>
+        <div><b>{{ m.fmt(item.likes) }}</b><span>좋아요</span></div>
+        <div><b>{{ m.fmt(item.comments) }}</b><span>댓글</span></div>
+      </div>
+      {% endif %}
+
+      {% if item.product_name %}
+      {% if item.product_public_id %}<a class="prod" href="/public/products/product/{{ item.product_public_id }}">{% else %}<div class="prod">{% endif %}
+        {% if item.product_image %}<img class="pi" src="{{ item.product_image }}" alt="" onerror="this.remove()">{% endif %}
+        <div><b>{{ item.product_name }}</b><span>{{ item.brand }}{% if item.brand and item.category %} · {% endif %}{{ item.category }}</span></div>
+      {% if item.product_public_id %}</a>{% else %}</div>{% endif %}
+      {% endif %}
+
+      {% if item.start_date or item.end_date %}
+      <dl class="dl">
+        <dt>공구 기간</dt><dd>{% if item.start_date %}{{ item.start_date.year }}.{{ m.md(item.start_date) }}{% endif %}{% if item.end_date %} – {{ m.md(item.end_date) }}{% endif %}</dd>
+        {% if item.category %}<dt>카테고리</dt><dd>{{ item.category }}</dd>{% endif %}
+      </dl>
+      {% endif %}
+
+      {% if same | length > 1 %}
+      <div class="others">
+        <div class="label">같은 제품 영상 {{ same | length }}개</div>
+        <div class="strip">
+          {% for o in same %}
+          <a href="/public/archive/{{ o.id }}" class="{% if o.id == item.id %}cur{% endif %}" aria-label="{% if o.handle %}@{{ o.handle }} {% endif %}영상">
+            {% if o.thumbnail or o.product_image %}<img src="{{ o.thumbnail or o.product_image }}" alt="" loading="lazy" onerror="this.remove()">{% else %}<span class="ph">{{ (o.brand or o.product_name or 'B')[:1] }}</span>{% endif %}
+            <small>{% if o.views %}{{ m.fmt(o.views) }}{% else %}{{ {'reel': 'REEL', 'post': 'POST', 'youtube': 'YT'}[o.type_key] }}{% endif %}</small>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="btns">
+        {% if item.product_public_id %}<a class="btn primary" href="/public/products/product/{{ item.product_public_id }}">이 제품 공구 신청 →</a>{% endif %}
+        <a class="btn" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ '유튜브' if item.kind == 'youtube' else '인스타그램' }}에서 보기</a>
+      </div>
+    </div>
+  </div>
+
+  <footer class="foot">© 2026 BLEND PUNCH. 게시된 콘텐츠의 저작권은 각 제작자에게 있습니다.</footer>
+</div>
+<script>
+// 목록에서는 사진만, 여기서 누를 때만 플레이어를 띄운다 (카드마다 iframe 을 띄우면 무거워진다)
+document.getElementById("play").addEventListener("click", function () {
+  var f = document.createElement("iframe");
+  f.src = this.dataset.embed;
+  f.allow = "autoplay; encrypted-media; picture-in-picture";
+  f.allowFullscreen = true;
+  f.title = "공구 영상";
+  document.getElementById("player").replaceChildren(f);
+});
+</script>
+</body>
+</html>

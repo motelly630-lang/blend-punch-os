@@ -3,7 +3,7 @@ from app.models.product import Product
 from app.models.influencer import Influencer
 from app.models.influencer_merge_log import InfluencerMergeLog
 from app.models.product_field_log import ProductFieldLog
-from app.models.campaign import Campaign
+from app.models.campaign import Campaign, ArchiveContent
 from app.models.proposal import Proposal
 from app.models.settlement import Settlement
 from app.models.trend import TrendItem
@@ -27,4 +27,4 @@ from app.models.cs import (
     CSTicket, CSActivity, CSAttachment, CSType, CSGuide, CSTemplate, CSNotification, CSDownloadLog,
 )
 
-__all__ = ["User", "Product", "ProductFieldLog", "Influencer", "Campaign", "Proposal", "Settlement", "TrendItem", "Playbook", "TrendBriefing", "OutreachLog", "CrmPipeline", "SampleLog", "AutomationNote", "CampaignRecommendation", "Brand", "GroupBuyApplication", "Transaction", "SourcingBatch", "Partner", "PartnerContact", "Company", "CompanyFeature", "SheetSyncLog", "SlackNotificationLog", "CSTicket", "CSActivity", "CSAttachment", "CSType", "CSGuide", "CSTemplate", "CSNotification", "CSDownloadLog"]
+__all__ = ["User", "Product", "ProductFieldLog", "Influencer", "Campaign", "ArchiveContent", "Proposal", "Settlement", "TrendItem", "Playbook", "TrendBriefing", "OutreachLog", "CrmPipeline", "SampleLog", "AutomationNote", "CampaignRecommendation", "Brand", "GroupBuyApplication", "Transaction", "SourcingBatch", "Partner", "PartnerContact", "Company", "CompanyFeature", "SheetSyncLog", "SlackNotificationLog", "CSTicket", "CSActivity", "CSAttachment", "CSType", "CSGuide", "CSTemplate", "CSNotification", "CSDownloadLog"]

@@ -1,0 +1,46 @@
+{# 공개 공구 아카이브 공통 머리 — 회사 사이트(blendpunch.com)와 같은 무채색 톤·글꼴. Tailwind 를 쓰지 않는다(빌드 영향 없음). #}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="BLEND PUNCH">
+<meta name="twitter:card" content="summary_large_image">
+<meta property="og:title" content="{{ og.title }}">
+<meta property="og:description" content="{{ og.description }}">
+<meta property="og:image" content="{{ og.image }}">
+<meta property="og:url" content="{{ og.url }}">
+<link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap">
+<style>
+:root{
+  --bg:#080808; --bg2:#0e0e0e; --bg3:#161616;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.16);
+  --ink:#f0f0f0; --ink2:rgba(240,240,240,.58); --ink3:rgba(240,240,240,.32);
+  --chrome:linear-gradient(90deg,#fff,#aaa 40%,#fff 70%,#ccc);
+  --ease:cubic-bezier(.16,1,.3,1);
+  --f-display:"Clash Display","Pretendard",system-ui,sans-serif;
+  --f-body:"Pretendard","Apple SD Gothic Neo",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+img{max-width:100%;display:block}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+.label{font-family:var(--f-display);font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ink2)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-block:22px;border-bottom:1px solid var(--line)}
+.logo{font-family:var(--f-display);font-weight:700;letter-spacing:.08em;font-size:15px;text-decoration:none}
+.top nav{display:flex;gap:18px;font-size:13px;color:var(--ink2)}
+.top nav a{text-decoration:none}
+.top nav a.on{color:var(--ink)}
+.badge{display:inline-block;font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:999px;white-space:nowrap}
+.b-live{background:var(--ink);color:var(--bg)}
+.b-soon{background:rgba(8,8,8,.55);color:var(--ink);border:1px solid rgba(255,255,255,.55)}
+.b-done{background:rgba(8,8,8,.6);color:var(--ink2);border:1px solid var(--line2)}
+.ava{width:20px;height:20px;border-radius:50%;flex:none;object-fit:cover;background:var(--bg3)}
+.ph{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(160deg,#1c1c1c,#0c0c0c);color:var(--ink3);font-family:var(--f-display);font-size:42px;font-weight:700}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.foot{margin-top:72px;padding-top:24px;border-top:1px solid var(--line);font-size:12px;color:var(--ink3)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>

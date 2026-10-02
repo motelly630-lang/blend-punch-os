@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Date, ForeignKey, Boolean, JSON
+from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Date, ForeignKey, Boolean, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 
@@ -51,3 +51,29 @@ class Campaign(Base):
 
     product = relationship("Product", foreign_keys=[product_id])
     influencer = relationship("Influencer", foreign_keys=[influencer_id])
+
+
+class ArchiveContent(Base):
+    """공개 공구 아카이브에 올릴 영상 한 개 (2026-10-03).
+
+    링크 자체는 Campaign.content_urls 가 원본이고, 이 표는 링크마다 붙는 '공개용 정보'만 담는다.
+    - 기본은 비공개. 직원이 공구 상세에서 체크해야 /public/archive 에 나간다.
+    - 숫자(조회수·좋아요·댓글)는 대표님 결정으로 직접 입력 — 자동 갱신하지 않는다.
+    """
+    __tablename__ = "archive_contents"
+    __table_args__ = (UniqueConstraint("campaign_id", "url", name="uq_archive_contents_campaign_url"),)
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    campaign_id = Column(String(36), ForeignKey("campaigns.id"), nullable=False, index=True)
+    url = Column(String(500), nullable=False)          # content_embed.parse() 로 정리한 주소
+    is_public = Column(Boolean, nullable=False, default=False)
+    thumbnail = Column(String(500), nullable=True)     # 직원이 올린 썸네일 (게시물이 내려가도 카드는 남게)
+    views = Column(Integer, nullable=True)
+    likes = Column(Integer, nullable=True)
+    comments = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    campaign = relationship("Campaign", foreign_keys=[campaign_id])

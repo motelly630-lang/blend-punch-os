@@ -25,6 +25,7 @@ UPLOAD_DIR_INFLUENCERS = Path("static/uploads/influencers")
 UPLOAD_DIR_BRANDS = Path("static/brands")
 UPLOAD_DIR_SALES_PAGES = Path("static/uploads/sales_pages")
 UPLOAD_DIR_BRANDING = Path("static/uploads/branding")
+UPLOAD_DIR_ARCHIVE = Path("static/uploads/archive")    # 공개 아카이브 썸네일
 CACHE_DIR = Path("static/cache")
 
 # 로컬 디렉토리 → S3 prefix 매핑
@@ -34,6 +35,7 @@ _S3_PREFIX_MAP = {
     str(UPLOAD_DIR_BRANDS): "uploads/brands",
     str(UPLOAD_DIR_SALES_PAGES): "uploads/sales_pages",
     str(UPLOAD_DIR_BRANDING): "uploads/branding",
+    str(UPLOAD_DIR_ARCHIVE): "uploads/archive",
     str(CACHE_DIR): "uploads/cache",
 }
 
@@ -45,7 +47,7 @@ except Exception:
     REMOVE_BG_API_KEY = ""
 
 for _d in (UPLOAD_DIR_PRODUCTS, UPLOAD_DIR_INFLUENCERS, UPLOAD_DIR_BRANDS,
-           UPLOAD_DIR_SALES_PAGES, CACHE_DIR):
+           UPLOAD_DIR_SALES_PAGES, UPLOAD_DIR_ARCHIVE, CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # 인스타그램 이미지 다운로드용 헤더
@@ -243,6 +245,10 @@ def save_brand_logo(file: UploadFile, remove_bg: bool = False) -> str | None:
 
 def save_sales_page_image(file: UploadFile, remove_bg: bool = False) -> str | None:
     return save_upload(file, UPLOAD_DIR_SALES_PAGES, remove_bg=remove_bg)
+
+
+def save_archive_thumbnail(file: UploadFile) -> str | None:
+    return save_upload(file, UPLOAD_DIR_ARCHIVE)
 
 
 def save_url_image(url: str, dest_dir: Path, remove_bg: bool = False,

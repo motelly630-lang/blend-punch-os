@@ -3,13 +3,14 @@ import re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends, Form, File, UploadFile
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.database import get_db
 from app.models import Campaign, Product, Influencer
+from app.models.campaign import ArchiveContent
 from app.models.partner import Partner
 from app.models.settlement import Settlement
 from app.models.transaction import Transaction
@@ -819,8 +820,65 @@ def campaign_remove_link(campaign_id: str, url: str = Form(""), back: str = Form
     c = db.query(Campaign).filter(Campaign.company_id == get_company_id(current_user), Campaign.id == campaign_id).first()
     if c and url in (c.content_urls or []):
         c.content_urls = [u for u in c.content_urls if u != url]
+        p = content_embed.parse(url)
+        if p:   # 공개 아카이브 정보도 같이 지운다 — 링크 없는 영상이 공개 화면에 남지 않게
+            db.query(ArchiveContent).filter(ArchiveContent.campaign_id == c.id,
+                                            ArchiveContent.url == p["url"]).delete(synchronize_session=False)
         db.commit()
     return RedirectResponse(back + sep + "msg=" + quote("링크를 뺐어요"), status_code=302)
+
+
+ARCHIVE_NUM_MAX = 2_000_000_000
+
+
+def _archive_num(v: str) -> int | None:
+    """조회수·좋아요·댓글 직접 입력 — 빈칸은 None, '1,234' 허용, 그 밖은 ValueError."""
+    v = (v or "").replace(",", "").strip()
+    if not v:
+        return None
+    if not v.isdigit() or int(v) > ARCHIVE_NUM_MAX:
+        raise ValueError(v)
+    return int(v)
+
+
+@router.post("/{campaign_id}/links/archive")
+def campaign_link_archive(campaign_id: str, url: str = Form(""), is_public: str = Form(""),
+                          views: str = Form(""), likes: str = Form(""), comments: str = Form(""),
+                          remove_thumbnail: str = Form(""), thumbnail: UploadFile | None = File(None),
+                          db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """링크 하나의 공개 아카이브 정보 — 공개 여부 · 썸네일 · 숫자(직접 입력, 2026-10-03 대표님 결정)."""
+    from urllib.parse import quote
+    from app.services.image_service import save_archive_thumbnail
+    cid = get_company_id(current_user)
+    back = f"/campaigns/{campaign_id}"
+    c = db.query(Campaign).filter(Campaign.company_id == cid, Campaign.id == campaign_id).first()
+    if not c:
+        return RedirectResponse("/campaigns", status_code=302)
+    p = content_embed.parse(url)
+    links = {(content_embed.parse(u) or {}).get("url") for u in (c.content_urls or [])}
+    if not p or p["url"] not in links:
+        return RedirectResponse(back + "?err=" + quote("이 공구의 콘텐츠 목록에 있는 링크만 설정할 수 있어요"), status_code=302)
+    try:
+        nums = {k: _archive_num(v) for k, v in (("views", views), ("likes", likes), ("comments", comments))}
+    except ValueError:
+        return RedirectResponse(back + "?err=" + quote("조회수·좋아요·댓글은 0 이상의 숫자로 적어 주세요"), status_code=302)
+    row = db.query(ArchiveContent).filter(ArchiveContent.campaign_id == c.id, ArchiveContent.url == p["url"]).first()
+    if not row:
+        row = ArchiveContent(company_id=cid, campaign_id=c.id, url=p["url"])
+        db.add(row)
+    if thumbnail is not None and thumbnail.filename:
+        saved = save_archive_thumbnail(thumbnail)
+        if not saved:
+            return RedirectResponse(back + "?err=" + quote("썸네일 이미지를 저장하지 못했어요 — jpg·png·webp 파일인지 확인해 주세요"),
+                                    status_code=302)
+        row.thumbnail = saved
+    elif remove_thumbnail:
+        row.thumbnail = None
+    row.views, row.likes, row.comments = nums["views"], nums["likes"], nums["comments"]
+    row.is_public = bool(is_public)
+    db.commit()
+    msg = "아카이브에 공개했어요" if row.is_public else "아카이브 정보를 저장했어요 (비공개)"
+    return RedirectResponse(back + "?msg=" + quote(msg), status_code=302)
 
 
 @router.get("/{campaign_id}")
@@ -855,6 +913,8 @@ def campaign_detail(campaign_id: str, request: Request, db: Session = Depends(ge
 
     return templates.TemplateResponse("campaigns/detail.html", {
         "content_media": content_embed.parse_many(campaign.content_urls),
+        "archive_rows": {r.url: r for r in db.query(ArchiveContent).filter(
+            ArchiveContent.company_id == cid, ArchiveContent.campaign_id == campaign.id).all()},
         "ended_open": bool(campaign.end_date and campaign.end_date < _kst_today()
                            and campaign.status not in ("completed", "cancelled")),
         "request": request, "active_page": "campaigns", "current_user": current_user,

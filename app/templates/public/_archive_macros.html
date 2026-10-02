@@ -1,0 +1,16 @@
+{# 공개 공구 아카이브 공통 매크로 — {% import 'public/_archive_macros.html' as m %} #}
+{% macro fmt(n) -%}
+{%- if n is none -%}–
+{%- elif n >= 100000 -%}{{ (n / 10000) | round(0) | int }}만
+{%- elif n >= 10000 -%}{{ '%.1f' | format(n / 10000) | replace('.0', '') }}만
+{%- else -%}{{ '{:,}'.format(n) }}{%- endif -%}
+{%- endmacro %}
+
+{% macro md(d) -%}{{ d.month }}.{{ d.day }}{%- endmacro %}
+
+{% macro status_badge(it, today) -%}
+{%- if it.status == 'live' -%}<span class="badge b-live">진행 중{% if it.end_date %} · D-{{ (it.end_date - today).days }}{% endif %}</span>
+{%- elif it.status == 'soon' -%}<span class="badge b-soon">{{ md(it.start_date) }} 오픈</span>
+{%- elif it.status == 'done' -%}<span class="badge b-done">종료</span>
+{%- endif -%}
+{%- endmacro %}

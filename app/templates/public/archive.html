@@ -1,0 +1,157 @@
+{% import "public/_archive_macros.html" as m %}
+{% macro url(tab=tab, cat=cat, typ=typ, sort=sort, q=q, page=1) -%}
+{%- set p = {} -%}
+{%- if tab and tab != 'all' %}{% set _ = p.update({'tab': tab}) %}{% endif -%}
+{%- if cat %}{% set _ = p.update({'cat': cat}) %}{% endif -%}
+{%- if typ %}{% set _ = p.update({'type': typ}) %}{% endif -%}
+{%- if sort and sort != 'new' %}{% set _ = p.update({'sort': sort}) %}{% endif -%}
+{%- if q %}{% set _ = p.update({'q': q}) %}{% endif -%}
+{%- if page and page > 1 %}{% set _ = p.update({'page': page}) %}{% endif -%}
+/public/archive{% if p %}?{{ p | urlencode }}{% endif %}
+{%- endmacro %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<title>공구 아카이브 | BLEND PUNCH</title>
+{% include "public/_archive_head.html" %}
+<style>
+.hero{padding-block:52px 30px;display:grid;gap:14px}
+.hero h1{margin:0;font-weight:800;font-size:clamp(30px,5.4vw,54px);line-height:1.14;letter-spacing:-.03em;text-wrap:balance}
+.hero h1 em{font-style:normal;background:var(--chrome);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{margin:0;color:var(--ink2);max-width:52ch}
+.controls{position:sticky;top:0;z-index:20;background:rgba(8,8,8,.93);backdrop-filter:blur(10px);padding-block:14px;border-bottom:1px solid var(--line);display:grid;gap:12px}
+.search{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--line);border-radius:12px;padding:0 6px 0 14px}
+.search:focus-within{border-color:var(--line2)}
+.search input{flex:1;min-width:0;background:none;border:0;color:var(--ink);font:inherit;padding:12px 0;outline:none}
+.search input::placeholder{color:var(--ink3)}
+.search button{background:var(--ink);color:var(--bg);border:0;border-radius:8px;font:inherit;font-size:13px;font-weight:700;padding:8px 14px;cursor:pointer}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tabs-scroll{overflow-x:auto;scrollbar-width:none;max-width:100%}
+.tabs-scroll::-webkit-scrollbar{display:none}
+.tabs{display:flex;gap:4px;background:var(--bg3);border-radius:10px;padding:4px;width:max-content}
+.tab{color:var(--ink2);font-size:13.5px;font-weight:500;padding:7px 14px;border-radius:7px;text-decoration:none;white-space:nowrap}
+.tab .n{font-family:var(--f-display);font-size:11.5px;color:var(--ink3);margin-left:4px}
+.tab.on{background:var(--ink);color:var(--bg)}
+.tab.on .n{color:rgba(8,8,8,.5)}
+.chip{border:1px solid var(--line);color:var(--ink2);font-size:12.5px;padding:6px 12px;border-radius:999px;text-decoration:none;white-space:nowrap}
+.chip.on{border-color:var(--ink);color:var(--ink)}
+.sep{width:1px;height:20px;background:var(--line);margin-inline:4px}
+.sortf{margin-left:auto}
+select{background:var(--bg3);color:var(--ink);border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12.5px;padding:6px 10px}
+.result{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-block:20px 14px;font-size:13px;color:var(--ink2)}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px 16px}
+@media (max-width:980px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:700px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 10px}}
+.card{display:flex;flex-direction:column;gap:10px;min-width:0;text-decoration:none;border-radius:14px}
+.thumb{position:relative;aspect-ratio:4/5;max-width:100%;border-radius:14px;overflow:hidden;background:var(--bg3)}
+.thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .8s var(--ease)}
+.card:hover .thumb img{transform:scale(1.04)}
+.thumb .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35) 0,transparent 30%,transparent 60%,rgba(0,0,0,.6))}
+.thumb .badge{position:absolute;top:10px;left:10px}
+.thumb .b-soon,.thumb .b-done{backdrop-filter:blur(4px)}
+.type{position:absolute;top:10px;right:10px;font-family:var(--f-display);font-size:10px;font-weight:600;letter-spacing:.14em;color:#fff;opacity:.85}
+.views{position:absolute;left:10px;bottom:10px;display:flex;align-items:center;gap:5px;font-family:var(--f-display);font-size:13px;font-weight:600;color:#fff}
+.views svg{width:12px;height:12px}
+.multi{position:absolute;right:10px;bottom:10px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:3px 8px;border-radius:999px}
+.who{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);min-width:0}
+.who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pname{font-size:14px;font-weight:700;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:-4px}
+.meta{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--ink3)}
+.meta .hl{color:var(--ink2)}
+.empty{grid-column:1/-1;padding:60px 0;text-align:center;color:var(--ink2)}
+.pager{display:flex;justify-content:center;gap:6px;margin-top:40px}
+.pager a,.pager span{min-width:36px;text-align:center;padding:7px 10px;border-radius:8px;border:1px solid var(--line);font-size:13px;text-decoration:none;color:var(--ink2)}
+.pager .on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="logo" href="/public/archive">BLEND PUNCH</a>
+    <nav><a href="/public/products">제품 카탈로그</a><a href="/public/archive" class="on">공구 아카이브</a></nav>
+  </header>
+
+  <section class="hero">
+    <div class="label">[ GROUP-BUY ARCHIVE ]</div>
+    <h1>콘텐츠가 <em>판매가 된 순간</em>을<br>모아둡니다.</h1>
+    <p>블랜드펀치 인플루언서들이 실제로 진행한 공동구매 콘텐츠입니다. 진행 중인 공구부터 끝난 공구까지 레퍼런스로 남겨둡니다.</p>
+  </section>
+
+  <div class="controls">
+    <form class="search" method="get" action="/public/archive" role="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="color:var(--ink3)"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      {% if tab != 'all' %}<input type="hidden" name="tab" value="{{ tab }}">{% endif %}
+      {% if cat %}<input type="hidden" name="cat" value="{{ cat }}">{% endif %}
+      {% if typ %}<input type="hidden" name="type" value="{{ typ }}">{% endif %}
+      {% if sort != 'new' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+      <input id="q" type="search" name="q" value="{{ q }}" maxlength="50" placeholder="브랜드, 제품, 인플루언서 검색" aria-label="검색">
+      <button type="submit">검색</button>
+    </form>
+    <div class="row">
+      <div class="tabs-scroll"><nav class="tabs" aria-label="공구 상태">
+        {% for k, label in tabs %}
+        <a class="tab {% if tab == k %}on{% endif %}" href="{{ url(tab=k) }}" {% if tab == k %}aria-current="page"{% endif %}>{{ label }}<span class="n">{{ counts[k] }}</span></a>
+        {% endfor %}
+      </nav></div>
+      <form class="sortf" method="get" action="/public/archive">
+        {% if tab != 'all' %}<input type="hidden" name="tab" value="{{ tab }}">{% endif %}
+        {% if cat %}<input type="hidden" name="cat" value="{{ cat }}">{% endif %}
+        {% if typ %}<input type="hidden" name="type" value="{{ typ }}">{% endif %}
+        {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+        <select id="sort" name="sort" aria-label="정렬" onchange="this.form.submit()">
+          {% for k, label in sorts %}<option value="{{ k }}" {% if sort == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <noscript><button type="submit">정렬</button></noscript>
+      </form>
+    </div>
+    <div class="row">
+      <a class="chip {% if not cat %}on{% endif %}" href="{{ url(cat='') }}">전체</a>
+      {% for c in categories %}<a class="chip {% if cat == c %}on{% endif %}" href="{{ url(cat=c) }}">{{ c }}</a>{% endfor %}
+      <span class="sep" aria-hidden="true"></span>
+      {% for k, label in types %}<a class="chip {% if typ == k %}on{% endif %}" href="{{ url(typ=k) }}">{{ label }}</a>{% endfor %}
+    </div>
+  </div>
+
+  <div class="result"><span>콘텐츠 {{ total }}개</span>{% if q %}<span>‘{{ q }}’ 검색 결과</span>{% endif %}</div>
+
+  <main class="grid">
+    {% for it in items %}
+    <a class="card" href="/public/archive/{{ it.id }}">
+      <div class="thumb">
+        {% if it.thumbnail or it.product_image %}
+        <img src="{{ it.thumbnail or it.product_image }}" alt="{{ it.product_name }} 공구 콘텐츠" loading="lazy" onerror="this.remove()">
+        {% else %}<div class="ph" aria-hidden="true">{{ (it.brand or it.product_name or 'B')[:1] }}</div>{% endif %}
+        <div class="shade"></div>
+        {{ m.status_badge(it, today) }}
+        <span class="type">{{ {'reel': 'REEL', 'post': 'POST', 'youtube': 'YOUTUBE'}[it.type_key] }}</span>
+        {% if it.views %}<span class="views"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>{{ m.fmt(it.views) }}</span>{% endif %}
+        {% if multi[it.product_key] > 1 %}<span class="multi">영상 {{ multi[it.product_key] }}개</span>{% endif %}
+      </div>
+      {% if it.handle %}
+      <div class="who">{% if it.profile_image %}<img class="ava" src="{{ it.profile_image }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}<span>@{{ it.handle }}</span></div>
+      {% endif %}
+      <div class="pname">{{ it.product_name or it.brand }}</div>
+      <div class="meta">
+        {% if it.brand %}<span class="hl">{{ it.brand }}</span>{% endif %}
+        {% if it.likes is not none %}<span>♡ {{ m.fmt(it.likes) }}</span>{% endif %}
+        {% if it.comments is not none %}<span>댓글 {{ m.fmt(it.comments) }}</span>{% endif %}
+        {% if it.start_date %}<span>{{ m.md(it.start_date) }}{% if it.end_date %}–{{ m.md(it.end_date) }}{% endif %}</span>{% endif %}
+      </div>
+    </a>
+    {% else %}
+    <div class="empty">{% if q or cat or typ or tab != 'all' %}조건에 맞는 공구 콘텐츠가 없어요. 검색어나 필터를 바꿔보세요.{% else %}아직 공개된 공구 콘텐츠가 없어요.{% endif %}</div>
+    {% endfor %}
+  </main>
+
+  {% if total_pages > 1 %}
+  <nav class="pager" aria-label="페이지">
+    {% for n in range(1, total_pages + 1) %}
+      {% if n == page %}<span class="on" aria-current="page">{{ n }}</span>{% else %}<a href="{{ url(page=n) }}">{{ n }}</a>{% endif %}
+    {% endfor %}
+  </nav>
+  {% endif %}
+
+  <footer class="foot">© 2026 BLEND PUNCH. 게시된 콘텐츠의 저작권은 각 제작자에게 있습니다.</footer>
+</div>
+</body>
+</html>

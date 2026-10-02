@@ -3,7 +3,7 @@ import re
 import threading
 from urllib.parse import quote
 
-from fastapi import APIRouter, BackgroundTasks, Request, Depends, Form
+from fastapi import APIRouter, BackgroundTasks, Request, Depends, Form, Query
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
@@ -16,6 +16,7 @@ from app.models.brand import Brand as BrandModel
 from app.models.campaign import Campaign
 from app.models.group_buy_application import GroupBuyApplication
 from app.schemas.public_product import PublicProduct
+from app.services import public_archive as archive
 
 router = APIRouter(prefix="/public")
 templates = Jinja2Templates(directory="app/templates")
@@ -370,6 +371,75 @@ def public_product_detail(product_id: str, request: Request, db: Session = Depen
         "public/product_detail.html",
         {"request": request, "product": product, "og": og, "ref": current_ref(request)},
     ))
+
+
+# ── /public/archive — 공개 공구 아카이브 (2026-10-03) ─────────────────
+# 무엇이 나가는지는 app/services/public_archive.py · app/schemas/public_archive.py 에서만 정한다.
+ARCHIVE_PAGE_SIZE = 24
+
+
+def _kst_today():
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("Asia/Seoul")).date()
+
+
+@router.get("/archive")
+def public_archive(request: Request, db: Session = Depends(get_db), tab: str = "all", q: str = "",
+                   cat: str = "", typ: str = Query("", alias="type"), sort: str = "new", page: int = 1):
+    today = _kst_today()
+    items = archive.load_items(db, today)
+    cats = archive.categories(items)
+    tab = tab if tab in dict(archive.TABS) else "all"
+    typ = typ if typ in dict(archive.TYPES) else ""
+    sort = sort if sort in dict(archive.SORTS) else "new"
+    cat = cat if cat in cats else ""
+    q = (q or "").strip()[:50]
+    rows = archive.select(items, tab, q, cat, typ, sort)
+    total_pages = max(1, (len(rows) + ARCHIVE_PAGE_SIZE - 1) // ARCHIVE_PAGE_SIZE)
+    page = max(1, min(page, total_pages))
+    return remember_ref(request, templates.TemplateResponse("public/archive.html", {
+        "request": request, "items": rows[(page - 1) * ARCHIVE_PAGE_SIZE: page * ARCHIVE_PAGE_SIZE],
+        "total": len(rows), "counts": archive.tab_counts(items), "categories": cats,
+        "tab": tab, "q": q, "cat": cat, "typ": typ, "sort": sort, "page": page, "total_pages": total_pages,
+        "tabs": archive.TABS, "types": archive.TYPES, "sorts": archive.SORTS,
+        "multi": _same_product_counts(items), "today": today, "og": _archive_og(),
+    }))
+
+
+def _archive_og() -> dict:
+    from app.config import settings
+    base = settings.app_base_url.rstrip("/")
+    return {"title": "블랜드펀치 공구 아카이브", "description": "블랜드펀치 인플루언서들이 진행한 공동구매 콘텐츠",
+            "image": f"{base}/static/og-image.png", "url": f"{base}/public/archive"}
+
+
+def _same_product_counts(items) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for it in items:
+        out[it.product_key] = out.get(it.product_key, 0) + 1
+    return out
+
+
+@router.get("/archive/{item_id}")
+def public_archive_detail(item_id: str, request: Request, db: Session = Depends(get_db)):
+    today = _kst_today()
+    items = archive.load_items(db, today)
+    item = next((it for it in items if it.id == item_id), None)
+    if not item:
+        return _redirect("/public/archive")
+    from app.config import settings
+    base = settings.app_base_url.rstrip("/")
+    who = f"@{item.handle}" if item.handle else ""
+    og = {
+        "title": " · ".join(x for x in (item.product_name or item.brand, who) if x) or "블랜드펀치 공구 아카이브",
+        "description": f"{item.brand} 공동구매 콘텐츠 — 블랜드펀치 공구 아카이브" if item.brand else "블랜드펀치 공구 아카이브",
+        "image": _abs_url(item.thumbnail) or f"{base}/static/og-image.png",
+        "url": f"{base}/public/archive/{item.id}",
+    }
+    return remember_ref(request, templates.TemplateResponse("public/archive_detail.html", {
+        "request": request, "item": item, "og": og, "today": today,
+        "same": [it for it in items if it.product_key == item.product_key],
+    }))
 
 
 # ── /public/apply ────────────────────────────────────────────────
