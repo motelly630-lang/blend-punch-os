@@ -17,11 +17,13 @@ def parse(url: str) -> dict | None:
     if m:
         kind = "reel" if m.group(1) in ("reel", "reels") else m.group(1)
         code = m.group(2)
-        return {"url": f"https://www.instagram.com/{kind}/{code}/", "kind": "instagram", "code": code,
+        u = f"https://www.instagram.com/{kind}/{code}/"
+        return {"url": u, "key": u, "kind": "instagram", "code": code,
                 "embed": f"https://www.instagram.com/{kind}/{code}/embed/", "label": "인스타 릴스" if kind == "reel" else "인스타 게시물"}
     m = _YT.search(u)
     if m:
-        return {"url": u, "kind": "youtube", "code": m.group(1),
+        # key: 같은 영상인지 비교·저장할 때 쓰는 고유 주소 (url 은 입력 그대로라 길이·형식이 제각각)
+        return {"url": u, "key": f"https://www.youtube.com/watch?v={m.group(1)}", "kind": "youtube", "code": m.group(1),
                 "embed": f"https://www.youtube.com/embed/{m.group(1)}", "label": "유튜브"}
     return None
 

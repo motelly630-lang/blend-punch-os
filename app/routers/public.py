@@ -385,7 +385,7 @@ def _kst_today():
 
 @router.get("/archive")
 def public_archive(request: Request, db: Session = Depends(get_db), tab: str = "all", q: str = "",
-                   cat: str = "", typ: str = Query("", alias="type"), sort: str = "new", page: int = 1):
+                   cat: str = "", typ: str = Query("", alias="type"), sort: str = "new", page: str = "1"):
     today = _kst_today()
     items = archive.load_items(db, today)
     cats = archive.categories(items)
@@ -396,7 +396,7 @@ def public_archive(request: Request, db: Session = Depends(get_db), tab: str = "
     q = (q or "").strip()[:50]
     rows = archive.select(items, tab, q, cat, typ, sort)
     total_pages = max(1, (len(rows) + ARCHIVE_PAGE_SIZE - 1) // ARCHIVE_PAGE_SIZE)
-    page = max(1, min(page, total_pages))
+    page = max(1, min(int(page) if page.isdigit() else 1, total_pages))   # 공개 화면 — 이상한 값도 오류 대신 1쪽
     return remember_ref(request, templates.TemplateResponse("public/archive.html", {
         "request": request, "items": rows[(page - 1) * ARCHIVE_PAGE_SIZE: page * ARCHIVE_PAGE_SIZE],
         "total": len(rows), "counts": archive.tab_counts(items), "categories": cats,
@@ -423,10 +423,11 @@ def _same_product_counts(items) -> dict[str, int]:
 @router.get("/archive/{item_id}")
 def public_archive_detail(item_id: str, request: Request, db: Session = Depends(get_db)):
     today = _kst_today()
-    items = archive.load_items(db, today)
-    item = next((it for it in items if it.id == item_id), None)
-    if not item:
+    found = archive.load_items(db, today, item_id=item_id)   # 600건 상한과 상관없이 이 영상은 직접 찾는다
+    if not found:
         return _redirect("/public/archive")
+    item = found[0]
+    items = archive.load_items(db, today)
     from app.config import settings
     base = settings.app_base_url.rstrip("/")
     who = f"@{item.handle}" if item.handle else ""
@@ -438,7 +439,7 @@ def public_archive_detail(item_id: str, request: Request, db: Session = Depends(
     }
     return remember_ref(request, templates.TemplateResponse("public/archive_detail.html", {
         "request": request, "item": item, "og": og, "today": today,
-        "same": [it for it in items if it.product_key == item.product_key],
+        "same": [item] + [it for it in items if it.product_key == item.product_key and it.id != item.id],
     }))
 
 

@@ -248,7 +248,24 @@ def save_sales_page_image(file: UploadFile, remove_bg: bool = False) -> str | No
 
 
 def save_archive_thumbnail(file: UploadFile) -> str | None:
-    return save_upload(file, UPLOAD_DIR_ARCHIVE)
+    """공개 아카이브 썸네일 — 이미지로 열리는 파일만 WebP 로 저장, 아니면 None.
+    save_upload 는 변환에 실패하면 원본을 그대로 저장하는데(HEIC 등), 공개 카드가 빈칸이 되므로 여기서는 쓰지 않는다."""
+    if not file or not file.filename:
+        return None
+    try:
+        img = Image.open(BytesIO(file.file.read()))
+        img.load()
+        img_bytes, ext = _pil_to_bytes(_process_image(img))
+    except Exception:
+        return None
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    content_type = "image/png" if ext == "png" else "image/webp"
+    s3_url = _upload_bytes_to_s3(img_bytes, f"{_S3_PREFIX_MAP[str(UPLOAD_DIR_ARCHIVE)]}/{filename}", content_type)
+    if s3_url:
+        return s3_url
+    dest = UPLOAD_DIR_ARCHIVE / filename
+    dest.write_bytes(img_bytes)
+    return f"/{dest}"
 
 
 def save_url_image(url: str, dest_dir: Path, remove_bg: bool = False,

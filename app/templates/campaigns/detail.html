@@ -118,7 +118,7 @@
           </form>
         </div>
         {# 공개 공구 아카이브(/public/archive) 설정 — 기본 비공개, 숫자는 직접 입력 #}
-        {% set ar = archive_rows.get(m.url) %}
+        {% set ar = archive_rows.get(m.key) %}
         <details class="border-t border-gray-100 px-3 py-2 text-xs" {% if ar and ar.is_public %}open{% endif %}>
           <summary class="cursor-pointer text-gray-600">공개 아카이브
             {% if ar and ar.is_public %}<span class="ml-1 px-2 py-0.5 rounded-full bg-gray-900 text-white">공개 중</span>

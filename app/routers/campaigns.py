@@ -823,7 +823,7 @@ def campaign_remove_link(campaign_id: str, url: str = Form(""), back: str = Form
         p = content_embed.parse(url)
         if p:   # 공개 아카이브 정보도 같이 지운다 — 링크 없는 영상이 공개 화면에 남지 않게
             db.query(ArchiveContent).filter(ArchiveContent.campaign_id == c.id,
-                                            ArchiveContent.url == p["url"]).delete(synchronize_session=False)
+                                            ArchiveContent.url == p["key"]).delete(synchronize_session=False)
         db.commit()
     return RedirectResponse(back + sep + "msg=" + quote("링크를 뺐어요"), status_code=302)
 
@@ -855,28 +855,41 @@ def campaign_link_archive(campaign_id: str, url: str = Form(""), is_public: str 
     if not c:
         return RedirectResponse("/campaigns", status_code=302)
     p = content_embed.parse(url)
-    links = {(content_embed.parse(u) or {}).get("url") for u in (c.content_urls or [])}
-    if not p or p["url"] not in links:
+    links = {(content_embed.parse(u) or {}).get("key") for u in (c.content_urls or [])}
+    if not p or p["key"] not in links:
         return RedirectResponse(back + "?err=" + quote("이 공구의 콘텐츠 목록에 있는 링크만 설정할 수 있어요"), status_code=302)
     try:
         nums = {k: _archive_num(v) for k, v in (("views", views), ("likes", likes), ("comments", comments))}
     except ValueError:
         return RedirectResponse(back + "?err=" + quote("조회수·좋아요·댓글은 0 이상의 숫자로 적어 주세요"), status_code=302)
-    row = db.query(ArchiveContent).filter(ArchiveContent.campaign_id == c.id, ArchiveContent.url == p["url"]).first()
-    if not row:
-        row = ArchiveContent(company_id=cid, campaign_id=c.id, url=p["url"])
-        db.add(row)
+    saved = None
     if thumbnail is not None and thumbnail.filename:
         saved = save_archive_thumbnail(thumbnail)
         if not saved:
-            return RedirectResponse(back + "?err=" + quote("썸네일 이미지를 저장하지 못했어요 — jpg·png·webp 파일인지 확인해 주세요"),
+            return RedirectResponse(back + "?err=" + quote("썸네일을 이미지로 읽지 못했어요 — jpg·png·webp 파일로 올려 주세요"),
                                     status_code=302)
-        row.thumbnail = saved
-    elif remove_thumbnail:
-        row.thumbnail = None
-    row.views, row.likes, row.comments = nums["views"], nums["likes"], nums["comments"]
-    row.is_public = bool(is_public)
-    db.commit()
+
+    def _apply() -> ArchiveContent:
+        row = db.query(ArchiveContent).filter(ArchiveContent.campaign_id == c.id, ArchiveContent.url == p["key"]).first()
+        if not row:
+            row = ArchiveContent(company_id=cid, campaign_id=c.id, url=p["key"])
+            db.add(row)
+        if saved:
+            row.thumbnail = saved
+        elif remove_thumbnail:
+            row.thumbnail = None
+        row.views, row.likes, row.comments = nums["views"], nums["likes"], nums["comments"]
+        row.is_public = bool(is_public)
+        return row
+
+    from sqlalchemy.exc import IntegrityError
+    row = _apply()
+    try:
+        db.commit()
+    except IntegrityError:      # 저장 버튼을 두 번 빠르게 눌러 같은 행이 동시에 생긴 경우 — 생긴 행에 다시 적용
+        db.rollback()
+        row = _apply()
+        db.commit()
     msg = "아카이브에 공개했어요" if row.is_public else "아카이브 정보를 저장했어요 (비공개)"
     return RedirectResponse(back + "?msg=" + quote(msg), status_code=302)
 

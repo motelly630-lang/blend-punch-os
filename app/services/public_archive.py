@@ -37,11 +37,9 @@ def status_of(start: date | None, end: date | None, today: date) -> str | None:
 
 
 def _safe_url(media: dict) -> str:
-    """밖으로 내보낼 원본 주소. 유튜브는 parse() 가 입력 그대로를 돌려주므로 영상 번호로 다시 만든다
-    (예: 'javascript:...youtube.com/shorts/xxx' 같은 입력이 링크로 나가지 않게)."""
-    if media["kind"] == "youtube":
-        return f"https://www.youtube.com/watch?v={media['code']}"
-    return media["url"]          # 인스타는 parse() 가 이미 https://www.instagram.com/... 로 정리
+    """밖으로 내보낼 원본 주소 = parse() 의 key. 유튜브도 영상 번호로 다시 만든 주소라
+    'javascript:...youtube.com/shorts/xxx' 같은 입력이 링크로 나가지 않는다."""
+    return media["key"]
 
 
 def _type_key(media: dict) -> str:
@@ -62,8 +60,8 @@ def to_public(row: ArchiveContent, today: date, public_ids: set[str]) -> PublicA
     media = content_embed.parse(row.url)
     if not camp or not media:
         return None
-    links = {(content_embed.parse(u) or {}).get("url") for u in (camp.content_urls or [])}
-    if media["url"] not in links:                 # 공구 상세에서 뺀 링크
+    links = {(content_embed.parse(u) or {}).get("key") for u in (camp.content_urls or [])}
+    if media["key"] not in links:                 # 공구 상세에서 뺀 링크
         return None
     product = camp.product if camp.product and camp.product.company_id == PUBLIC_COMPANY_ID else None
     inf = camp.influencer if camp.influencer and camp.influencer.company_id == PUBLIC_COMPANY_ID else None
@@ -87,8 +85,8 @@ def to_public(row: ArchiveContent, today: date, public_ids: set[str]) -> PublicA
     )
 
 
-def load_items(db: Session, today: date) -> list[PublicArchiveItem]:
-    rows = (
+def load_items(db: Session, today: date, item_id: str | None = None) -> list[PublicArchiveItem]:
+    q = (
         db.query(ArchiveContent)
         .join(Campaign, Campaign.id == ArchiveContent.campaign_id)
         .options(joinedload(ArchiveContent.campaign).joinedload(Campaign.product),
@@ -100,10 +98,10 @@ def load_items(db: Session, today: date) -> list[PublicArchiveItem]:
             Campaign.is_archived.isnot(True),
             (Campaign.status != "cancelled") | (Campaign.status.is_(None)),
         )
-        .order_by(Campaign.start_date.desc().nullslast(), ArchiveContent.created_at.desc())
-        .limit(MAX_ITEMS)
-        .all()
     )
+    if item_id is not None:
+        q = q.filter(ArchiveContent.id == item_id)
+    rows = q.order_by(Campaign.start_date.desc().nullslast(), ArchiveContent.created_at.desc()).limit(MAX_ITEMS).all()
     public_ids = _public_product_ids(db, {r.campaign.product_id for r in rows if r.campaign.product_id})
     return [it for it in (to_public(r, today, public_ids) for r in rows) if it]
 

@@ -1,12 +1,16 @@
 {% import "public/_archive_macros.html" as m %}
-{% macro url(tab=tab, cat=cat, typ=typ, sort=sort, q=q, page=1) -%}
+{# 현재 조건을 유지한 링크. 인자 이름을 바깥 변수(tab·cat…)와 다르게 둬야 기본값이 현재 값을 가리킨다 #}
+{% macro url(to_tab=none, to_cat=none, to_type=none, to_page=1) -%}
+{%- set t = tab if to_tab is none else to_tab -%}
+{%- set c_ = cat if to_cat is none else to_cat -%}
+{%- set ty = typ if to_type is none else to_type -%}
 {%- set p = {} -%}
-{%- if tab and tab != 'all' %}{% set _ = p.update({'tab': tab}) %}{% endif -%}
-{%- if cat %}{% set _ = p.update({'cat': cat}) %}{% endif -%}
-{%- if typ %}{% set _ = p.update({'type': typ}) %}{% endif -%}
+{%- if t and t != 'all' %}{% set _ = p.update({'tab': t}) %}{% endif -%}
+{%- if c_ %}{% set _ = p.update({'cat': c_}) %}{% endif -%}
+{%- if ty %}{% set _ = p.update({'type': ty}) %}{% endif -%}
 {%- if sort and sort != 'new' %}{% set _ = p.update({'sort': sort}) %}{% endif -%}
 {%- if q %}{% set _ = p.update({'q': q}) %}{% endif -%}
-{%- if page and page > 1 %}{% set _ = p.update({'page': page}) %}{% endif -%}
+{%- if to_page and to_page > 1 %}{% set _ = p.update({'page': to_page}) %}{% endif -%}
 /public/archive{% if p %}?{{ p | urlencode }}{% endif %}
 {%- endmacro %}
 <!DOCTYPE html>
@@ -90,7 +94,7 @@ select{background:var(--bg3);color:var(--ink);border:1px solid var(--line);borde
     <div class="row">
       <div class="tabs-scroll"><nav class="tabs" aria-label="공구 상태">
         {% for k, label in tabs %}
-        <a class="tab {% if tab == k %}on{% endif %}" href="{{ url(tab=k) }}" {% if tab == k %}aria-current="page"{% endif %}>{{ label }}<span class="n">{{ counts[k] }}</span></a>
+        <a class="tab {% if tab == k %}on{% endif %}" href="{{ url(to_tab=k) }}" {% if tab == k %}aria-current="page"{% endif %}>{{ label }}<span class="n">{{ counts[k] }}</span></a>
         {% endfor %}
       </nav></div>
       <form class="sortf" method="get" action="/public/archive">
@@ -105,10 +109,10 @@ select{background:var(--bg3);color:var(--ink);border:1px solid var(--line);borde
       </form>
     </div>
     <div class="row">
-      <a class="chip {% if not cat %}on{% endif %}" href="{{ url(cat='') }}">전체</a>
-      {% for c in categories %}<a class="chip {% if cat == c %}on{% endif %}" href="{{ url(cat=c) }}">{{ c }}</a>{% endfor %}
+      <a class="chip {% if not cat %}on{% endif %}" href="{{ url(to_cat='') }}">전체</a>
+      {% for c in categories %}<a class="chip {% if cat == c %}on{% endif %}" href="{{ url(to_cat=c) }}">{{ c }}</a>{% endfor %}
       <span class="sep" aria-hidden="true"></span>
-      {% for k, label in types %}<a class="chip {% if typ == k %}on{% endif %}" href="{{ url(typ=k) }}">{{ label }}</a>{% endfor %}
+      {% for k, label in types %}<a class="chip {% if typ == k %}on{% endif %}" href="{{ url(to_type=k) }}">{{ label }}</a>{% endfor %}
     </div>
   </div>
 
@@ -146,7 +150,7 @@ select{background:var(--bg3);color:var(--ink);border:1px solid var(--line);borde
   {% if total_pages > 1 %}
   <nav class="pager" aria-label="페이지">
     {% for n in range(1, total_pages + 1) %}
-      {% if n == page %}<span class="on" aria-current="page">{{ n }}</span>{% else %}<a href="{{ url(page=n) }}">{{ n }}</a>{% endif %}
+      {% if n == page %}<span class="on" aria-current="page">{{ n }}</span>{% else %}<a href="{{ url(to_page=n) }}">{{ n }}</a>{% endif %}
     {% endfor %}
   </nav>
   {% endif %}

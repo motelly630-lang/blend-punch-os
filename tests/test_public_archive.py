@@ -255,6 +255,49 @@ class ListTests(Base):
         self.assertIn("공구 아카이브", r.text)
 
 
+class ReviewFixTests(Base):
+    """독립 리뷰(2026-10-03) 지적 사항."""
+
+    def test_페이지_탭_칩_링크가_현재_조건을_유지(self):
+        tag = uid()
+        cat = f"유지카테{tag}"
+        for _ in range(26):                       # 2쪽이 생기게
+            c = self.camp(product_name_manual=f"유지{tag}", category_manual=cat)
+            self.publish(c)
+        html = self.anon.get(f"/public/archive?tab=live&cat={cat}&type=reel&sort=views&q={tag}").text
+        import html as _h
+        from urllib.parse import parse_qs, urlsplit
+        hrefs = [_h.unescape(h) for h in __import__("re").findall(r'href="(/public/archive\?[^"]+)"', html)]
+        page2 = [h for h in hrefs if "page=2" in h]
+        self.assertTrue(page2, "2쪽 링크가 있어야")
+        q = parse_qs(urlsplit(page2[0]).query)
+        self.assertEqual((q["tab"], q["cat"], q["type"], q["sort"], q["q"]), (["live"], [cat], ["reel"], ["views"], [tag]))
+        soon = [h for h in hrefs if "tab=soon" in h][0]
+        self.assertIn(f"q={tag}", soon)
+        self.assertNotIn("page=", soon, "탭을 바꾸면 1쪽부터")
+
+    def test_이미지가_아닌_썸네일은_거부(self):
+        c = self.camp()
+        r = self.staff.post(f"/campaigns/{c.id}/links/archive", data={"url": c.content_urls[0], "is_public": "1"},
+                            files={"thumbnail": ("photo.heic", b"not really an image", "image/heic")})
+        self.assertIn("err=", r.headers["location"])
+        self.assertIsNone(self.row(c), "실패하면 아무것도 저장하지 않음")
+
+    def test_긴_유튜브_주소는_영상번호_주소로_저장(self):
+        long_url = "https://www.youtube.com/watch?v=abcDEF12345&" + "utm_x=" + "z" * 600
+        c = self.camp(urls=[long_url])
+        r = self.publish(c, url=long_url)
+        self.assertIn("msg=", r.headers["location"])
+        self.assertEqual(self.row(c).url, "https://www.youtube.com/watch?v=abcDEF12345")
+        self.assertIn("공개 중", self.staff.get(f"/campaigns/{c.id}").text, "공구 상세에서도 같은 영상으로 인식")
+        self.staff.post(f"/campaigns/{c.id}/links/remove", data={"url": long_url})
+        self.assertIsNone(self.row(c))
+
+    def test_이상한_페이지_값도_정상_화면(self):
+        for qs in ("page=abc", "page=", "page=1.5", "page=99999999999999999999"):
+            self.assertEqual(self.anon.get("/public/archive?" + qs).status_code, 200, qs)
+
+
 class StatusTests(unittest.TestCase):
     def test_상태_계산(self):
         t = _kst_today()
