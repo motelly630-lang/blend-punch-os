@@ -32,7 +32,6 @@ PUBLIC_COMPANY_ID = 1
 # 정렬 옵션: (key, 표시라벨)
 SORT_OPTIONS = [
     ("newest", "신상품순"),
-    ("commission", "커미션 높은순"),
     ("price_asc", "공구가 낮은순"),
     ("price_desc", "공구가 높은순"),
 ]
@@ -248,6 +247,8 @@ def public_product_list(request: Request, db: Session = Depends(get_db),
                         q: str = "", category: str = "", brand: str = "",
                         sort: str = "newest", sample: str = "", page: int = 1):
     brands = _brand_list(db)
+    if sort not in dict(SORT_OPTIONS):   # 예전 '커미션 높은순' 링크(sort=commission) 등은 기본 정렬로
+        sort = "newest"
 
     # 필터 적용 여부 (기본 랜딩 = 필터 없음 → 추천 섹션 노출)
     has_filter = bool(q or category or brand or sample or (sort and sort != "newest"))
@@ -263,9 +264,7 @@ def public_product_list(request: Request, db: Session = Depends(get_db),
         base = base.filter(Product.sample_type.in_(["무상", "유상"]))
 
     # 정렬
-    if sort == "commission":
-        base = base.order_by(Product.seller_commission_rate.desc().nullslast(), Product.created_at.desc())
-    elif sort == "price_asc":
+    if sort == "price_asc":
         base = base.order_by(_eff_price().asc().nullslast(), Product.created_at.desc())
     elif sort == "price_desc":
         base = base.order_by(_eff_price().desc().nullslast(), Product.created_at.desc())
@@ -279,18 +278,12 @@ def public_product_list(request: Request, db: Session = Depends(get_db),
     products = [PublicProduct.from_orm(p) for p in rows]
 
     # 추천 섹션 (필터 없는 첫 페이지에서만)
-    newest, popular, top_commission, with_sample, category_rows = [], [], [], [], []
+    newest, popular, with_sample, category_rows = [], [], [], []
     stats, category_counts = {}, []
     if not has_filter and page == 1:
         newest = [
             PublicProduct.from_orm(p) for p in
             _public_filter(db.query(Product)).order_by(_no_image_last(), Product.created_at.desc()).limit(10).all()
-        ]
-        top_commission = [
-            PublicProduct.from_orm(p) for p in
-            _public_filter(db.query(Product)).filter(Product.seller_commission_rate > 0)
-            .order_by(Product.seller_commission_rate.desc(), _no_image_last(), Product.created_at.desc())
-            .limit(10).all()
         ]
         with_sample = [
             PublicProduct.from_orm(p) for p in
@@ -326,7 +319,7 @@ def public_product_list(request: Request, db: Session = Depends(get_db),
          "sort": sort, "sample_filter": sample,
          "filter_categories": FILTER_CATEGORIES, "sort_options": SORT_OPTIONS,
          "has_filter": has_filter, "newest": newest, "popular": popular,
-         "top_commission": top_commission, "with_sample": with_sample,
+         "with_sample": with_sample,
          "category_rows": category_rows, "category_counts": category_counts, "stats": stats,
          "page": page, "total_pages": total_pages, "total": total},
     ))
@@ -365,11 +358,10 @@ def public_product_detail(product_id: str, request: Request, db: Session = Depen
     product = PublicProduct.from_orm(db_product)
     from app.config import settings
     base = settings.app_base_url.rstrip("/")
-    # 카톡·인스타 DM 미리보기: 제품 사진·이름·공구가·커미션
+    # 카톡·인스타 DM 미리보기: 제품 사진·이름·공구가 (커미션은 공개하지 않음)
     price = f"공구가 {int(product.groupbuy_price):,}원" if product.groupbuy_price else ""
-    comm = f"커미션 {round(product.seller_commission_rate * 100)}%" if product.seller_commission_rate else ""
     og = {
-        "title": " · ".join(x for x in (product.name, price, comm) if x),
+        "title": " · ".join(x for x in (product.name, price) if x),
         "description": product.unique_selling_point or f"{product.brand} 공동구매 제품 — 블랜드펀치 셀러 카탈로그",
         "image": _abs_url(product.product_image) or f"{base}/static/og-image.png",
         "url": f"{base}/public/products/product/{product.id}",

@@ -3,6 +3,7 @@ PublicProduct DTO — 외부 공개 전용 제품 데이터 구조
 
 절대 포함 금지:
   supplier_price, vendor_commission_rate, lowest_price,
+  seller_commission_rate (셀러 커미션은 제안서로만 안내 — 대표님 2026-10-03),
   internal_notes, notes, ai_analysis_raw, missing_fields,
   is_complete, review_status, priority_score
 """
@@ -43,7 +44,6 @@ class PublicProduct:
     discount_rate: float = 0.0              # DB 저장값: 0.30 = 30%
 
     # ── 인플루언서 판단 정보 ──────────────────────────────────────
-    seller_commission_rate: float = 0.0     # 인플루언서 커미션율
     sample_type: Optional[str] = None       # 무상 / 유상 / 없음
     sample_price: Optional[float] = None    # 유상 샘플 가격 (공개 OK)
     shipping_type: Optional[str] = None     # 무료배송 / 유료배송
@@ -78,7 +78,6 @@ class PublicProduct:
             groupbuy_price=p.groupbuy_price or 0.0,
             consumer_price=p.consumer_price or 0.0,
             discount_rate=p.discount_rate or 0.0,
-            seller_commission_rate=p.seller_commission_rate or 0.0,
             sample_type=p.sample_type,
             sample_price=p.sample_price if p.sample_type == "유상" else None,
             shipping_type=p.shipping_type,

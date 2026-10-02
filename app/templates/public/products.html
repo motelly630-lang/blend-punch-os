@@ -47,9 +47,6 @@
     </div>
     {% endif %}
     <div class="flex flex-wrap gap-1 mt-auto">
-      {% if p.seller_commission_rate %}
-      <span class="text-xs px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-semibold">커미션 {{ (p.seller_commission_rate * 100) | round | int }}%</span>
-      {% endif %}
       {% if p.sample_type == '유상' %}
       <span class="text-xs px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full">샘플 유상</span>
       {% endif %}
@@ -84,7 +81,7 @@
   <div class="relative z-10 max-w-2xl">
     <p class="text-sm font-semibold text-blue-100 mb-2">BLEND PUNCH 셀러 카탈로그</p>
     <h1 class="text-2xl sm:text-4xl font-black leading-tight mb-3">공구하기 좋은 제품,<br>여기 다 모여 있어요</h1>
-    <p class="text-sm sm:text-base text-blue-100 mb-6">커미션·샘플·공구가를 한눈에 보고 바로 협업을 신청하세요.</p>
+    <p class="text-sm sm:text-base text-blue-100 mb-6">샘플·공구가를 한눈에 보고 바로 협업을 신청하세요.</p>
     <form method="get" class="flex gap-2 max-w-xl">
       <div class="relative flex-1">
         <input type="text" name="q" value="{{ q }}" placeholder="제품명 또는 브랜드 검색"
@@ -128,7 +125,6 @@
 
 {{ shelf('🆕 새로 들어온 제품', newest, '#all', '가장 최근에 등록된 제품') }}
 {{ shelf('🔥 인기 공구 제품', popular, none, '공구 실적이 좋은 제품') }}
-{{ shelf('💰 커미션 높은 제품', top_commission, '/public/products?sort=commission', '셀러 커미션이 높은 순') }}
 {{ shelf('🎁 무상 샘플 제공', with_sample, '/public/products?sample=1', '먼저 써보고 결정하세요') }}
 {% for row in category_rows %}
 {{ shelf(CAT_ICON.get(row.name, '📦') ~ ' ' ~ row.name, row['items'], '/public/products?category=' ~ (row.name | urlencode), row.count ~ '개 제품') }}

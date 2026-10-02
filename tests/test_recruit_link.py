@@ -171,7 +171,8 @@ class OgTagTests(Base):
         page = client_for().get(f"/public/products/product/{p.id}").text
         self.assertIn(p.name, meta(page, "og:title"))
         self.assertIn("19,900원", meta(page, "og:title"))
-        self.assertIn("20%", meta(page, "og:title"))
+        self.assertNotIn("20%", meta(page, "og:title"), "공유 미리보기에 커미션 노출 금지")
+        self.assertNotIn("커미션", meta(page, "og:title"))
         self.assertEqual(meta(page, "og:description"), "촉촉한 보습")
         self.assertEqual(meta(page, "og:image"), settings.app_base_url.rstrip("/") + "/uploads/products/a.jpg")
         self.assertTrue(meta(page, "og:url").endswith(f"/public/products/product/{p.id}"))

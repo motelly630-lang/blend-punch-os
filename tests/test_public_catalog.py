@@ -73,6 +73,33 @@ class PublicCatalogStatsTests(unittest.TestCase):
 
 
 
+class CommissionHiddenTests(unittest.TestCase):
+    """셀러 커미션은 공개 화면 어디에도 나오지 않는다 — 제안서로만 안내 (대표님 2026-10-03)."""
+    def setUp(self):
+        seed_companies()
+        self.db = SessionLocal()
+
+    def tearDown(self):
+        self.db.close()
+
+    def test_commission_not_in_public_dto(self):
+        p = _product(self.db, seller_commission_rate=0.37)
+        dto = public.PublicProduct.from_orm(p)
+        self.assertFalse(hasattr(dto, "seller_commission_rate"), "공개 데이터 틀에 커미션 칸이 있으면 안 됨")
+
+    def test_commission_not_on_any_public_page(self):
+        brand = f"숨김브랜드{uid()}"
+        p = _product(self.db, brand=brand, seller_commission_rate=0.37)
+        c = client_for()
+        for url in ("/public/products", "/public/products?sort=commission", f"/public/products?q={brand}",
+                    f"/public/products/brand/{brand}", f"/public/products/product/{p.id}"):
+            r = c.get(url)
+            self.assertEqual(r.status_code, 200, url)
+            self.assertNotIn("커미션", r.text, url)
+            self.assertNotIn("37%", r.text, url)
+        self.assertNotIn("커미션 높은순", c.get("/public/products").text)
+
+
 class BrandPageCardTests(unittest.TestCase):
     def test_new_cards_and_safe_apply_button(self):
         seed_companies()
