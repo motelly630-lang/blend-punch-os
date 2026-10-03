@@ -821,14 +821,26 @@ def campaign_remove_link(campaign_id: str, url: str = Form(""), back: str = Form
     if c and url in (c.content_urls or []):
         c.content_urls = [u for u in c.content_urls if u != url]
         p = content_embed.parse(url)
-        if p:   # 공개 아카이브 정보도 같이 지운다 — 링크 없는 영상이 공개 화면에 남지 않게
-            db.query(ArchiveContent).filter(ArchiveContent.campaign_id == c.id,
-                                            ArchiveContent.url == p["key"]).delete(synchronize_session=False)
+        if p:   # 공개 아카이브 정보도 같이 지운다 — 링크 없는 영상이 공개 화면에 남지 않게 (예전 형식 주소 행 포함)
+            for r in db.query(ArchiveContent).filter(ArchiveContent.campaign_id == c.id).all():
+                if (content_embed.parse(r.url) or {}).get("key") == p["key"]:
+                    db.delete(r)
         db.commit()
     return RedirectResponse(back + sep + "msg=" + quote("링크를 뺐어요"), status_code=302)
 
 
 ARCHIVE_NUM_MAX = 2_000_000_000
+
+
+def _archive_rows_by_key(db: Session, cid: int, campaign_id: str) -> dict:
+    """공구 상세의 '공개 아카이브' 표시용 — 같은 영상이면 공개 중인 행을 우선 (예전 형식 주소 행 포함)."""
+    out: dict = {}
+    for r in db.query(ArchiveContent).filter(ArchiveContent.company_id == cid,
+                                             ArchiveContent.campaign_id == campaign_id).all():
+        k = (content_embed.parse(r.url) or {}).get("key")
+        if k and (k not in out or (r.is_public and not out[k].is_public)):
+            out[k] = r
+    return out
 
 
 def _archive_num(v: str) -> int | None:
@@ -870,7 +882,19 @@ def campaign_link_archive(campaign_id: str, url: str = Form(""), is_public: str 
                                     status_code=302)
 
     def _apply() -> ArchiveContent:
-        row = db.query(ArchiveContent).filter(ArchiveContent.campaign_id == c.id, ArchiveContent.url == p["key"]).first()
+        # 같은 영상의 행을 key 로 모은다 — 예전 형식 주소(youtu.be 등)로 저장된 행이 있어도 한 행으로 합쳐
+        # 공개 해제가 옛 행에 빠지지 않게 (코덱스 재검토 2026-10-03 B)
+        same = [r for r in db.query(ArchiveContent).filter(ArchiveContent.campaign_id == c.id).all()
+                if (content_embed.parse(r.url) or {}).get("key") == p["key"]]
+        same.sort(key=lambda r: r.url != p["key"])          # 이미 key 주소인 행을 남긴다
+        row = same[0] if same else None
+        for extra in same[1:]:
+            if not row.thumbnail and extra.thumbnail:
+                row.thumbnail = extra.thumbnail
+            db.delete(extra)
+        if same:
+            db.flush()                                      # 지운 뒤에 url 을 바꿔야 유일 제약에 안 걸린다
+            row.url = p["key"]
         if not row:
             row = ArchiveContent(company_id=cid, campaign_id=c.id, url=p["key"])
             db.add(row)
@@ -927,8 +951,7 @@ def campaign_detail(campaign_id: str, request: Request, db: Session = Depends(ge
 
     return templates.TemplateResponse("campaigns/detail.html", {
         "content_media": content_embed.parse_many(campaign.content_urls),
-        "archive_rows": {r.url: r for r in db.query(ArchiveContent).filter(
-            ArchiveContent.company_id == cid, ArchiveContent.campaign_id == campaign.id).all()},
+        "archive_rows": _archive_rows_by_key(db, cid, campaign.id),
         "ended_open": bool(campaign.end_date and campaign.end_date < _kst_today()
                            and campaign.status not in ("completed", "cancelled")),
         "request": request, "active_page": "campaigns", "current_user": current_user,

@@ -296,7 +296,8 @@ class ReviewFixTests(Base):
         self.assertIsNone(self.row(c))
 
     def test_이상한_페이지_값도_정상_화면(self):
-        for qs in ("page=abc", "page=", "page=1.5", "page=99999999999999999999"):
+        for qs in ("page=abc", "page=", "page=1.5", "page=99999999999999999999", "page=%C2%B2", "page=" + "9" * 4500,
+                   "page=-3", "page=%EF%BC%91"):
             self.assertEqual(self.anon.get("/public/archive?" + qs).status_code, 200, qs)
 
 
@@ -368,6 +369,30 @@ class CodexReviewTests(Base):
         r = self.staff.post(f"/campaigns/{c.id}/links/archive", data={"url": c.content_urls[0], "is_public": "1"},
                             files={"thumbnail": ("x.png", b"<html><script>alert(1)</script></html>", "image/png")})
         self.assertIn("err=", r.headers["location"])
+        self.assertIsNone(self.row(c))
+
+
+class CodexRecheckTests(Base):
+    def test_예전_형식_유튜브_행도_비공개_전환과_삭제에_포함(self):
+        legacy = "https://youtu.be/Legacy12345"
+        c = self.camp(urls=[legacy])
+        old = ArchiveContent(company_id=1, campaign_id=c.id, url=legacy, is_public=True, views=7,
+                             thumbnail="/static/legacy-thumb.png")
+        self.db.add(old)
+        self.db.commit()
+        old_id = old.id
+        self.assertEqual(self.anon.get(f"/public/archive/{old_id}").status_code, 200)
+        self.assertIn("공개 중", self.staff.get(f"/campaigns/{c.id}").text, "상세에서도 예전 행의 공개 상태가 보임")
+        self.publish(c, url=legacy, is_public="")
+        self.db.expire_all()
+        rows = self.db.query(ArchiveContent).filter(ArchiveContent.campaign_id == c.id).all()
+        self.assertEqual(len(rows), 1, "같은 영상은 한 행으로")
+        self.assertEqual((rows[0].url, rows[0].is_public), ("https://www.youtube.com/watch?v=Legacy12345", False))
+        self.assertEqual(rows[0].thumbnail, "/static/legacy-thumb.png", "옛 썸네일은 이어받음")
+        self.assertEqual(self.anon.get(f"/public/archive/{old_id}").status_code, 302)
+        self.assertNotIn("Legacy12345", self.anon.get("/public/archive").text)
+        self.publish(c, url=legacy)
+        self.staff.post(f"/campaigns/{c.id}/links/remove", data={"url": legacy})
         self.assertIsNone(self.row(c))
 
 

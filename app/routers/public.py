@@ -396,7 +396,8 @@ def public_archive(request: Request, db: Session = Depends(get_db), tab: str = "
     q = (q or "").strip()[:50]
     rows = archive.select(items, tab, q, cat, typ, sort)
     total_pages = max(1, (len(rows) + ARCHIVE_PAGE_SIZE - 1) // ARCHIVE_PAGE_SIZE)
-    page = max(1, min(int(page) if page.isdigit() else 1, total_pages))   # 공개 화면 — 이상한 값도 오류 대신 1쪽
+    # 공개 화면 — 이상한 값도 오류 대신 1쪽. isdigit() 은 '²' 같은 문자도 참이라 ASCII 숫자 6자리까지만 받는다
+    page = max(1, min(int(page) if re.fullmatch(r"[0-9]{1,6}", page or "") else 1, total_pages))
     return remember_ref(request, templates.TemplateResponse("public/archive.html", {
         "request": request, "items": rows[(page - 1) * ARCHIVE_PAGE_SIZE: page * ARCHIVE_PAGE_SIZE],
         "total": len(rows), "counts": archive.tab_counts(items), "categories": cats,
