@@ -138,6 +138,8 @@ class PublishFlowTests(Base):
         page = self.staff.get(f"/campaigns/{c.id}").text
         self.assertIn("/links/archive", page)
         self.assertIn("공개 중", page)
+        self.assertIn(f"/public/archive/{self.row(c).id}", page, "공개 중이면 공개 화면 링크")
+        self.assertIn('href="/public/archive"', self.staff.get("/campaigns/gallery").text, "사내 아카이브에 공개 아카이브 링크")
 
 
 class VisibilityTests(Base):
